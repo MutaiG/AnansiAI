@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import usePageTitle from "@/hooks/usePageTitle";
+import { useAuth } from "@/hooks/useApi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,6 +12,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Eye,
@@ -18,9 +28,12 @@ import {
   Users,
   BookOpen,
   Shield,
+  Mail,
 } from "lucide-react";
 
 const SchoolLogin = () => {
+  usePageTitle("School Login");
+
   const [formData, setFormData] = useState({
     userId: "",
     password: "",
@@ -28,7 +41,35 @@ const SchoolLogin = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState("");
   const navigate = useNavigate();
+  const {
+    schoolLogin,
+    resetPassword,
+    loading: authLoading,
+    isAuthenticated,
+  } = useAuth();
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      const role = localStorage.getItem("userRole");
+      switch (role) {
+        case "ADMIN":
+          navigate("/admin-dashboard");
+          break;
+        case "TEACHER":
+          navigate("/teacher-dashboard");
+          break;
+        case "STUDENT":
+          navigate("/student-dashboard");
+          break;
+        default:
+          break;
+      }
+    }
+  }, [isAuthenticated, navigate]);
 
   // Secret keyboard shortcut for platform owner access
   useEffect(() => {
@@ -36,7 +77,7 @@ const SchoolLogin = () => {
       // Secret combination: Ctrl + Shift + O (Owner)
       if (e.ctrlKey && e.shiftKey && e.key === "O") {
         e.preventDefault();
-        navigate("/district-login");
+        navigate("/super-admin-login");
       }
     };
 
@@ -50,64 +91,45 @@ const SchoolLogin = () => {
     setError("");
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      if (!formData.userId || !formData.password) {
+        setError("Please fill in all fields.");
+        setIsLoading(false);
+        return;
+      }
 
-      if (formData.userId && formData.password) {
-        // Extract school code and user info from ID format: SCH-ROLE-NUMBER
-        const userIdParts = formData.userId.split("-");
+      // Check if it's super admin trying to login here
+      if (formData.userId.includes("SUP-ADM")) {
+        setError("Super administrators should use the Super Admin portal.");
+        setIsLoading(false);
+        return;
+      }
 
-        if (userIdParts.length === 3) {
-          const [schoolCode, role, number] = userIdParts;
+      const result = await schoolLogin(formData.userId, formData.password);
 
-          // Don't allow district admin login here
-          if (role === "SUP") {
-            setError(
-              "District administrators should use the District Admin portal.",
-            );
-            setIsLoading(false);
-            return;
-          }
+      if (result.success) {
+        const { user, school } = result;
 
-          // Create mock school object based on school code
-          const schoolInfo = {
-            id: schoolCode,
-            name: getSchoolName(schoolCode),
-            district: "District",
-            city: "City",
-            state: "State",
-            code: schoolCode,
-          };
-
-          // Determine user type and navigate accordingly
-          switch (role) {
-            case "STU":
-              navigate("/student-dashboard", {
-                state: { school: schoolInfo, userId: formData.userId },
-              });
-              break;
-            case "TCH":
-              navigate("/teacher-dashboard", {
-                state: { school: schoolInfo, userId: formData.userId },
-              });
-              break;
-            case "ADM":
-              navigate("/admin-dashboard", {
-                state: { school: schoolInfo, userId: formData.userId },
-              });
-              break;
-            default:
-              setError("Invalid user role. Please check your credentials.");
-          }
-        } else {
-          setError(
-            "Invalid ID format. Use format: SCHOOL-ROLE-NUMBER (e.g., LHS-STU-001)",
-          );
+        // Navigate based on user role
+        switch (user?.role?.toUpperCase()) {
+          case "ADMIN":
+            navigate("/admin-dashboard");
+            break;
+          case "TEACHER":
+            navigate("/teacher-dashboard");
+            break;
+          case "STUDENT":
+            navigate("/student-dashboard");
+            break;
+          default:
+            setError("Invalid user role. Please contact administrator.");
         }
       } else {
-        setError("Please fill in all fields.");
+        setError(
+          result.error || "Login failed. Please check your credentials.",
+        );
       }
     } catch (err) {
-      setError("An error occurred. Please try again.");
+      setError("Network error. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -129,6 +151,28 @@ const SchoolLogin = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleForgotPassword = async () => {
+    if (!forgotPasswordEmail) {
+      alert("Please enter your email address");
+      return;
+    }
+
+    try {
+      const result = await resetPassword(forgotPasswordEmail);
+
+      if (result.success) {
+        alert(
+          `Password reset instructions have been sent to ${forgotPasswordEmail}`,
+        );
+        setIsForgotPasswordOpen(false);
+        setForgotPasswordEmail("");
+      } else {
+        alert(result.error || "Failed to send reset email. Please try again.");
+      }
+    } catch (error) {
+      alert("Network error. Please try again.");
+    }
+  };
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-accent-50 flex items-center justify-center p-4">
       {/* Background Pattern */}
@@ -232,11 +276,58 @@ const SchoolLogin = () => {
               <Button
                 type="submit"
                 className="btn-primary w-full"
-                disabled={isLoading}
+                disabled={isLoading || authLoading}
               >
-                {isLoading ? "Signing in..." : "Sign In"}
+                {isLoading || authLoading ? "Signing in..." : "Sign In"}
               </Button>
             </form>
+
+            <div className="text-center">
+              <Dialog
+                open={isForgotPasswordOpen}
+                onOpenChange={setIsForgotPasswordOpen}
+              >
+                <DialogTrigger asChild>
+                  <Button variant="link" className="text-sm text-primary-600">
+                    Forgot your password?
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Reset Password</DialogTitle>
+                    <DialogDescription>
+                      Enter your email address and we'll send you instructions
+                      to reset your password.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="email">Email Address</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="Enter your email"
+                        value={forgotPasswordEmail}
+                        onChange={(e) => setForgotPasswordEmail(e.target.value)}
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setIsForgotPasswordOpen(false)}
+                        className="flex-1"
+                      >
+                        Cancel
+                      </Button>
+                      <Button onClick={handleForgotPassword} className="flex-1">
+                        <Mail className="w-4 h-4 mr-2" />
+                        Send Instructions
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
 
             <div className="text-center pt-4 border-t border-secondary-200">
               <Link

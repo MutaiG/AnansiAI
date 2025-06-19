@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { apiClient, handleApiError, type ApiResponse } from "../services/api";
+import { apiWithFallback } from "../services/apiWithFallback";
+import { authService } from "../services/auth";
 
 // Generic API hook for any endpoint
 export function useApi<T>(
@@ -42,7 +44,7 @@ export function useApi<T>(
 
 // Schools hook for Super Admin
 export function useSchools() {
-  return useApi(() => apiClient.getSchools());
+  return useApi(() => apiWithFallback.getSchools());
 }
 
 // Users hook for School Admin
@@ -74,43 +76,63 @@ export function useSystemStatus() {
   return useApi(() => apiClient.getSystemStatus());
 }
 
-// Authentication hook
+// Super Admin specific hooks
+export function useSuperAdminInfo() {
+  return useApi(() => apiWithFallback.getSuperAdminInfo());
+}
+
+export function useSystemStats() {
+  return useApi(() => apiWithFallback.getSystemStats());
+}
+
+export function useSystemAlerts() {
+  return useApi(() => apiWithFallback.getSystemAlerts());
+}
+
+export function useNotifications() {
+  return useApi(() => apiWithFallback.getNotifications());
+}
+
+// Authentication hook using AuthService
 export function useAuth() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [authState, setAuthState] = useState(() => authService.getState());
 
-  const login = async (userId: string, password: string) => {
-    try {
-      setLoading(true);
-      const response = await apiClient.login(userId, password);
+  useEffect(() => {
+    const unsubscribe = authService.subscribe(setAuthState);
+    return unsubscribe;
+  }, []);
 
-      if (response.success) {
-        setIsAuthenticated(true);
-        setUser(response.data.user);
-        return { success: true, data: response.data };
-      } else {
-        return { success: false, error: response.error };
-      }
-    } catch (error) {
-      return { success: false, error: handleApiError(error) };
-    } finally {
-      setLoading(false);
-    }
+  const schoolLogin = async (userId: string, password: string) => {
+    return await authService.schoolLogin(userId, password);
+  };
+
+  const superAdminLogin = async (loginId: string, password: string) => {
+    return await authService.superAdminLogin(loginId, password);
   };
 
   const logout = () => {
-    apiClient.logout();
-    setIsAuthenticated(false);
-    setUser(null);
+    authService.logout();
+  };
+
+  const resetPassword = async (email: string) => {
+    return await authService.resetPassword(email);
+  };
+
+  const changePassword = async (
+    currentPassword: string,
+    newPassword: string,
+  ) => {
+    return await authService.changePassword(currentPassword, newPassword);
   };
 
   return {
-    isAuthenticated,
-    user,
-    loading,
-    login,
+    ...authState,
+    schoolLogin,
+    superAdminLogin,
     logout,
+    resetPassword,
+    changePassword,
+    getRedirectPath: () => authService.getRedirectPath(),
   };
 }
 

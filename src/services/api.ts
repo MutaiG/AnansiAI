@@ -1,7 +1,12 @@
 // AnansiAI Platform API Service Layer
 
+import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from "axios";
+
 const API_BASE_URL =
-  process.env.REACT_APP_API_URL || "http://localhost:3001/api";
+  import.meta.env.VITE_API_URL || "http://localhost:3001/api";
+
+const IS_DEVELOPMENT =
+  import.meta.env.VITE_ENVIRONMENT === "development" || import.meta.env.DEV;
 
 // API Response Types
 export interface ApiResponse<T> {
@@ -15,15 +20,20 @@ export interface School {
   id: string;
   name: string;
   code: string;
-  district: string;
-  city: string;
-  state: string;
+  county: string;
+  subcounty: string;
+  ward: string;
   students: number;
   teachers: number;
-  status: "active" | "maintenance" | "inactive";
+  status: "active" | "maintenance" | "inactive" | "pending";
   performance: number;
   aiAccuracy: number;
   lastSync: string;
+  adminName: string;
+  adminEmail: string;
+  adminPhone?: string;
+  establishedYear: number;
+  type: "primary" | "secondary" | "mixed";
   createdAt: string;
   updatedAt: string;
 }
@@ -64,45 +74,138 @@ export interface AuthResponse {
   school?: School;
 }
 
+export interface SystemStats {
+  totalSchools: number;
+  totalStudents: number;
+  totalTeachers: number;
+  avgPerformance: number;
+  systemUptime: number;
+  dataStorage: number;
+  activeUsers: number;
+  dailyLogins: number;
+}
+
+export interface SystemAlert {
+  id: string;
+  type: "critical" | "warning" | "info" | "success";
+  title: string;
+  message: string;
+  school?: string;
+  time: string;
+  priority: "high" | "medium" | "low";
+  actionRequired: boolean;
+}
+
+export interface Notification {
+  id: string;
+  type: "system" | "school" | "performance" | "security" | "maintenance";
+  title: string;
+  message: string;
+  time: string;
+  read: boolean;
+  priority: "high" | "medium" | "low";
+}
+
+export interface SuperAdminInfo {
+  name: string;
+  id: string;
+  role: string;
+  avatar?: string;
+  lastLogin: string;
+  region: string;
+  permissions: string[];
+}
+
 // API Client Class
 class ApiClient {
-  private baseURL: string;
+  private axiosInstance: AxiosInstance;
   private token: string | null = null;
 
   constructor() {
-    this.baseURL = API_BASE_URL;
     this.token = localStorage.getItem("anansi_token");
+
+    // Create axios instance with base configuration
+    this.axiosInstance = axios.create({
+      baseURL: API_BASE_URL,
+      timeout: 10000, // 10 second timeout
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    // Request interceptor to add authorization token
+    this.axiosInstance.interceptors.request.use(
+      (config) => {
+        if (this.token) {
+          config.headers.Authorization = `Bearer ${this.token}`;
+        }
+        return config;
+      },
+      (error) => {
+        return Promise.reject(error);
+      },
+    );
+
+    // Response interceptor for error handling
+    this.axiosInstance.interceptors.response.use(
+      (response) => {
+        return response;
+      },
+      (error: AxiosError) => {
+        console.error(`API Error (${error.config?.url}):`, error);
+
+        // Handle authentication errors
+        if (error.response?.status === 401) {
+          this.logout();
+          window.location.href = "/login";
+        }
+
+        return Promise.reject(error);
+      },
+    );
   }
 
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {},
+    config: AxiosRequestConfig = {},
   ): Promise<ApiResponse<T>> {
-    const url = `${this.baseURL}${endpoint}`;
-
-    const config: RequestInit = {
-      headers: {
-        "Content-Type": "application/json",
-        ...(this.token && { Authorization: `Bearer ${this.token}` }),
-        ...options.headers,
-      },
-      ...options,
-    };
-
     try {
-      const response = await fetch(url, config);
-      const data = await response.json();
+      const response = await this.axiosInstance.request<ApiResponse<T>>({
+        url: endpoint,
+        ...config,
+      });
 
-      if (!response.ok) {
+      return response.data;
+    } catch (error) {
+      const axiosError = error as AxiosError;
+
+      // In development, provide helpful error messages
+      if (IS_DEVELOPMENT && !axiosError.response) {
+        console.warn(
+          `🚧 Development Mode: API server not available at ${API_BASE_URL}`,
+        );
+        console.warn(
+          "💡 Tip: Start your backend API server or use mock data fallback",
+        );
+
         throw new Error(
-          data.message || `HTTP error! status: ${response.status}`,
+          `API server unavailable at ${API_BASE_URL}. ` +
+            `Please start your backend server or check the VITE_API_URL environment variable.`,
         );
       }
 
-      return data;
-    } catch (error) {
-      console.error(`API Error (${endpoint}):`, error);
-      throw error;
+      // Handle network errors (no response from server)
+      if (!axiosError.response) {
+        throw new Error("Network error - server may be unavailable");
+      }
+
+      // Handle HTTP error responses
+      const errorData = axiosError.response.data as any;
+      throw new Error(
+        errorData?.message ||
+          errorData?.error ||
+          `HTTP error! status: ${axiosError.response.status}`,
+      );
     }
   }
 
@@ -113,12 +216,15 @@ class ApiClient {
   ): Promise<ApiResponse<AuthResponse>> {
     const response = await this.request<AuthResponse>("/auth/login", {
       method: "POST",
-      body: JSON.stringify({ userId, password }),
+      data: { userId, password },
     });
 
     if (response.success && response.data.token) {
       this.token = response.data.token;
       localStorage.setItem("anansi_token", this.token);
+
+      // Update axios instance with new token
+      this.axiosInstance.defaults.headers.Authorization = `Bearer ${this.token}`;
     }
 
     return response;
@@ -127,6 +233,9 @@ class ApiClient {
   async logout(): Promise<void> {
     this.token = null;
     localStorage.removeItem("anansi_token");
+
+    // Remove authorization header from axios instance
+    delete this.axiosInstance.defaults.headers.Authorization;
   }
 
   // School Management Methods (Super Admin)
@@ -143,7 +252,7 @@ class ApiClient {
   ): Promise<ApiResponse<School>> {
     return this.request<School>("/schools", {
       method: "POST",
-      body: JSON.stringify(schoolData),
+      data: schoolData,
     });
   }
 
@@ -153,7 +262,7 @@ class ApiClient {
   ): Promise<ApiResponse<School>> {
     return this.request<School>(`/schools/${schoolId}`, {
       method: "PUT",
-      body: JSON.stringify(updates),
+      data: updates,
     });
   }
 
@@ -262,6 +371,116 @@ class ApiClient {
 
   async getSystemMetrics(): Promise<ApiResponse<any>> {
     return this.request<any>("/system/metrics");
+  }
+
+  // Super Admin Specific Methods
+  async getSuperAdminInfo(): Promise<ApiResponse<SuperAdminInfo>> {
+    return this.request<SuperAdminInfo>("/super-admin/profile");
+  }
+
+  async getSystemStats(): Promise<ApiResponse<SystemStats>> {
+    return this.request<SystemStats>("/super-admin/stats");
+  }
+
+  async getSystemAlerts(): Promise<ApiResponse<SystemAlert[]>> {
+    return this.request<SystemAlert[]>("/super-admin/alerts");
+  }
+
+  async getNotifications(): Promise<ApiResponse<Notification[]>> {
+    return this.request<Notification[]>("/notifications");
+  }
+
+  async markNotificationRead(
+    notificationId: string,
+  ): Promise<ApiResponse<{ message: string }>> {
+    return this.request<{ message: string }>(
+      `/notifications/${notificationId}/read`,
+      {
+        method: "PUT",
+      },
+    );
+  }
+
+  async resolveAlert(
+    alertId: string,
+  ): Promise<ApiResponse<{ message: string }>> {
+    return this.request<{ message: string }>(
+      `/super-admin/alerts/${alertId}/resolve`,
+      {
+        method: "PUT",
+      },
+    );
+  }
+
+  // School Registration with Admin Creation
+  async registerSchool(schoolData: {
+    name: string;
+    code: string;
+    county: string;
+    subcounty: string;
+    ward: string;
+    type: "primary" | "secondary" | "mixed";
+    adminName: string;
+    adminEmail: string;
+    adminPhone?: string;
+    establishedYear: number;
+  }): Promise<
+    ApiResponse<{
+      school: School;
+      adminCredentials: { loginId: string; password: string };
+    }>
+  > {
+    return this.request<{
+      school: School;
+      adminCredentials: { loginId: string; password: string };
+    }>("/super-admin/schools/register", {
+      method: "POST",
+      body: JSON.stringify(schoolData),
+    });
+  }
+
+  // Super Admin Login
+  async superAdminLogin(
+    loginId: string,
+    password: string,
+  ): Promise<ApiResponse<AuthResponse>> {
+    const response = await this.request<AuthResponse>(
+      "/auth/super-admin/login",
+      {
+        method: "POST",
+        body: JSON.stringify({ loginId, password }),
+      },
+    );
+
+    if (response.success && response.data.token) {
+      this.token = response.data.token;
+      localStorage.setItem("anansi_token", this.token);
+      localStorage.setItem("userRole", "SUPER_ADMIN");
+      localStorage.setItem("superAdminId", response.data.user.id);
+    }
+
+    return response;
+  }
+
+  // Password reset
+  async resetPassword(
+    email: string,
+  ): Promise<ApiResponse<{ message: string }>> {
+    return this.request<{ message: string }>("/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+  }
+
+  // Change password
+  async changePassword(
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<ApiResponse<{ message: string }>> {
+    return this.request<{ message: string }>("/auth/change-password", {
+      method: "PUT",
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
   }
 }
 
