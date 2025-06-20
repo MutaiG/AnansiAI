@@ -92,19 +92,75 @@ The styling system supports dark mode through CSS variables and media queries.
 - **Type Checking**: `npm run typecheck` - Validates TypeScript types
 - **Run tests**: `npm test` - Run all .spec tests
 
+## Error Handling & Stability
+
+The application implements robust error handling and fallback mechanisms:
+
+### API Fallback System
+
+- **Development Mode**: Automatically falls back to mock data when backend is unavailable
+- **Network Errors**: Gracefully handled with informative console warnings
+- **Null Safety**: All components use fallback data with proper null checks
+
+### Recent Stability Improvements
+
+- ✅ **Fixed null reference errors** in SuperAdminDashboard component
+- ✅ **Enhanced fallback data handling** for all API responses
+- ✅ **Consistent data structure usage** throughout the application
+- ✅ **TypeScript safety** maintained with proper type checking
+
+### Fallback Data Pattern
+
+```typescript
+// Example of robust fallback handling
+const {
+  data: schools,
+  loading: schoolsLoading,
+  error: schoolsError,
+} = useSchools();
+
+// Always use processed fallback data, never raw API data
+const schoolsData = schools || [];
+const systemStatsData = systemStats || {
+  totalSchools: 0,
+  totalStudents: 0,
+  totalTeachers: 0,
+  avgPerformance: 0,
+  systemUptime: 0,
+  dataStorage: 0,
+  activeUsers: 0,
+  dailyLogins: 0,
+};
+```
+
+### Development Experience
+
+- **API Errors**: Expected behavior when no backend is running
+- **Mock Data**: Comprehensive fallback data for all endpoints
+- **Console Warnings**: Clear feedback about fallback mode activation
+- **Zero Crashes**: Application remains stable regardless of backend availability
+
 ## Architecture Overview
 
-The architecture follows a modern React application structure:
+The architecture follows a modern React application structure with enhanced error handling:
 
 ```
 package.json
-app/
+src/
 ├── components/     # Reusable UI components
 │   └── ui/         # Core UI component library
-├── routes/         # Route components and logic
-├── app.css         # Global styles
-├── root.tsx        # Root layout and error boundary
-└── routes.ts       # Route configuration
+├── pages/          # Route components and logic
+├── services/       # API layer with fallback support
+│   ├── api.ts                 # Core API client
+│   ├── apiWithFallback.ts     # Enhanced API with mock fallback
+│   ├── mockData.ts            # Comprehensive mock data
+│   └── auth.ts                # Authentication service
+├── hooks/          # Custom React hooks
+│   └── useApi.ts              # API hooks with error handling
+├── lib/            # Utility functions
+├── App.css         # Global styles
+├── App.tsx         # Main application with routing
+└── main.tsx        # Application entry point
 ```
 
-This structure provides a clean separation of concerns between UI components, routes, and application logic.
+This structure provides a clean separation of concerns between UI components, API services, and application logic, with robust error handling at every layer.

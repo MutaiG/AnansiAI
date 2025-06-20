@@ -1,7 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { apiClient, handleApiError, type ApiResponse } from "../services/api";
 import { apiWithFallback } from "../services/apiWithFallback";
+import { autoApiService } from "../services/cloudApiService";
 import { authService } from "../services/auth";
+
+// Use cloud service if available, otherwise use fallback service
+const apiService = autoApiService || apiWithFallback;
 
 // Generic API hook for any endpoint
 export function useApi<T>(
@@ -44,7 +48,7 @@ export function useApi<T>(
 
 // Schools hook for Super Admin
 export function useSchools() {
-  return useApi(() => apiWithFallback.getSchools());
+  return useApi(() => apiService.getSchools());
 }
 
 // Users hook for School Admin
@@ -78,19 +82,19 @@ export function useSystemStatus() {
 
 // Super Admin specific hooks
 export function useSuperAdminInfo() {
-  return useApi(() => apiWithFallback.getSuperAdminInfo());
+  return useApi(() => apiService.getSuperAdminInfo());
 }
 
 export function useSystemStats() {
-  return useApi(() => apiWithFallback.getSystemStats());
+  return useApi(() => apiService.getSystemStats());
 }
 
 export function useSystemAlerts() {
-  return useApi(() => apiWithFallback.getSystemAlerts());
+  return useApi(() => apiService.getSystemAlerts());
 }
 
 export function useNotifications() {
-  return useApi(() => apiWithFallback.getNotifications());
+  return useApi(() => apiService.getNotifications());
 }
 
 // Authentication hook using AuthService

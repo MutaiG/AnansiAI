@@ -557,6 +557,15 @@ const SuperAdminDashboard = () => {
   };
   const systemAlertsData = systemAlerts || [];
   const notificationsData = notifications || [];
+  const superAdminInfoData = superAdminInfo || {
+    name: "Admin User",
+    id: "admin-001",
+    role: "Super Administrator",
+    avatar: "",
+    lastLogin: "Recent",
+    region: "Kenya",
+    permissions: [],
+  };
 
   const handleLogout = () => {
     logout();
@@ -791,7 +800,7 @@ const SuperAdminDashboard = () => {
   };
 
   const unreadNotifications = notificationsData.filter((n) => !n.read).length;
-  const criticalAlerts = systemAlerts.filter(
+  const criticalAlerts = systemAlertsData.filter(
     (alert) => alert.type === "critical",
   ).length;
   const availableSubcounties = newSchool.county
@@ -898,7 +907,7 @@ const SuperAdminDashboard = () => {
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
-                      {notifications.map((notification) => (
+                      {notificationsData.map((notification) => (
                         <div
                           key={notification.id}
                           className={`p-4 rounded-lg border transition-all duration-200 ${
@@ -948,9 +957,9 @@ const SuperAdminDashboard = () => {
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="flex items-center gap-2">
                       <Avatar className="w-8 h-8">
-                        <AvatarImage src={superAdminInfo.avatar} />
+                        <AvatarImage src={superAdminInfoData.avatar} />
                         <AvatarFallback className="bg-primary-100 text-primary-700">
-                          {superAdminInfo.name
+                          {superAdminInfoData.name
                             .split(" ")
                             .map((n) => n[0])
                             .join("")}
@@ -958,10 +967,10 @@ const SuperAdminDashboard = () => {
                       </Avatar>
                       <div className="hidden sm:block text-left">
                         <p className="text-sm font-medium text-secondary-800">
-                          {superAdminInfo.name}
+                          {superAdminInfoData.name}
                         </p>
                         <p className="text-xs text-secondary-500">
-                          {superAdminInfo.role}
+                          {superAdminInfoData.role}
                         </p>
                       </div>
                     </Button>
@@ -971,16 +980,18 @@ const SuperAdminDashboard = () => {
                       <div className="flex items-center gap-3">
                         <Avatar className="w-10 h-10">
                           <AvatarFallback className="bg-primary-100 text-primary-700">
-                            {superAdminInfo.name
+                            {superAdminInfoData.name
                               .split(" ")
                               .map((n) => n[0])
                               .join("")}
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <p className="font-medium">{superAdminInfo.name}</p>
+                          <p className="font-medium">
+                            {superAdminInfoData.name}
+                          </p>
                           <p className="text-xs text-secondary-500">
-                            {superAdminInfo.id}
+                            {superAdminInfoData.id}
                           </p>
                         </div>
                       </div>
@@ -1027,13 +1038,14 @@ const SuperAdminDashboard = () => {
                 </h2>
                 <p className="text-secondary-600 flex items-center gap-2">
                   <Globe className="w-4 h-4" />
-                  Welcome back, {superAdminInfo.name} • {superAdminInfo.region}
+                  Welcome back, {superAdminInfoData.name} •{" "}
+                  {superAdminInfoData.region}
                 </p>
               </div>
               <div className="text-right">
                 <p className="text-sm text-secondary-600">Last access</p>
                 <p className="font-medium text-secondary-800">
-                  {superAdminInfo.lastLogin}
+                  {superAdminInfoData.lastLogin}
                 </p>
               </div>
             </div>
@@ -1124,7 +1136,7 @@ const SuperAdminDashboard = () => {
                           Total Teachers
                         </p>
                         <p className="text-2xl font-bold text-secondary-800">
-                          {systemStats.totalTeachers.toLocaleString()}
+                          {systemStatsData.totalTeachers.toLocaleString()}
                         </p>
                         <p className="text-xs text-accent-600 flex items-center gap-1">
                           <Users className="w-3 h-3" />
@@ -1146,7 +1158,7 @@ const SuperAdminDashboard = () => {
                           System Uptime
                         </p>
                         <p className="text-2xl font-bold text-secondary-800">
-                          {systemStats.systemUptime}%
+                          {systemStatsData.systemUptime}%
                         </p>
                         <p className="text-xs text-accent-600 flex items-center gap-1">
                           <Zap className="w-3 h-3" />
@@ -1166,43 +1178,26 @@ const SuperAdminDashboard = () => {
                 <div className="lg:col-span-2">
                   <Card className="card-elevated">
                     <CardHeader>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <CardTitle className="flex items-center gap-2">
-                            <AlertTriangle className="w-5 h-5 text-destructive-600" />
-                            National System Alerts
-                            {criticalAlerts > 0 && (
-                              <Badge className="bg-destructive-100 text-destructive-700 ml-2 animate-pulse">
-                                {criticalAlerts} Critical
-                              </Badge>
-                            )}
-                          </CardTitle>
-                          <CardDescription>
-                            Platform-wide alerts requiring immediate attention
-                          </CardDescription>
-                        </div>
-                        <div className="flex gap-2">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={handleSystemStatus}
-                              >
-                                <Monitor className="w-4 h-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>System Status</TooltipContent>
-                          </Tooltip>
-                          <Button variant="outline" size="sm">
-                            <Eye className="w-4 h-4 mr-2" />
-                            View All
-                          </Button>
-                        </div>
+                      <Avatar className="w-8 h-8">
+                        <AvatarImage src={superAdminInfoData.avatar} />
+                        <AvatarFallback className="bg-primary-100 text-primary-700">
+                          {superAdminInfoData.name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="text-sm font-medium text-secondary-800">
+                          {superAdminInfoData.name}
+                        </p>
+                        <p className="text-xs text-secondary-500">
+                          {superAdminInfoData.role}
+                        </p>
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      {systemAlerts.map((alert) => (
+                      {systemAlertsData.map((alert) => (
                         <div
                           key={alert.id}
                           className="p-4 bg-secondary-50 rounded-lg border border-secondary-100 hover:shadow-sm transition-all duration-200"
@@ -1584,11 +1579,11 @@ const SuperAdminDashboard = () => {
                           Average School Performance
                         </span>
                         <span className="font-bold">
-                          {systemStats.avgPerformance}%
+                          {systemStatsData.avgPerformance}%
                         </span>
                       </div>
                       <Progress
-                        value={systemStats.avgPerformance}
+                        value={systemStatsData.avgPerformance}
                         className="h-3"
                       />
                     </div>
@@ -1597,11 +1592,11 @@ const SuperAdminDashboard = () => {
                       <div className="flex justify-between text-sm mb-2">
                         <span className="font-medium">System Utilization</span>
                         <span className="font-bold">
-                          {systemStats.dataStorage}%
+                          {systemStatsData.dataStorage}%
                         </span>
                       </div>
                       <Progress
-                        value={systemStats.dataStorage}
+                        value={systemStatsData.dataStorage}
                         className="h-3"
                       />
                     </div>
@@ -1609,7 +1604,7 @@ const SuperAdminDashboard = () => {
                     <div className="grid grid-cols-2 gap-4 pt-4">
                       <div className="text-center p-4 bg-primary-50 rounded-lg">
                         <div className="text-2xl font-bold text-primary-600">
-                          {systemStats.activeUsers.toLocaleString()}
+                          {systemStatsData.activeUsers.toLocaleString()}
                         </div>
                         <p className="text-xs text-secondary-600">
                           Active Users Today
@@ -1617,7 +1612,7 @@ const SuperAdminDashboard = () => {
                       </div>
                       <div className="text-center p-4 bg-accent-50 rounded-lg">
                         <div className="text-2xl font-bold text-accent-600">
-                          {systemStats.dailyLogins.toLocaleString()}
+                          {systemStatsData.dailyLogins.toLocaleString()}
                         </div>
                         <p className="text-xs text-secondary-600">
                           Daily Logins
@@ -1984,7 +1979,7 @@ const SuperAdminDashboard = () => {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      {schools
+                      {schoolsData
                         .filter((school) => school.performance > 0)
                         .sort((a, b) => b.performance - a.performance)
                         .slice(0, 6)
@@ -2102,7 +2097,7 @@ const SuperAdminDashboard = () => {
                       <div className="flex justify-between">
                         <span className="text-sm">Active Students</span>
                         <span className="text-sm font-medium">
-                          {systemStats.totalStudents.toLocaleString()}
+                          {systemStatsData.totalStudents.toLocaleString()}
                         </span>
                       </div>
                       <div className="flex justify-between">
@@ -2131,7 +2126,7 @@ const SuperAdminDashboard = () => {
                   <CardContent className="space-y-4">
                     <div className="text-center">
                       <div className="text-3xl font-bold text-accent-600 mb-1">
-                        {systemStats.totalTeachers.toLocaleString()}
+                        {systemStatsData.totalTeachers.toLocaleString()}
                       </div>
                       <p className="text-sm text-secondary-600">
                         Active Teachers
@@ -2167,7 +2162,7 @@ const SuperAdminDashboard = () => {
                   <CardContent className="space-y-4">
                     <div className="text-center">
                       <div className="text-3xl font-bold text-warning-600 mb-1">
-                        {systemStats.systemUptime}%
+                        {systemStatsData.systemUptime}%
                       </div>
                       <p className="text-sm text-secondary-600">
                         System Uptime
@@ -2190,7 +2185,7 @@ const SuperAdminDashboard = () => {
                       <div className="flex justify-between">
                         <span className="text-sm">Storage Used</span>
                         <span className="text-sm font-medium">
-                          {systemStats.dataStorage}%
+                          {systemStatsData.dataStorage}%
                         </span>
                       </div>
                     </div>
@@ -2338,10 +2333,10 @@ const SuperAdminDashboard = () => {
                           <HardDrive className="w-4 h-4" />
                           Storage
                         </span>
-                        <span>{systemStats.dataStorage}%</span>
+                        <span>{systemStatsData.dataStorage}%</span>
                       </div>
                       <Progress
-                        value={systemStats.dataStorage}
+                        value={systemStatsData.dataStorage}
                         className="h-2"
                       />
                     </div>

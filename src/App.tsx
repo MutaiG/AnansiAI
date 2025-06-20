@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import DevelopmentBanner from "@/components/DevelopmentBanner";
 import SchoolLogin from "./pages/SchoolLogin";
 import SuperAdminLogin from "./pages/SuperAdminLogin";
@@ -13,40 +14,58 @@ import AdminDashboard from "./pages/AdminDashboard";
 import SuperAdminDashboard from "./pages/SuperAdminDashboard";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+// Create QueryClient with proper configuration to prevent React context issues
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+      staleTime: 1000 * 60 * 5, // 5 minutes
+    },
+  },
+});
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <div className="min-h-screen">
-          <DevelopmentBanner />
-          <Routes>
-            {/* Redirect root to school login */}
-            <Route path="/" element={<Navigate to="/login" replace />} />
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <div className="min-h-screen">
+            <DevelopmentBanner />
+            <Routes>
+              {/* Redirect root to school login */}
+              <Route path="/" element={<Navigate to="/login" replace />} />
 
-            {/* Authentication Routes */}
-            <Route path="/login" element={<SchoolLogin />} />
-            <Route path="/super-admin-login" element={<SuperAdminLogin />} />
-            <Route path="/signup" element={<Signup />} />
+              {/* Authentication Routes */}
+              <Route path="/login" element={<SchoolLogin />} />
+              <Route path="/super-admin-login" element={<SuperAdminLogin />} />
+              <Route path="/signup" element={<Signup />} />
 
-            {/* Dashboard Routes */}
-            <Route path="/student-dashboard" element={<StudentDashboard />} />
-            <Route path="/teacher-dashboard" element={<TeacherDashboard />} />
-            <Route path="/admin-dashboard" element={<AdminDashboard />} />
-            <Route
-              path="/super-admin-dashboard"
-              element={<SuperAdminDashboard />}
-            />
-            {/* Catch-all route for 404 */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </div>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+              {/* Dashboard Routes */}
+              <Route
+                path="/student-dashboard"
+                element={
+                  <ErrorBoundary>
+                    <StudentDashboard />
+                  </ErrorBoundary>
+                }
+              />
+              <Route path="/teacher-dashboard" element={<TeacherDashboard />} />
+              <Route path="/admin-dashboard" element={<AdminDashboard />} />
+              <Route
+                path="/super-admin-dashboard"
+                element={<SuperAdminDashboard />}
+              />
+              {/* Catch-all route for 404 */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </div>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;

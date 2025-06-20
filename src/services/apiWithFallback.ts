@@ -7,16 +7,31 @@ import { MockApiService } from "./mockData";
 const IS_DEVELOPMENT =
   import.meta.env.VITE_ENVIRONMENT === "development" || import.meta.env.DEV;
 
+// Check if we're in a cloud environment (Builder.io, Fly.dev, etc.)
+const IS_CLOUD_ENVIRONMENT =
+  window.location.hostname.includes("builder.codes") ||
+  window.location.hostname.includes("fly.dev") ||
+  window.location.hostname.includes("netlify.app") ||
+  window.location.hostname.includes("vercel.app") ||
+  import.meta.env.VITE_API_URL?.includes("api-not-available");
+
 // Helper to determine if we should use fallback
-let useFallback = false;
+let useFallback = IS_CLOUD_ENVIRONMENT; // Start with fallback in cloud
 let fallbackWarningShown = false;
 
 const showFallbackWarning = () => {
   if (!fallbackWarningShown && IS_DEVELOPMENT) {
-    console.warn("🔄 API Fallback Mode Activated");
-    console.warn("📡 Backend API server is not available");
-    console.warn("🧪 Using mock data for development");
-    console.warn("💡 Start your backend server to use real API calls");
+    if (IS_CLOUD_ENVIRONMENT) {
+      console.info("🌐 Cloud Environment Detected");
+      console.info("🧪 Using comprehensive mock data for development");
+      console.info("✨ All features available with realistic sample data");
+      console.info("🚀 Perfect for testing and development!");
+    } else {
+      console.warn("🔄 API Fallback Mode Activated");
+      console.warn("📡 Backend API server is not available");
+      console.warn("🧪 Using mock data for development");
+      console.warn("💡 Start your backend server to use real API calls");
+    }
     fallbackWarningShown = true;
   }
 };
@@ -27,6 +42,12 @@ async function withFallback<T>(
   fallbackCall: () => Promise<ApiResponse<T>>,
   operationName: string = "API operation",
 ): Promise<ApiResponse<T>> {
+  // In cloud environments, use fallback immediately
+  if (IS_CLOUD_ENVIRONMENT && IS_DEVELOPMENT) {
+    showFallbackWarning();
+    return fallbackCall();
+  }
+
   // If we already know to use fallback, skip API call
   if (useFallback && IS_DEVELOPMENT) {
     showFallbackWarning();

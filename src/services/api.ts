@@ -17,7 +17,7 @@ export interface ApiResponse<T> {
 }
 
 export interface School {
-  id: string;
+  id: number;
   name: string;
   code: string;
   county: string;
@@ -39,11 +39,11 @@ export interface School {
 }
 
 export interface User {
-  id: string;
+  id: number;
   name: string;
   email: string;
   role: "student" | "teacher" | "admin" | "superadmin";
-  schoolId: string;
+  schoolId: number;
   status: "active" | "inactive" | "suspended";
   lastActive: string;
   createdAt: string;
@@ -287,7 +287,7 @@ class ApiClient {
   async createUser(userData: Partial<User>): Promise<ApiResponse<User>> {
     return this.request<User>("/users", {
       method: "POST",
-      body: JSON.stringify(userData),
+      data: userData,
     });
   }
 
@@ -297,7 +297,7 @@ class ApiClient {
   ): Promise<ApiResponse<User>> {
     return this.request<User>(`/users/${userId}`, {
       method: "PUT",
-      body: JSON.stringify(updates),
+      data: updates,
     });
   }
 
@@ -433,9 +433,9 @@ class ApiClient {
     return this.request<{
       school: School;
       adminCredentials: { loginId: string; password: string };
-    }>("/super-admin/schools/register", {
+    }>("/schools", {
       method: "POST",
-      body: JSON.stringify(schoolData),
+      data: schoolData,
     });
   }
 
@@ -448,7 +448,7 @@ class ApiClient {
       "/auth/super-admin/login",
       {
         method: "POST",
-        body: JSON.stringify({ loginId, password }),
+        data: { loginId, password },
       },
     );
 
@@ -468,7 +468,7 @@ class ApiClient {
   ): Promise<ApiResponse<{ message: string }>> {
     return this.request<{ message: string }>("/auth/reset-password", {
       method: "POST",
-      body: JSON.stringify({ email }),
+      data: { email },
     });
   }
 
@@ -479,7 +479,7 @@ class ApiClient {
   ): Promise<ApiResponse<{ message: string }>> {
     return this.request<{ message: string }>("/auth/change-password", {
       method: "PUT",
-      body: JSON.stringify({ currentPassword, newPassword }),
+      data: { currentPassword, newPassword },
     });
   }
 }
