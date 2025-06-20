@@ -29,6 +29,15 @@ public class AnansiDbContext : IdentityDbContext<AppUser>
     public DbSet<ContentReview> ContentReviews { get; set; }
     public DbSet<AuditLog> AuditLogs { get; set; }
 
+    // Student Dashboard specific entities
+    public DbSet<Course> Courses { get; set; }
+    public DbSet<CourseEnrollment> CourseEnrollments { get; set; }
+    public DbSet<StudentAchievement> StudentAchievements { get; set; }
+    public DbSet<DiscussionPost> DiscussionPosts { get; set; }
+    public DbSet<DiscussionReply> DiscussionReplies { get; set; }
+    public DbSet<PostLike> PostLikes { get; set; }
+    public DbSet<ReplyLike> ReplyLikes { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

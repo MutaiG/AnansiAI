@@ -1,0 +1,9 @@
+D:\AnansiAI\AnansiAI.Api\obj\Debug\net8.0\AnansiAI.Api.csproj.AssemblyReference.cache
+D:\AnansiAI\AnansiAI.Api\obj\Debug\net8.0\rpswa.dswa.cache.json
+D:\AnansiAI\AnansiAI.Api\obj\Debug\net8.0\AnansiAI.Api.GeneratedMSBuildEditorConfig.editorconfig
+D:\AnansiAI\AnansiAI.Api\obj\Debug\net8.0\AnansiAI.Api.AssemblyInfoInputs.cache
+D:\AnansiAI\AnansiAI.Api\obj\Debug\net8.0\AnansiAI.Api.AssemblyInfo.cs
+D:\AnansiAI\AnansiAI.Api\obj\Debug\net8.0\AnansiAI.Api.csproj.CoreCompileInputs.cache
+D:\AnansiAI\AnansiAI.Api\obj\Debug\net8.0\AnansiAI.Api.MvcApplicationPartsAssemblyInfo.cs
+D:\AnansiAI\AnansiAI.Api\obj\Debug\net8.0\AnansiAI.Api.MvcApplicationPartsAssemblyInfo.cache
+D:\AnansiAI\AnansiAI.Api\obj\Debug\net8.0\AnansiAI.Api.sourcelink.json

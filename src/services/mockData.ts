@@ -325,4 +325,374 @@ export class MockApiService {
       },
     };
   }
+
+  // Student Dashboard Methods
+  static async getStudentDashboard(): Promise<ApiResponse<any>> {
+    await mockDelay(600);
+
+    // Generate comprehensive mock dashboard data
+    const mockDashboardData = {
+      profile: {
+        id: "student_001",
+        appUserId: "user_001",
+        personalityTraits: {
+          openness: 0.75,
+          conscientiousness: 0.82,
+          extraversion: 0.65,
+          agreeableness: 0.78,
+          neuroticism: 0.35,
+        },
+        learningPreferences: {
+          preferredStyle: "Visual",
+          preferredModalities: ["Interactive", "Visual"],
+          difficultyPreference: "adaptive",
+          pacePreference: "moderate",
+          feedbackFrequency: "immediate",
+        },
+        emotionalState: {
+          currentMood: "Focused",
+          stressLevel: 0.3,
+          confidenceLevel: 0.75,
+          motivationLevel: 0.8,
+          lastUpdated: new Date(),
+        },
+        aiPersonalityAnalysis: {
+          dominantTraits: ["analytical", "creative", "collaborative"],
+          learningArchetype: "The Explorer",
+          strengthAreas: [
+            "problem-solving",
+            "visual learning",
+            "analytical thinking",
+          ],
+          growthAreas: [
+            "time management",
+            "note-taking",
+            "verbal communication",
+          ],
+          recommendedActivities: [
+            "interactive simulations",
+            "group projects",
+            "visual aids",
+          ],
+          confidenceScore: 0.85,
+          lastAnalysis: new Date(),
+        },
+        privacySettings: {
+          shareLearningData: true,
+          shareBehaviorAnalytics: false,
+          allowPersonalization: true,
+          showInLeaderboards: true,
+          dataRetentionPreference: "standard",
+        },
+      },
+      enrolledCourses: [
+        {
+          id: "course_001",
+          title: "Advanced Calculus",
+          instructor: "Dr. Maria Rodriguez",
+          progress: 68,
+          completedLessons: 12,
+          totalLessons: 18,
+          recentGrade: 87,
+          aiRecommended: true,
+          subject: {
+            subjectId: 1,
+            name: "Mathematics",
+            description: "Advanced mathematical concepts and applications",
+          },
+          upcomingAssignments: [
+            {
+              id: "assign_001",
+              title: "Integration Techniques",
+              dueDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
+              priority: "high",
+              status: "pending",
+            },
+            {
+              id: "assign_002",
+              title: "Problem Set 4",
+              dueDate: new Date(Date.now() + 8 * 24 * 60 * 60 * 1000),
+              priority: "medium",
+              status: "pending",
+            },
+          ],
+        },
+        {
+          id: "course_002",
+          title: "Molecular Biology",
+          instructor: "Prof. James Wilson",
+          progress: 45,
+          completedLessons: 8,
+          totalLessons: 16,
+          recentGrade: 92,
+          aiRecommended: false,
+          subject: {
+            subjectId: 3,
+            name: "Science",
+            description: "Life sciences and biological processes",
+          },
+          upcomingAssignments: [
+            {
+              id: "assign_003",
+              title: "Lab Report: DNA Extraction",
+              dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+              priority: "high",
+              status: "pending",
+            },
+          ],
+        },
+        {
+          id: "course_003",
+          title: "English Literature",
+          instructor: "Ms. Sarah Thompson",
+          progress: 82,
+          completedLessons: 14,
+          totalLessons: 16,
+          recentGrade: 78,
+          aiRecommended: false,
+          subject: {
+            subjectId: 2,
+            name: "English Language",
+            description: "Literature analysis and creative writing",
+          },
+          upcomingAssignments: [],
+        },
+      ],
+      behaviorSummary: {
+        currentMood: "Focused",
+        riskLevel: "low",
+        engagementScore: 0.8,
+        focusScore: 0.75,
+        recentActivities: [
+          "Completed Calculus Lesson 12",
+          "Participated in Biology Discussion",
+          "Submitted English Essay",
+        ],
+        lastActivity: new Date(Date.now() - 2 * 60 * 60 * 1000),
+      },
+      achievements: [
+        {
+          id: "achieve_001",
+          title: "Math Wizard",
+          description: "Completed 10 calculus lessons with >85% score",
+          category: "academic",
+          earnedDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+          iconUrl: "/icons/math-wizard.svg",
+          isNew: true,
+        },
+        {
+          id: "achieve_002",
+          title: "Active Participant",
+          description: "Posted 5 meaningful discussion contributions",
+          category: "engagement",
+          earnedDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
+          iconUrl: "/icons/discussion.svg",
+          isNew: false,
+        },
+      ],
+      notifications: [
+        {
+          id: "notif_001",
+          type: "assignment",
+          title: "Assignment Due Soon",
+          message: "Integration Techniques assignment is due in 5 days",
+          timestamp: new Date(Date.now() - 3 * 60 * 60 * 1000),
+          read: false,
+          priority: "high",
+        },
+        {
+          id: "notif_002",
+          type: "grade",
+          title: "New Grade Posted",
+          message: "Your Biology Lab Report has been graded: 92%",
+          timestamp: new Date(Date.now() - 6 * 60 * 60 * 1000),
+          read: false,
+          priority: "medium",
+        },
+        {
+          id: "notif_003",
+          type: "ai_insight",
+          title: "AI Study Recommendation",
+          message:
+            "Based on your progress, consider reviewing integration by parts",
+          timestamp: new Date(Date.now() - 12 * 60 * 60 * 1000),
+          read: true,
+          priority: "low",
+        },
+      ],
+    };
+
+    return {
+      success: true,
+      data: mockDashboardData,
+    };
+  }
+
+  static async getCourseLessons(courseId: string): Promise<ApiResponse<any>> {
+    await mockDelay(400);
+
+    const mockLessons = [
+      {
+        id: `${courseId}_lesson_1`,
+        title: "Introduction to Advanced Concepts",
+        description:
+          "Learn the fundamental principles that will guide your journey through this course.",
+        type: "video",
+        duration: 15,
+        completed: false,
+        content: {
+          videoUrl: "https://example.com/video1",
+          textContent: `Welcome to this comprehensive lesson on advanced concepts!
+
+In this lesson, you'll learn:
+• Core principles and foundations
+• Key terminology and definitions
+• Practical applications and examples
+• How these concepts connect to real-world scenarios
+
+This lesson is designed to build your understanding step by step, with interactive elements to help reinforce your learning.`,
+        },
+      },
+      {
+        id: `${courseId}_lesson_2`,
+        title: "Practical Applications",
+        description:
+          "Apply what you've learned through hands-on exercises and real-world examples.",
+        type: "interactive",
+        duration: 25,
+        completed: false,
+        content: {
+          textContent: "Interactive lesson content would go here...",
+          interactiveElements: [],
+        },
+      },
+      {
+        id: `${courseId}_lesson_3`,
+        title: "Assessment and Review",
+        description: "Test your knowledge with a comprehensive quiz.",
+        type: "quiz",
+        duration: 20,
+        completed: false,
+        content: {
+          quizQuestions: [],
+        },
+      },
+    ];
+
+    return {
+      success: true,
+      data: mockLessons,
+    };
+  }
+
+  static async getCourseDiscussion(
+    courseId: string,
+  ): Promise<ApiResponse<any>> {
+    await mockDelay(500);
+
+    const mockDiscussion = {
+      id: courseId,
+      courseId: courseId,
+      posts: [
+        {
+          id: "post_1",
+          author: {
+            name: "Dr. Sarah Johnson",
+            role: "teacher",
+            avatar: "",
+          },
+          title: "Welcome to the Course Discussion!",
+          content: `Welcome everyone to our course discussion forum!
+
+This is your space to:
+• Ask questions about the course material
+• Share insights and discoveries
+• Collaborate with your classmates
+• Get help from teaching assistants
+
+Please remember to:
+- Be respectful and constructive
+- Search before posting to avoid duplicates
+- Use clear, descriptive titles
+- Tag your posts appropriately
+
+Looking forward to great discussions!`,
+          timestamp: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+          likes: 23,
+          replies: [
+            {
+              id: "reply_1_1",
+              author: { name: "Alex Chen", role: "student" },
+              content:
+                "Thank you Dr. Johnson! Really excited to be part of this course.",
+              timestamp: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000),
+              likes: 5,
+              isLiked: false,
+            },
+          ],
+          isPinned: true,
+          tags: ["announcement", "welcome"],
+          isLiked: true,
+        },
+        {
+          id: "post_2",
+          author: {
+            name: "Marcus Rodriguez",
+            role: "student",
+            avatar: "",
+          },
+          title: "Question about Lesson 3 - Advanced Concepts",
+          content: `Hi everyone! I'm having trouble understanding the concept covered in Lesson 3, specifically the part about advanced principles.
+
+Could someone explain how these connect to the examples we saw in Lesson 2? I feel like I'm missing something fundamental.
+
+Any help would be appreciated!`,
+          timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+          likes: 8,
+          replies: [
+            {
+              id: "reply_2_1",
+              author: { name: "Teaching Assistant", role: "ta" },
+              content: `Great question Marcus! The connection between Lesson 2 and 3 is indeed subtle. Let me break it down:
+
+1. In Lesson 2, we established the basic framework
+2. Lesson 3 builds on that by introducing complexity layers
+3. The key is to see how each principle amplifies the previous ones
+
+Would you like to schedule office hours to go through this together?`,
+              timestamp: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+              likes: 12,
+              isLiked: true,
+            },
+          ],
+          isPinned: false,
+          tags: ["question", "lesson-3"],
+          isLiked: false,
+        },
+      ],
+    };
+
+    return {
+      success: true,
+      data: mockDiscussion,
+    };
+  }
+
+  static async markNotificationAsRead(
+    notificationId: string,
+  ): Promise<ApiResponse<boolean>> {
+    await mockDelay(200);
+    return {
+      success: true,
+      data: true,
+    };
+  }
+
+  static async markAllNotificationsAsRead(): Promise<ApiResponse<boolean>> {
+    await mockDelay(300);
+    return {
+      success: true,
+      data: true,
+    };
+  }
 }

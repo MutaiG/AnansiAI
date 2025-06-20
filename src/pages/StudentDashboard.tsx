@@ -56,9 +56,11 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import apiWithFallback from "@/services/apiWithFallback";
 
-// Lazy load AI components with proper error handling
+// Import AI components directly
 import { Suspense, lazy } from "react";
+import BehaviorAnalytics from "@/components/BehaviorAnalytics";
 
 const LazyAITwinChat = lazy(() =>
   import("@/components/AITwinChat").catch(() => ({
@@ -66,19 +68,6 @@ const LazyAITwinChat = lazy(() =>
       <div className="p-4 text-center">
         <Brain className="w-8 h-8 mx-auto mb-2 text-blue-600" />
         <p className="text-gray-600">AI Twin Chat temporarily unavailable</p>
-      </div>
-    ),
-  })),
-);
-
-const LazyBehaviorAnalytics = lazy(() =>
-  import("@/components/BehaviorAnalytics").catch(() => ({
-    default: () => (
-      <div className="p-8 text-center">
-        <Activity className="w-8 h-8 mx-auto mb-2 text-purple-600" />
-        <p className="text-gray-600">
-          Behavior Analytics temporarily unavailable
-        </p>
       </div>
     ),
   })),
@@ -205,6 +194,19 @@ const StudentDashboard = () => {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [lastAction, setLastAction] = useState<string | null>(null);
 
+  // New state for enhanced functionality
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showSearchInput, setShowSearchInput] = useState(false);
+  const [filterDialogOpen, setFilterDialogOpen] = useState(false);
+  const [selectedFilters, setSelectedFilters] = useState({
+    progress: "all", // all, completed, in-progress, not-started
+    subject: "all", // all, math, science, english, etc.
+    difficulty: "all", // all, beginner, intermediate, advanced
+  });
+  const [selectedCourse, setSelectedCourse] = useState<any>(null);
+  const [courseAnalyticsOpen, setCourseAnalyticsOpen] = useState(false);
+  const [notificationsList, setNotificationsList] = useState<any[]>([]);
+
   // Auto-clear action feedback after 3 seconds
   useEffect(() => {
     if (lastAction) {
@@ -223,197 +225,207 @@ const StudentDashboard = () => {
       try {
         setLoading(true);
 
-        // In a real app, this would come from your backend API
-        // For now, we'll use mock data that matches our types
-        const mockData: StudentDashboardData = {
-          profile: {
-            id: "student_001",
-            appUserId: "user_001",
-            personalityTraits: {
-              openness: 0.75,
-              conscientiousness: 0.82,
-              extraversion: 0.65,
-              agreeableness: 0.78,
-              neuroticism: 0.35,
-            },
-            learningPreferences: {
-              preferredStyle: LearningStyle.Visual,
-              preferredModalities: [
-                LearningModality.Interactive,
-                LearningModality.Visual,
-              ],
-              difficultyPreference: "adaptive",
-              pacePreference: "moderate",
-              feedbackFrequency: "immediate",
-            },
-            emotionalState: {
-              currentMood: Mood.Focused,
-              stressLevel: 0.3,
-              confidenceLevel: 0.75,
-              motivationLevel: 0.8,
-              lastUpdated: new Date(),
-            },
-            aiPersonalityAnalysis: {
-              dominantTraits: ["analytical", "creative", "collaborative"],
-              learningArchetype: "The Explorer",
-              strengthAreas: [
-                "problem-solving",
-                "visual learning",
-                "pattern recognition",
-              ],
-              growthAreas: ["time management", "verbal communication"],
-              recommendedApproaches: [
-                "Visual learning materials",
-                "Interactive problem-solving",
-                "Collaborative projects",
-                "Regular feedback loops",
-              ],
-            },
-            parentContactInfo: {
-              primaryParentName: "Sarah Johnson",
-              primaryParentEmail: "sarah.johnson@email.com",
-              primaryParentPhone: "+1-555-0123",
-              emergencyContactName: "Mark Johnson",
-              emergencyContactPhone: "+1-555-0124",
-            },
-            privacySettings: {
-              dataSharing: "educational_only" as any,
-              parentalAccess: true,
-              behaviorTracking: true,
-              aiPersonalization: true,
-              thirdPartyIntegrations: false,
-            },
-            lastUpdated: new Date(),
-            createdAt: new Date(),
-          },
-          enrolledCourses: [
-            {
-              id: "course_001",
-              title: "Advanced Mathematics",
-              subject: {
-                id: "math_adv",
-                name: "Advanced Mathematics",
-                description: "Calculus and advanced algebraic concepts",
-                grade: "10-12",
-                isActive: true,
-                levels: [],
-                createdAt: new Date(),
-                updatedAt: new Date(),
-              },
-              progress: 75,
-              instructor: "Dr. Sarah Chen",
-              totalLessons: 48,
-              completedLessons: 36,
-              upcomingAssignments: [],
-              recentGrade: 94,
-              aiRecommended: true,
-            },
-            {
-              id: "course_002",
-              title: "Biology Advanced Placement",
-              subject: {
-                id: "bio_ap",
-                name: "Biology AP",
-                description: "Advanced placement biology course",
-                grade: "11-12",
-                isActive: true,
-                levels: [],
-                createdAt: new Date(),
-                updatedAt: new Date(),
-              },
-              progress: 68,
-              instructor: "Prof. Michael Torres",
-              totalLessons: 52,
-              completedLessons: 35,
-              upcomingAssignments: [],
-              recentGrade: 89,
-            },
-            {
-              id: "course_003",
-              title: "World History Honors",
-              subject: {
-                id: "hist_honors",
-                name: "World History Honors",
-                description:
-                  "Comprehensive world history with critical analysis",
-                grade: "10-11",
-                isActive: true,
-                levels: [],
-                createdAt: new Date(),
-                updatedAt: new Date(),
-              },
-              progress: 82,
-              instructor: "Ms. Emily Rodriguez",
-              totalLessons: 40,
-              completedLessons: 33,
-              upcomingAssignments: [],
-              recentGrade: 96,
-            },
-          ],
-          upcomingDeadlines: [],
-          recentSubmissions: [],
-          behaviorSummary: {
-            todaysFocus: 78,
-            weeklyEngagement: 85,
-            currentMood: Mood.Focused,
-            riskLevel: "low",
-          },
-          achievements: [
-            {
-              id: "ach_001",
-              title: "Math Wizard",
-              description:
-                "Completed 10 consecutive math assignments with 90%+ scores",
-              earnedDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-              points: 150,
-              category: "Academic Excellence",
-            },
-            {
-              id: "ach_002",
-              title: "Study Streak",
-              description:
-                "Maintained daily study habit for 7 consecutive days",
-              earnedDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-              points: 100,
-              category: "Consistency",
-            },
-          ],
-          notifications: [
-            {
-              id: "notif_001",
-              type: "ai_insight",
-              title: "AI Learning Recommendation",
-              message:
-                "Based on your recent performance, I recommend focusing on integration techniques in calculus. You're showing great progress!",
-              timestamp: new Date(Date.now() - 30 * 60 * 1000),
-              read: false,
-              priority: "medium",
-            },
-            {
-              id: "notif_002",
-              type: "assignment",
-              title: "Math Assignment Due Soon",
-              message: "Your calculus homework is due in 6 hours",
-              timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
-              read: false,
-              priority: "high",
-            },
-            {
-              id: "notif_003",
-              type: "grade",
-              title: "Biology Quiz Graded",
-              message: "Great work! You scored 94% on your latest biology quiz",
-              timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000),
-              read: false,
-              priority: "medium",
-            },
-          ],
-        };
+        // Load real data from API
+        const response = await apiWithFallback.getStudentDashboard();
 
-        setDashboardData(mockData);
+        if (response.success && response.data) {
+          setDashboardData(response.data);
+          setNotificationsList(response.data.notifications);
+        } else {
+          console.error("Failed to load dashboard data:", response.error);
+          // Fallback to mock data if API fails
+          const mockData: StudentDashboardData = {
+            profile: {
+              id: "student_001",
+              appUserId: "user_001",
+              personalityTraits: {
+                openness: 0.75,
+                conscientiousness: 0.82,
+                extraversion: 0.65,
+                agreeableness: 0.78,
+                neuroticism: 0.35,
+              },
+              learningPreferences: {
+                preferredStyle: LearningStyle.Visual,
+                preferredModalities: [
+                  LearningModality.Interactive,
+                  LearningModality.Visual,
+                ],
+                difficultyPreference: "adaptive",
+                pacePreference: "moderate",
+                feedbackFrequency: "immediate",
+              },
+              emotionalState: {
+                currentMood: Mood.Focused,
+                stressLevel: 0.3,
+                confidenceLevel: 0.75,
+                motivationLevel: 0.8,
+                lastUpdated: new Date(),
+              },
+              aiPersonalityAnalysis: {
+                dominantTraits: ["analytical", "creative", "collaborative"],
+                learningArchetype: "The Explorer",
+                strengthAreas: [
+                  "problem-solving",
+                  "visual learning",
+                  "pattern recognition",
+                ],
+                growthAreas: ["time management", "verbal communication"],
+                recommendedApproaches: [
+                  "Visual learning materials",
+                  "Interactive problem-solving",
+                  "Collaborative projects",
+                  "Regular feedback loops",
+                ],
+              },
+              parentContactInfo: {
+                primaryParentName: "Sarah Johnson",
+                primaryParentEmail: "sarah.johnson@email.com",
+                primaryParentPhone: "+1-555-0123",
+                emergencyContactName: "Mark Johnson",
+                emergencyContactPhone: "+1-555-0124",
+              },
+              privacySettings: {
+                dataSharing: "educational_only" as any,
+                parentalAccess: true,
+                behaviorTracking: true,
+                aiPersonalization: true,
+                thirdPartyIntegrations: false,
+              },
+              lastUpdated: new Date(),
+              createdAt: new Date(),
+            },
+            enrolledCourses: [
+              {
+                id: "course_001",
+                title: "Advanced Mathematics",
+                subject: {
+                  id: "math_adv",
+                  name: "Advanced Mathematics",
+                  description: "Calculus and advanced algebraic concepts",
+                  grade: "10-12",
+                  isActive: true,
+                  levels: [],
+                  createdAt: new Date(),
+                  updatedAt: new Date(),
+                },
+                progress: 75,
+                instructor: "Dr. Sarah Chen",
+                totalLessons: 48,
+                completedLessons: 36,
+                upcomingAssignments: [],
+                recentGrade: 94,
+                aiRecommended: true,
+              },
+              {
+                id: "course_002",
+                title: "Biology Advanced Placement",
+                subject: {
+                  id: "bio_ap",
+                  name: "Biology AP",
+                  description: "Advanced placement biology course",
+                  grade: "11-12",
+                  isActive: true,
+                  levels: [],
+                  createdAt: new Date(),
+                  updatedAt: new Date(),
+                },
+                progress: 68,
+                instructor: "Prof. Michael Torres",
+                totalLessons: 52,
+                completedLessons: 35,
+                upcomingAssignments: [],
+                recentGrade: 89,
+              },
+              {
+                id: "course_003",
+                title: "World History Honors",
+                subject: {
+                  id: "hist_honors",
+                  name: "World History Honors",
+                  description:
+                    "Comprehensive world history with critical analysis",
+                  grade: "10-11",
+                  isActive: true,
+                  levels: [],
+                  createdAt: new Date(),
+                  updatedAt: new Date(),
+                },
+                progress: 82,
+                instructor: "Ms. Emily Rodriguez",
+                totalLessons: 40,
+                completedLessons: 33,
+                upcomingAssignments: [],
+                recentGrade: 96,
+              },
+            ],
+            upcomingDeadlines: [],
+            recentSubmissions: [],
+            behaviorSummary: {
+              todaysFocus: 78,
+              weeklyEngagement: 85,
+              currentMood: Mood.Focused,
+              riskLevel: "low",
+            },
+            achievements: [
+              {
+                id: "ach_001",
+                title: "Math Wizard",
+                description:
+                  "Completed 10 consecutive math assignments with 90%+ scores",
+                earnedDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+                points: 150,
+                category: "Academic Excellence",
+              },
+              {
+                id: "ach_002",
+                title: "Study Streak",
+                description:
+                  "Maintained daily study habit for 7 consecutive days",
+                earnedDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+                points: 100,
+                category: "Consistency",
+              },
+            ],
+            notifications: [
+              {
+                id: "notif_001",
+                type: "ai_insight",
+                title: "AI Learning Recommendation",
+                message:
+                  "Based on your recent performance, I recommend focusing on integration techniques in calculus. You're showing great progress!",
+                timestamp: new Date(Date.now() - 30 * 60 * 1000),
+                read: false,
+                priority: "medium",
+              },
+              {
+                id: "notif_002",
+                type: "assignment",
+                title: "Math Assignment Due Soon",
+                message: "Your calculus homework is due in 6 hours",
+                timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
+                read: false,
+                priority: "high",
+              },
+              {
+                id: "notif_003",
+                type: "grade",
+                title: "Biology Quiz Graded",
+                message:
+                  "Great work! You scored 94% on your latest biology quiz",
+                timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000),
+                read: false,
+                priority: "medium",
+              },
+            ],
+          };
+
+          setDashboardData(mockData);
+          setNotificationsList(mockData.notifications);
+        }
+        setLoading(false);
       } catch (error) {
-        console.error("Failed to load dashboard data:", error);
-      } finally {
+        console.error("Error loading dashboard data:", error);
         setLoading(false);
       }
     };
@@ -424,6 +436,168 @@ const StudentDashboard = () => {
   const handleLogout = () => {
     localStorage.removeItem("authToken");
     navigate("/login");
+  };
+
+  // Enhanced functionality handlers
+  const handleContinueLearning = (course: any) => {
+    setLastAction(`Continuing ${course.title}`);
+    console.log("Navigating to course:", course.title);
+
+    // Navigate to lesson content with course data
+    navigate("/lesson-content", {
+      state: {
+        course: course,
+        lessonId: `${course.id}_lesson_${course.completedLessons + 1}`,
+      },
+    });
+  };
+
+  const handleCourseAnalytics = (course: any) => {
+    setSelectedCourse(course);
+    setCourseAnalyticsOpen(true);
+    setLastAction(`Viewing analytics for ${course.title}`);
+  };
+
+  const handleSearch = () => {
+    setShowSearchInput(!showSearchInput);
+    if (!showSearchInput) {
+      setLastAction("Search mode activated");
+    } else {
+      setSearchQuery("");
+      setLastAction("Search cleared");
+    }
+  };
+
+  const handleFilter = () => {
+    setFilterDialogOpen(true);
+    setLastAction("Opened filter options");
+  };
+
+  const applyFilters = () => {
+    setFilterDialogOpen(false);
+    setLastAction("Filters applied");
+  };
+
+  const resetFilters = () => {
+    setSelectedFilters({
+      progress: "all",
+      subject: "all",
+      difficulty: "all",
+    });
+    setLastAction("Filters reset");
+  };
+
+  // Filter courses based on search and filters
+  const getFilteredCourses = () => {
+    let filtered = enrolledCourses;
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      filtered = filtered.filter(
+        (course) =>
+          course.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          course.subject.name
+            .toLowerCase()
+            .includes(searchQuery.toLowerCase()) ||
+          course.instructor.toLowerCase().includes(searchQuery.toLowerCase()),
+      );
+    }
+
+    // Apply progress filter
+    if (selectedFilters.progress !== "all") {
+      filtered = filtered.filter((course) => {
+        if (selectedFilters.progress === "completed")
+          return course.progress === 100;
+        if (selectedFilters.progress === "in-progress")
+          return course.progress > 0 && course.progress < 100;
+        if (selectedFilters.progress === "not-started")
+          return course.progress === 0;
+        return true;
+      });
+    }
+
+    // Apply subject filter (simplified for demo)
+    if (selectedFilters.subject !== "all") {
+      filtered = filtered.filter((course) =>
+        course.subject.name
+          .toLowerCase()
+          .includes(selectedFilters.subject.toLowerCase()),
+      );
+    }
+
+    return filtered;
+  };
+
+  // Notification handling
+  const markNotificationAsRead = async (notificationId: string) => {
+    // Find the notification to get its title for feedback
+    const notification = notificationsList.find((n) => n.id === notificationId);
+
+    try {
+      // Call API to mark notification as read
+      const response =
+        await apiWithFallback.markNotificationAsRead(notificationId);
+
+      if (response.success) {
+        setNotificationsList((prev) =>
+          prev.map((notification) =>
+            notification.id === notificationId
+              ? { ...notification, read: true }
+              : notification,
+          ),
+        );
+
+        if (notification && !notification.read) {
+          setLastAction(`Read: ${notification.title}`);
+
+          // Auto-close dropdown after a short delay if all notifications are read
+          setTimeout(() => {
+            const unreadCount = notificationsList.filter((n) =>
+              n.id === notificationId ? true : !n.read,
+            ).length;
+            if (unreadCount === 0) {
+              setShowNotifications(false);
+            }
+          }, 1000);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to mark notification as read:", error);
+      // Still update UI for better UX
+      setNotificationsList((prev) =>
+        prev.map((notification) =>
+          notification.id === notificationId
+            ? { ...notification, read: true }
+            : notification,
+        ),
+      );
+    }
+  };
+
+  const markAllNotificationsAsRead = async () => {
+    try {
+      // Call API to mark all notifications as read
+      const response = await apiWithFallback.markAllNotificationsAsRead();
+
+      if (response.success) {
+        setNotificationsList((prev) =>
+          prev.map((notification) => ({ ...notification, read: true })),
+        );
+        setLastAction("All notifications marked as read");
+
+        // Auto-close dropdown after marking all as read
+        setTimeout(() => {
+          setShowNotifications(false);
+        }, 1500);
+      }
+    } catch (error) {
+      console.error("Failed to mark all notifications as read:", error);
+      // Still update UI for better UX
+      setNotificationsList((prev) =>
+        prev.map((notification) => ({ ...notification, read: true })),
+      );
+      setLastAction("All notifications marked as read");
+    }
   };
 
   const getMoodEmoji = (mood: Mood) => {
@@ -552,20 +726,41 @@ const StudentDashboard = () => {
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="sm" className="relative">
                     <Bell className="w-5 h-5" />
-                    {notifications.filter((n) => !n.read).length > 0 && (
+                    {notificationsList.filter((n) => !n.read).length > 0 && (
                       <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                        {notifications.filter((n) => !n.read).length}
+                        {notificationsList.filter((n) => !n.read).length}
                       </span>
                     )}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-80">
-                  <DropdownMenuLabel>Notifications</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {notifications.slice(0, 5).map((notification) => (
+                  <div className="flex items-center justify-between p-3 border-b">
+                    <span className="font-medium text-sm">Notifications</span>
+                    {notificationsList.some((n) => !n.read) && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={markAllNotificationsAsRead}
+                        className="text-xs h-auto p-1 text-blue-600 hover:text-blue-700"
+                      >
+                        Mark all read
+                      </Button>
+                    )}
+                  </div>
+                  {notificationsList.slice(0, 5).map((notification) => (
                     <DropdownMenuItem
                       key={notification.id}
-                      className="p-3 cursor-pointer"
+                      className={`p-3 cursor-pointer transition-all duration-200 ${
+                        !notification.read
+                          ? "bg-blue-50 hover:bg-blue-100 border-l-2 border-blue-400"
+                          : "hover:bg-gray-50 opacity-75"
+                      }`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!notification.read) {
+                          markNotificationAsRead(notification.id);
+                        }
+                      }}
                     >
                       <div className="flex items-start gap-3 w-full">
                         <div className="p-1.5 rounded-lg bg-blue-50">
@@ -588,9 +783,30 @@ const StudentDashboard = () => {
                       </div>
                     </DropdownMenuItem>
                   ))}
-                  {notifications.length === 0 && (
+                  {notificationsList.length === 0 && (
                     <div className="p-4 text-center text-gray-500 text-sm">
-                      No new notifications
+                      No notifications
+                    </div>
+                  )}
+                  {notificationsList.length > 0 &&
+                    notificationsList.filter((n) => !n.read).length === 0 && (
+                      <div className="p-4 text-center text-gray-500 text-sm border-t">
+                        All caught up! 🎉
+                      </div>
+                    )}
+                  {notificationsList.length > 5 && (
+                    <div className="p-3 text-center border-t">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs text-blue-600 hover:text-blue-700"
+                        onClick={() => {
+                          setLastAction("Opened all notifications");
+                          setShowNotifications(false);
+                        }}
+                      >
+                        View all notifications ({notificationsList.length})
+                      </Button>
                     </div>
                   )}
                 </DropdownMenuContent>
@@ -862,19 +1078,60 @@ const StudentDashboard = () => {
                     </p>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleFilter}
+                      className="hover:bg-blue-50 hover:border-blue-200 transition-colors"
+                    >
                       <Filter className="w-4 h-4 mr-2" />
                       Filter
                     </Button>
-                    <Button variant="outline" size="sm">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSearch}
+                      className={`transition-colors ${showSearchInput ? "bg-green-50 border-green-200" : "hover:bg-green-50 hover:border-green-200"}`}
+                    >
                       <Search className="w-4 h-4 mr-2" />
-                      Search
+                      {showSearchInput ? "Hide Search" : "Search"}
                     </Button>
                   </div>
                 </div>
 
+                {/* Search Input - appears when search is activated */}
+                {showSearchInput && (
+                  <div className="mb-6">
+                    <div className="relative max-w-md">
+                      <input
+                        type="text"
+                        placeholder="Search courses, instructors, subjects..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        autoFocus
+                      />
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                      {searchQuery && (
+                        <button
+                          onClick={() => setSearchQuery("")}
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                    {searchQuery && (
+                      <p className="text-sm text-gray-600 mt-2">
+                        Showing {getFilteredCourses().length} of{" "}
+                        {enrolledCourses.length} courses
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {enrolledCourses.map((course) => (
+                  {getFilteredCourses().map((course) => (
                     <Card
                       key={course.id}
                       className="hover:shadow-lg transition-shadow"
@@ -926,12 +1183,38 @@ const StudentDashboard = () => {
                           </div>
 
                           <div className="flex gap-2">
-                            <Button size="sm" className="flex-1">
+                            <Button
+                              size="sm"
+                              className="flex-1 hover:bg-blue-700 transition-colors"
+                              onClick={() => handleContinueLearning(course)}
+                            >
                               <Play className="w-4 h-4 mr-2" />
                               Continue Learning
                             </Button>
-                            <Button variant="outline" size="sm">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleCourseAnalytics(course)}
+                              className="hover:bg-purple-50 hover:border-purple-200 transition-colors"
+                              title="View Course Analytics"
+                            >
                               <BarChart3 className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setLastAction(
+                                  `Opened ${course.title} discussion`,
+                                );
+                                navigate("/course-discussion", {
+                                  state: { course },
+                                });
+                              }}
+                              className="hover:bg-green-50 hover:border-green-200 transition-colors"
+                              title="Join Discussion"
+                            >
+                              <MessageSquare className="w-4 h-4" />
                             </Button>
                           </div>
                         </div>
@@ -942,90 +1225,81 @@ const StudentDashboard = () => {
               </TabsContent>
 
               <TabsContent value="analytics" className="space-y-6">
-                <Suspense
-                  fallback={
-                    <div className="flex items-center justify-center p-8">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mr-2"></div>
-                      <span>Loading Analytics...</span>
-                    </div>
+                <BehaviorAnalytics
+                  studentId={dashboardData.profile.id}
+                  currentMood={dashboardData.behaviorSummary.currentMood}
+                  riskScore={
+                    dashboardData.behaviorSummary.riskLevel === "low"
+                      ? 0.2
+                      : dashboardData.behaviorSummary.riskLevel === "medium"
+                        ? 0.5
+                        : 0.8
                   }
-                >
-                  <LazyBehaviorAnalytics
-                    studentId={dashboardData.profile.id}
-                    currentMood={dashboardData.behaviorSummary.currentMood}
-                    riskScore={
-                      dashboardData.behaviorSummary.riskLevel === "low"
-                        ? 0.2
-                        : dashboardData.behaviorSummary.riskLevel === "medium"
-                          ? 0.5
-                          : 0.8
-                    }
-                    behaviorLogs={[]}
-                    analytics={{
-                      studentId: dashboardData.profile.id,
-                      overallProgress: Math.round(
-                        enrolledCourses.reduce(
-                          (sum, course) => sum + course.progress,
-                          0,
-                        ) / enrolledCourses.length,
-                      ),
-                      subjectProgress: enrolledCourses.map((course) => ({
-                        subjectId: parseInt(course.id.replace("course_", "")),
-                        subjectName: course.subject.name,
-                        progress: course.progress,
-                        grade: "A-",
-                        completedLessons: course.completedLessons,
-                        totalLessons: course.totalLessons,
-                        averageScore: course.recentGrade || 85,
-                        timeSpent: course.completedLessons * 1.5,
-                        lastActivity: new Date(),
-                      })),
-                      strengths: [
-                        "problem-solving",
-                        "visual learning",
-                        "analytical thinking",
-                      ],
-                      improvementAreas: [
-                        "time management",
-                        "note-taking",
-                        "verbal communication",
-                      ],
-                      recommendedActions: [
-                        {
-                          type: "practice",
-                          title: "Complete Calculus Practice Set",
-                          description:
-                            "Focus on integration techniques based on your recent performance",
-                          priority: "high",
-                          estimatedTime: 30,
-                          dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000),
-                        },
-                        {
-                          type: "review",
-                          title: "Review Biology Cell Structure",
-                          description:
-                            "Strengthen understanding of cellular components",
-                          priority: "medium",
-                          estimatedTime: 20,
-                        },
-                        {
-                          type: "break",
-                          title: "Take a Short Break",
-                          description:
-                            "You've been focused for a while. A 10-minute break will help",
-                          priority: "medium",
-                          estimatedTime: 10,
-                        },
-                      ],
-                      riskFactors: [],
-                      achievements: achievements,
-                      lastUpdated: new Date(),
-                    }}
-                    onRiskDetected={(risk) => {
-                      console.log("Risk detected:", risk);
-                    }}
-                  />
-                </Suspense>
+                  behaviorLogs={[]}
+                  analytics={{
+                    studentId: dashboardData.profile.id,
+                    overallProgress: Math.round(
+                      enrolledCourses.reduce(
+                        (sum, course) => sum + course.progress,
+                        0,
+                      ) / enrolledCourses.length,
+                    ),
+                    subjectProgress: enrolledCourses.map((course) => ({
+                      subjectId: parseInt(course.id.replace("course_", "")),
+                      subjectName: course.subject.name,
+                      progress: course.progress,
+                      grade: "A-",
+                      completedLessons: course.completedLessons,
+                      totalLessons: course.totalLessons,
+                      averageScore: course.recentGrade || 85,
+                      timeSpent: course.completedLessons * 1.5,
+                      lastActivity: new Date(),
+                    })),
+                    strengths: [
+                      "problem-solving",
+                      "visual learning",
+                      "analytical thinking",
+                    ],
+                    improvementAreas: [
+                      "time management",
+                      "note-taking",
+                      "verbal communication",
+                    ],
+                    recommendedActions: [
+                      {
+                        type: "practice",
+                        title: "Complete Calculus Practice Set",
+                        description:
+                          "Focus on integration techniques based on your recent performance",
+                        priority: "high",
+                        estimatedTime: 30,
+                        dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000),
+                      },
+                      {
+                        type: "review",
+                        title: "Review Biology Cell Structure",
+                        description:
+                          "Strengthen understanding of cellular components",
+                        priority: "medium",
+                        estimatedTime: 20,
+                      },
+                      {
+                        type: "break",
+                        title: "Take a Short Break",
+                        description:
+                          "You've been focused for a while. A 10-minute break will help",
+                        priority: "medium",
+                        estimatedTime: 10,
+                      },
+                    ],
+                    riskFactors: [],
+                    achievements: achievements,
+                    lastUpdated: new Date(),
+                  }}
+                  onRiskDetected={(risk) => {
+                    console.log("Risk detected:", risk);
+                  }}
+                />
               </TabsContent>
 
               <TabsContent value="achievements" className="space-y-6">
@@ -1314,6 +1588,212 @@ const StudentDashboard = () => {
               />
             </Suspense>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Filter Dialog */}
+      <Dialog open={filterDialogOpen} onOpenChange={setFilterDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Filter Courses</DialogTitle>
+            <DialogDescription>
+              Customize how you view your courses
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Progress Status
+              </label>
+              <select
+                value={selectedFilters.progress}
+                onChange={(e) =>
+                  setSelectedFilters({
+                    ...selectedFilters,
+                    progress: e.target.value,
+                  })
+                }
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="all">All Courses</option>
+                <option value="not-started">Not Started</option>
+                <option value="in-progress">In Progress</option>
+                <option value="completed">Completed</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Subject
+              </label>
+              <select
+                value={selectedFilters.subject}
+                onChange={(e) =>
+                  setSelectedFilters({
+                    ...selectedFilters,
+                    subject: e.target.value,
+                  })
+                }
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="all">All Subjects</option>
+                <option value="math">Mathematics</option>
+                <option value="science">Science</option>
+                <option value="english">English</option>
+                <option value="history">History</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Difficulty
+              </label>
+              <select
+                value={selectedFilters.difficulty}
+                onChange={(e) =>
+                  setSelectedFilters({
+                    ...selectedFilters,
+                    difficulty: e.target.value,
+                  })
+                }
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="all">All Levels</option>
+                <option value="beginner">Beginner</option>
+                <option value="intermediate">Intermediate</option>
+                <option value="advanced">Advanced</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex gap-2 mt-6">
+            <Button onClick={resetFilters} variant="outline" className="flex-1">
+              Reset
+            </Button>
+            <Button onClick={applyFilters} className="flex-1">
+              Apply Filters
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Course Analytics Dialog */}
+      <Dialog open={courseAnalyticsOpen} onOpenChange={setCourseAnalyticsOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BarChart3 className="w-5 h-5" />
+              {selectedCourse?.title} - Course Analytics
+            </DialogTitle>
+            <DialogDescription>
+              Detailed performance and progress analytics for this course
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedCourse && (
+            <div className="space-y-6">
+              {/* Course Overview Stats */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <Card className="p-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-blue-600">
+                      {selectedCourse.progress}%
+                    </div>
+                    <div className="text-sm text-gray-600">Progress</div>
+                  </div>
+                </Card>
+                <Card className="p-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-green-600">
+                      {selectedCourse.recentGrade || "N/A"}
+                    </div>
+                    <div className="text-sm text-gray-600">Latest Grade</div>
+                  </div>
+                </Card>
+                <Card className="p-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-purple-600">
+                      {selectedCourse.completedLessons}
+                    </div>
+                    <div className="text-sm text-gray-600">Lessons Done</div>
+                  </div>
+                </Card>
+                <Card className="p-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-orange-600">
+                      {selectedCourse.upcomingAssignments.length}
+                    </div>
+                    <div className="text-sm text-gray-600">Pending Tasks</div>
+                  </div>
+                </Card>
+              </div>
+
+              {/* Upcoming Assignments */}
+              <Card className="p-4">
+                <h4 className="font-medium mb-3">Upcoming Assignments</h4>
+                <div className="space-y-2">
+                  {selectedCourse.upcomingAssignments.map(
+                    (assignment: any, index: number) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-2 bg-gray-50 rounded"
+                      >
+                        <div>
+                          <div className="font-medium text-sm">
+                            {assignment.title}
+                          </div>
+                          <div className="text-xs text-gray-600">
+                            Due: {assignment.dueDate.toLocaleDateString()}
+                          </div>
+                        </div>
+                        <Badge
+                          variant={
+                            assignment.priority === "high"
+                              ? "destructive"
+                              : "default"
+                          }
+                        >
+                          {assignment.priority}
+                        </Badge>
+                      </div>
+                    ),
+                  )}
+                  {selectedCourse.upcomingAssignments.length === 0 && (
+                    <div className="text-center text-gray-500 py-4">
+                      No pending assignments
+                    </div>
+                  )}
+                </div>
+              </Card>
+
+              {/* Action Buttons */}
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => {
+                    handleContinueLearning(selectedCourse);
+                    setCourseAnalyticsOpen(false);
+                  }}
+                  className="flex-1"
+                >
+                  <Play className="w-4 h-4 mr-2" />
+                  Continue Learning
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setLastAction(`Opened ${selectedCourse.title} discussion`);
+                    setCourseAnalyticsOpen(false);
+                    navigate("/course-discussion", {
+                      state: { course: selectedCourse },
+                    });
+                  }}
+                >
+                  <MessageSquare className="w-4 h-4 mr-2" />
+                  Discussion
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

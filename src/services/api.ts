@@ -316,6 +316,36 @@ class ApiClient {
     return this.request<any>(`/students/${studentId}/progress`);
   }
 
+  // Student Dashboard Methods
+  async getStudentDashboard(): Promise<ApiResponse<any>> {
+    return this.request<any>("/students/dashboard");
+  }
+
+  async getCourseLessons(courseId: string): Promise<ApiResponse<any>> {
+    return this.request<any>(`/students/courses/${courseId}/lessons`);
+  }
+
+  async getCourseDiscussion(courseId: string): Promise<ApiResponse<any>> {
+    return this.request<any>(`/students/courses/${courseId}/discussion`);
+  }
+
+  async markNotificationAsRead(
+    notificationId: string,
+  ): Promise<ApiResponse<boolean>> {
+    return this.request<boolean>(
+      `/students/notifications/${notificationId}/read`,
+      {
+        method: "POST",
+      },
+    );
+  }
+
+  async markAllNotificationsAsRead(): Promise<ApiResponse<boolean>> {
+    return this.request<boolean>("/students/notifications/read-all", {
+      method: "POST",
+    });
+  }
+
   // Teacher-specific Methods
   async getTeachers(schoolId: string): Promise<ApiResponse<Teacher[]>> {
     return this.request<Teacher[]>(`/schools/${schoolId}/teachers`);

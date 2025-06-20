@@ -148,6 +148,47 @@ export const apiWithFallback = {
     );
   },
 
+  // Student Dashboard Methods
+  async getStudentDashboard() {
+    return withFallback(
+      () => apiClient.getStudentDashboard(),
+      () => MockApiService.getStudentDashboard(),
+      "Get Student Dashboard",
+    );
+  },
+
+  async getCourseLessons(courseId: string) {
+    return withFallback(
+      () => apiClient.getCourseLessons(courseId),
+      () => MockApiService.getCourseLessons(courseId),
+      "Get Course Lessons",
+    );
+  },
+
+  async getCourseDiscussion(courseId: string) {
+    return withFallback(
+      () => apiClient.getCourseDiscussion(courseId),
+      () => MockApiService.getCourseDiscussion(courseId),
+      "Get Course Discussion",
+    );
+  },
+
+  async markNotificationAsRead(notificationId: string) {
+    return withFallback(
+      () => apiClient.markNotificationAsRead(notificationId),
+      () => MockApiService.markNotificationAsRead(notificationId),
+      "Mark Notification as Read",
+    );
+  },
+
+  async markAllNotificationsAsRead() {
+    return withFallback(
+      () => apiClient.markAllNotificationsAsRead(),
+      () => MockApiService.markAllNotificationsAsRead(),
+      "Mark All Notifications as Read",
+    );
+  },
+
   // Utility methods
   logout() {
     return apiClient.logout();

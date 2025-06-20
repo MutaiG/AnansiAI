@@ -12,6 +12,8 @@ import StudentDashboard from "./pages/StudentDashboard";
 import TeacherDashboard from "./pages/TeacherDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import SuperAdminDashboard from "./pages/SuperAdminDashboard";
+import LessonContent from "./pages/LessonContent";
+import CourseDiscussion from "./pages/CourseDiscussion";
 import NotFound from "./pages/NotFound";
 
 // Create QueryClient with proper configuration to prevent React context issues
@@ -58,6 +60,25 @@ const App = () => (
                 path="/super-admin-dashboard"
                 element={<SuperAdminDashboard />}
               />
+
+              {/* Course Content Routes */}
+              <Route
+                path="/lesson-content"
+                element={
+                  <ErrorBoundary>
+                    <LessonContent />
+                  </ErrorBoundary>
+                }
+              />
+              <Route
+                path="/course-discussion"
+                element={
+                  <ErrorBoundary>
+                    <CourseDiscussion />
+                  </ErrorBoundary>
+                }
+              />
+
               {/* Catch-all route for 404 */}
               <Route path="*" element={<NotFound />} />
             </Routes>

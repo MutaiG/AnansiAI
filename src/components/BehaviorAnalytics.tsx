@@ -31,7 +31,7 @@ import {
   PieChart,
   Pie,
   Cell,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   Legend,
 } from "recharts";
 import {
@@ -574,7 +574,7 @@ const DetailedAnalyticsView: React.FC<{
                   <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}
               </Pie>
-              <Tooltip
+              <RechartsTooltip
                 formatter={(value, name) => [`${value}%`, name]}
                 contentStyle={{
                   backgroundColor: "#f8f9fa",
