@@ -57,6 +57,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import apiWithFallback from "@/services/apiWithFallback";
+import { autoApiService } from "@/services/cloudApiService";
 
 // Import AI components directly
 import { Suspense, lazy } from "react";
@@ -157,33 +158,96 @@ interface DashboardCourse {
   aiRecommended?: boolean;
 }
 
+// Backend DTO interfaces to match API responses
 interface StudentDashboardData {
-  profile: StudentProfile;
-  enrolledCourses: DashboardCourse[];
-  upcomingDeadlines: Assignment[];
-  recentSubmissions: Submission[];
+  profile: {
+    id: string;
+    appUserId: string;
+    personalityTraits: {
+      openness: number;
+      conscientiousness: number;
+      extraversion: number;
+      agreeableness: number;
+      neuroticism: number;
+    };
+    learningPreferences: {
+      preferredStyle: string;
+      preferredModalities: string[];
+      difficultyPreference: string;
+      pacePreference: string;
+      feedbackFrequency: string;
+    };
+    emotionalState: {
+      currentMood: string;
+      stressLevel: number;
+      confidenceLevel: number;
+      motivationLevel: number;
+      lastUpdated: string;
+    };
+    aiPersonalityAnalysis: {
+      dominantTraits: string[];
+      learningArchetype: string;
+      strengthAreas: string[];
+      growthAreas: string[];
+      recommendedActivities: string[];
+      confidenceScore: number;
+      lastAnalysis: string;
+    };
+    privacySettings: {
+      shareLearningData: boolean;
+      shareBehaviorAnalytics: boolean;
+      allowPersonalization: boolean;
+      showInLeaderboards: boolean;
+      dataRetentionPreference: string;
+    };
+  };
+  enrolledCourses: Array<{
+    id: string;
+    title: string;
+    instructor: string;
+    progress: number;
+    completedLessons: number;
+    totalLessons: number;
+    recentGrade?: number;
+    aiRecommended: boolean;
+    subject: {
+      subjectId: number;
+      name: string;
+      description: string;
+    };
+    upcomingAssignments: Array<{
+      id: string;
+      title: string;
+      dueDate: string;
+      priority: string;
+      status: string;
+    }>;
+  }>;
   behaviorSummary: {
-    todaysFocus: number;
-    weeklyEngagement: number;
-    currentMood: Mood;
-    riskLevel: "low" | "medium" | "high";
+    currentMood: string;
+    riskLevel: string;
+    engagementScore: number;
+    focusScore: number;
+    recentActivities: string[];
+    lastActivity: string;
   };
   achievements: Array<{
     id: string;
     title: string;
     description: string;
-    earnedDate: Date;
-    points: number;
     category: string;
+    earnedDate: string;
+    iconUrl: string;
+    isNew: boolean;
   }>;
   notifications: Array<{
     id: string;
-    type: "assignment" | "grade" | "system" | "ai_insight";
+    type: string;
     title: string;
     message: string;
-    timestamp: Date;
+    timestamp: string;
     read: boolean;
-    priority: "low" | "medium" | "high";
+    priority: string;
   }>;
 }
 
@@ -206,6 +270,8 @@ const StudentDashboard = () => {
   const [selectedCourse, setSelectedCourse] = useState<any>(null);
   const [courseAnalyticsOpen, setCourseAnalyticsOpen] = useState(false);
   const [notificationsList, setNotificationsList] = useState<any[]>([]);
+  const [selectedNotification, setSelectedNotification] = useState<any>(null);
+  const [notificationDetailOpen, setNotificationDetailOpen] = useState(false);
 
   // Auto-clear action feedback after 3 seconds
   useEffect(() => {
@@ -225,8 +291,28 @@ const StudentDashboard = () => {
       try {
         setLoading(true);
 
-        // Load real data from API
-        const response = await apiWithFallback.getStudentDashboard();
+        // Force cloud mode check - bypass all network calls in cloud environments
+        const isCloudMode =
+          import.meta.env.VITE_FORCE_CLOUD_MODE === "true" ||
+          window.location.hostname.includes("fly.dev") ||
+          window.location.hostname.includes("builder.codes");
+
+        if (isCloudMode) {
+          // Directly use mock data in cloud environments - no network calls
+          const { MockApiService } = await import("@/services/mockData");
+          const response = await MockApiService.getStudentDashboard();
+
+          if (response.success && response.data) {
+            setDashboardData(response.data);
+            setNotificationsList(response.data.notifications);
+            setLoading(false);
+            return;
+          }
+        }
+
+        // Use cloud API service if available, otherwise use fallback API
+        const apiService = autoApiService || apiWithFallback;
+        const response = await apiService.getStudentDashboard();
 
         if (response.success && response.data) {
           setDashboardData(response.data);
@@ -246,21 +332,18 @@ const StudentDashboard = () => {
                 neuroticism: 0.35,
               },
               learningPreferences: {
-                preferredStyle: LearningStyle.Visual,
-                preferredModalities: [
-                  LearningModality.Interactive,
-                  LearningModality.Visual,
-                ],
+                preferredStyle: "Visual",
+                preferredModalities: ["Interactive", "Visual"],
                 difficultyPreference: "adaptive",
                 pacePreference: "moderate",
                 feedbackFrequency: "immediate",
               },
               emotionalState: {
-                currentMood: Mood.Focused,
+                currentMood: "Focused",
                 stressLevel: 0.3,
                 confidenceLevel: 0.75,
                 motivationLevel: 0.8,
-                lastUpdated: new Date(),
+                lastUpdated: new Date().toISOString(),
               },
               aiPersonalityAnalysis: {
                 dominantTraits: ["analytical", "creative", "collaborative"],
@@ -271,101 +354,104 @@ const StudentDashboard = () => {
                   "pattern recognition",
                 ],
                 growthAreas: ["time management", "verbal communication"],
-                recommendedApproaches: [
+                recommendedActivities: [
                   "Visual learning materials",
                   "Interactive problem-solving",
                   "Collaborative projects",
                   "Regular feedback loops",
                 ],
-              },
-              parentContactInfo: {
-                primaryParentName: "Sarah Johnson",
-                primaryParentEmail: "sarah.johnson@email.com",
-                primaryParentPhone: "+1-555-0123",
-                emergencyContactName: "Mark Johnson",
-                emergencyContactPhone: "+1-555-0124",
+                confidenceScore: 0.85,
+                lastAnalysis: new Date().toISOString(),
               },
               privacySettings: {
-                dataSharing: "educational_only" as any,
-                parentalAccess: true,
-                behaviorTracking: true,
-                aiPersonalization: true,
-                thirdPartyIntegrations: false,
+                shareLearningData: true,
+                shareBehaviorAnalytics: false,
+                allowPersonalization: true,
+                showInLeaderboards: true,
+                dataRetentionPreference: "standard",
               },
-              lastUpdated: new Date(),
-              createdAt: new Date(),
             },
             enrolledCourses: [
               {
                 id: "course_001",
                 title: "Advanced Mathematics",
-                subject: {
-                  id: "math_adv",
-                  name: "Advanced Mathematics",
-                  description: "Calculus and advanced algebraic concepts",
-                  grade: "10-12",
-                  isActive: true,
-                  levels: [],
-                  createdAt: new Date(),
-                  updatedAt: new Date(),
-                },
-                progress: 75,
                 instructor: "Dr. Sarah Chen",
-                totalLessons: 48,
+                progress: 75,
                 completedLessons: 36,
-                upcomingAssignments: [],
+                totalLessons: 48,
                 recentGrade: 94,
                 aiRecommended: true,
+                subject: {
+                  subjectId: 1,
+                  name: "Mathematics",
+                  description: "Advanced mathematical concepts",
+                },
+                upcomingAssignments: [
+                  {
+                    id: "assign_001",
+                    title: "Calculus Problem Set",
+                    dueDate: new Date(
+                      Date.now() + 3 * 24 * 60 * 60 * 1000,
+                    ).toISOString(),
+                    priority: "high",
+                    status: "pending",
+                  },
+                ],
               },
               {
                 id: "course_002",
                 title: "Biology Advanced Placement",
-                subject: {
-                  id: "bio_ap",
-                  name: "Biology AP",
-                  description: "Advanced placement biology course",
-                  grade: "11-12",
-                  isActive: true,
-                  levels: [],
-                  createdAt: new Date(),
-                  updatedAt: new Date(),
-                },
-                progress: 68,
                 instructor: "Prof. Michael Torres",
-                totalLessons: 52,
+                progress: 68,
                 completedLessons: 35,
-                upcomingAssignments: [],
+                totalLessons: 52,
                 recentGrade: 89,
+                aiRecommended: false,
+                subject: {
+                  subjectId: 2,
+                  name: "Biology",
+                  description: "Advanced placement biology",
+                },
+                upcomingAssignments: [
+                  {
+                    id: "assign_002",
+                    title: "Lab Report",
+                    dueDate: new Date(
+                      Date.now() + 5 * 24 * 60 * 60 * 1000,
+                    ).toISOString(),
+                    priority: "medium",
+                    status: "pending",
+                  },
+                ],
               },
               {
                 id: "course_003",
                 title: "World History Honors",
-                subject: {
-                  id: "hist_honors",
-                  name: "World History Honors",
-                  description:
-                    "Comprehensive world history with critical analysis",
-                  grade: "10-11",
-                  isActive: true,
-                  levels: [],
-                  createdAt: new Date(),
-                  updatedAt: new Date(),
-                },
-                progress: 82,
                 instructor: "Ms. Emily Rodriguez",
-                totalLessons: 40,
+                progress: 82,
                 completedLessons: 33,
-                upcomingAssignments: [],
+                totalLessons: 40,
                 recentGrade: 96,
+                aiRecommended: false,
+                subject: {
+                  subjectId: 3,
+                  name: "History",
+                  description: "World history honors course",
+                },
+                upcomingAssignments: [],
               },
             ],
-            upcomingDeadlines: [],
-            recentSubmissions: [],
             behaviorSummary: {
-              todaysFocus: 78,
-              weeklyEngagement: 85,
-              currentMood: Mood.Focused,
+              currentMood: "Focused",
               riskLevel: "low",
+              engagementScore: 0.85,
+              focusScore: 0.78,
+              recentActivities: [
+                "Completed Math Lesson 12",
+                "Participated in Biology Discussion",
+                "Submitted History Assignment",
+              ],
+              lastActivity: new Date().toISOString(),
             },
             achievements: [
               {
@@ -373,18 +459,36 @@ const StudentDashboard = () => {
                 title: "Math Wizard",
                 description:
                   "Completed 10 consecutive math assignments with 90%+ scores",
-                earnedDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-                points: 150,
                 category: "Academic Excellence",
+                earnedDate: new Date(
+                  Date.now() - 2 * 24 * 60 * 60 * 1000,
+                ).toISOString(),
+                iconUrl: "",
+                isNew: false,
               },
               {
                 id: "ach_002",
                 title: "Study Streak",
                 description:
                   "Maintained daily study habit for 7 consecutive days",
-                earnedDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-                points: 100,
                 category: "Consistency",
+                earnedDate: new Date(
+                  Date.now() - 1 * 24 * 60 * 60 * 1000,
+                ).toISOString(),
+                iconUrl: "",
+                isNew: true,
+              },
+              {
+                id: "ach_003",
+                title: "Biology Expert",
+                description:
+                  "Scored above 90% on 5 consecutive biology quizzes",
+                category: "Subject Mastery",
+                earnedDate: new Date(
+                  Date.now() - 3 * 24 * 60 * 60 * 1000,
+                ).toISOString(),
+                iconUrl: "",
+                isNew: false,
               },
             ],
             notifications: [
@@ -394,7 +498,7 @@ const StudentDashboard = () => {
                 title: "AI Learning Recommendation",
                 message:
                   "Based on your recent performance, I recommend focusing on integration techniques in calculus. You're showing great progress!",
-                timestamp: new Date(Date.now() - 30 * 60 * 1000),
+                timestamp: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
                 read: false,
                 priority: "medium",
               },
@@ -403,7 +507,9 @@ const StudentDashboard = () => {
                 type: "assignment",
                 title: "Math Assignment Due Soon",
                 message: "Your calculus homework is due in 6 hours",
-                timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
+                timestamp: new Date(
+                  Date.now() - 2 * 60 * 60 * 1000,
+                ).toISOString(),
                 read: false,
                 priority: "high",
               },
@@ -413,7 +519,9 @@ const StudentDashboard = () => {
                 title: "Biology Quiz Graded",
                 message:
                   "Great work! You scored 94% on your latest biology quiz",
-                timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000),
+                timestamp: new Date(
+                  Date.now() - 24 * 60 * 60 * 1000,
+                ).toISOString(),
                 read: false,
                 priority: "medium",
               },
@@ -435,7 +543,9 @@ const StudentDashboard = () => {
 
   const handleLogout = () => {
     localStorage.removeItem("authToken");
-    navigate("/login");
+    localStorage.removeItem("anansi_token");
+    localStorage.removeItem("userRole");
+    navigate("/");
   };
 
   // Enhanced functionality handlers
@@ -528,6 +638,140 @@ const StudentDashboard = () => {
     return filtered;
   };
 
+  // Notification viewing - shows content before marking as read
+  const viewNotification = (notification: any) => {
+    setSelectedNotification(notification);
+    setNotificationDetailOpen(true);
+    setShowNotifications(false); // Close the dropdown
+  };
+
+  // Mark notification as read after viewing
+  const markNotificationAsReadAfterViewing = async (notificationId: string) => {
+    const notification = notificationsList.find((n) => n.id === notificationId);
+
+    try {
+      // Direct cloud mode check
+      const isCloudMode =
+        import.meta.env.VITE_FORCE_CLOUD_MODE === "true" ||
+        window.location.hostname.includes("fly.dev") ||
+        window.location.hostname.includes("builder.codes");
+
+      if (isCloudMode) {
+        const { MockApiService } = await import("@/services/mockData");
+        const response =
+          await MockApiService.markNotificationAsRead(notificationId);
+
+        if (response.success) {
+          setNotificationsList((prev) =>
+            prev.map((notification) =>
+              notification.id === notificationId
+                ? { ...notification, read: true }
+                : notification,
+            ),
+          );
+
+          if (notification && !notification.read) {
+            setLastAction(`Read: ${notification.title}`);
+          }
+        }
+
+        setNotificationDetailOpen(false);
+        setSelectedNotification(null);
+        return;
+      }
+
+      const apiService = autoApiService || apiWithFallback;
+      const response = await apiService.markNotificationAsRead(notificationId);
+
+      if (response.success) {
+        setNotificationsList((prev) =>
+          prev.map((notification) =>
+            notification.id === notificationId
+              ? { ...notification, read: true }
+              : notification,
+          ),
+        );
+
+        if (notification && !notification.read) {
+          setLastAction(`Read: ${notification.title}`);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to mark notification as read:", error);
+      setNotificationsList((prev) =>
+        prev.map((notification) =>
+          notification.id === notificationId
+            ? { ...notification, read: true }
+            : notification,
+        ),
+      );
+    }
+
+    setNotificationDetailOpen(false);
+    setSelectedNotification(null);
+  };
+
+  // Mark notification as unread
+  const markNotificationAsUnread = async (notificationId: string) => {
+    const notification = notificationsList.find((n) => n.id === notificationId);
+
+    try {
+      // Direct cloud mode check
+      const isCloudMode =
+        import.meta.env.VITE_FORCE_CLOUD_MODE === "true" ||
+        window.location.hostname.includes("fly.dev") ||
+        window.location.hostname.includes("builder.codes");
+
+      if (isCloudMode) {
+        // Simulate API call with mock service
+        setNotificationsList((prev) =>
+          prev.map((notification) =>
+            notification.id === notificationId
+              ? { ...notification, read: false }
+              : notification,
+          ),
+        );
+
+        if (notification && notification.read) {
+          setLastAction(`Marked as unread: ${notification.title}`);
+        }
+
+        setNotificationDetailOpen(false);
+        setSelectedNotification(null);
+        return;
+      }
+
+      // For real API calls (local development)
+      const apiService = autoApiService || apiWithFallback;
+      // Note: Backend would need to implement markNotificationAsUnread endpoint
+      // For now, just update UI
+      setNotificationsList((prev) =>
+        prev.map((notification) =>
+          notification.id === notificationId
+            ? { ...notification, read: false }
+            : notification,
+        ),
+      );
+
+      if (notification && notification.read) {
+        setLastAction(`Marked as unread: ${notification.title}`);
+      }
+
+      setNotificationDetailOpen(false);
+      setSelectedNotification(null);
+    } catch (error) {
+      console.error("Failed to mark notification as unread:", error);
+      // Still update UI for better UX
+      setNotificationsList((prev) =>
+        prev.map((notification) =>
+          notification.id === notificationId
+            ? { ...notification, read: false }
+            : notification,
+        ),
+      );
+    }
+  };
+
   // Notification handling
   const markNotificationAsRead = async (notificationId: string) => {
     // Find the notification to get its title for feedback
@@ -576,8 +820,32 @@ const StudentDashboard = () => {
 
   const markAllNotificationsAsRead = async () => {
     try {
+      // Direct cloud mode check
+      const isCloudMode =
+        import.meta.env.VITE_FORCE_CLOUD_MODE === "true" ||
+        window.location.hostname.includes("fly.dev") ||
+        window.location.hostname.includes("builder.codes");
+
+      if (isCloudMode) {
+        const { MockApiService } = await import("@/services/mockData");
+        const response = await MockApiService.markAllNotificationsAsRead();
+
+        if (response.success) {
+          setNotificationsList((prev) =>
+            prev.map((notification) => ({ ...notification, read: true })),
+          );
+          setLastAction("All notifications marked as read");
+
+          setTimeout(() => {
+            setShowNotifications(false);
+          }, 1500);
+        }
+        return;
+      }
+
       // Call API to mark all notifications as read
-      const response = await apiWithFallback.markAllNotificationsAsRead();
+      const apiService = autoApiService || apiWithFallback;
+      const response = await apiService.markAllNotificationsAsRead();
 
       if (response.success) {
         setNotificationsList((prev) =>
@@ -757,9 +1025,7 @@ const StudentDashboard = () => {
                       }`}
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (!notification.read) {
-                          markNotificationAsRead(notification.id);
-                        }
+                        viewNotification(notification);
                       }}
                     >
                       <div className="flex items-start gap-3 w-full">
@@ -774,7 +1040,9 @@ const StudentDashboard = () => {
                             {notification.message}
                           </p>
                           <p className="text-xs text-gray-500 mt-1">
-                            {notification.timestamp.toLocaleTimeString()}
+                            {new Date(
+                              notification.timestamp,
+                            ).toLocaleTimeString()}
                           </p>
                         </div>
                         {!notification.read && (
@@ -926,7 +1194,7 @@ const StudentDashboard = () => {
                         </div>
                         <div className="ml-4">
                           <p className="text-2xl font-bold text-gray-900">
-                            {behaviorSummary.todaysFocus}%
+                            {Math.round(behaviorSummary.focusScore * 100)}%
                           </p>
                           <p className="text-sm text-gray-600">Focus Level</p>
                         </div>
@@ -1313,8 +1581,7 @@ const StudentDashboard = () => {
                     </p>
                   </div>
                   <Badge className="bg-yellow-100 text-yellow-700">
-                    Total Points:{" "}
-                    {achievements.reduce((sum, ach) => sum + ach.points, 0)}
+                    Total Achievements: {achievements.length}
                   </Badge>
                 </div>
 
@@ -1341,11 +1608,10 @@ const StudentDashboard = () => {
                                 {achievement.category}
                               </Badge>
                               <div className="text-right">
-                                <p className="text-lg font-bold text-yellow-600">
-                                  +{achievement.points}
-                                </p>
                                 <p className="text-xs text-gray-500">
-                                  {achievement.earnedDate.toLocaleDateString()}
+                                  {new Date(
+                                    achievement.earnedDate,
+                                  ).toLocaleDateString()}
                                 </p>
                               </div>
                             </div>
@@ -1428,10 +1694,12 @@ const StudentDashboard = () => {
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
                       <span>Focus</span>
-                      <span>{behaviorSummary.todaysFocus}%</span>
+                      <span>
+                        {Math.round(behaviorSummary.focusScore * 100)}%
+                      </span>
                     </div>
                     <Progress
-                      value={behaviorSummary.todaysFocus}
+                      value={behaviorSummary.focusScore * 100}
                       className="h-2"
                     />
                   </div>
@@ -1439,10 +1707,12 @@ const StudentDashboard = () => {
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
                       <span>Engagement</span>
-                      <span>{behaviorSummary.weeklyEngagement}%</span>
+                      <span>
+                        {Math.round(behaviorSummary.engagementScore * 100)}%
+                      </span>
                     </div>
                     <Progress
-                      value={behaviorSummary.weeklyEngagement}
+                      value={behaviorSummary.engagementScore * 100}
                       className="h-2"
                     />
                   </div>
@@ -1794,6 +2064,98 @@ const StudentDashboard = () => {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Notification Detail Modal */}
+      <Dialog
+        open={notificationDetailOpen}
+        onOpenChange={setNotificationDetailOpen}
+      >
+        <DialogContent className="max-w-md mx-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-blue-50">
+                {selectedNotification &&
+                  getNotificationIcon(selectedNotification.type)}
+              </div>
+              <div className="flex-1">
+                <div className="text-sm font-medium text-gray-900">
+                  {selectedNotification?.title}
+                </div>
+                <div className="text-xs text-gray-500 mt-1">
+                  {selectedNotification?.timestamp
+                    ? new Date(selectedNotification.timestamp).toLocaleString()
+                    : ""}
+                </div>
+              </div>
+              {selectedNotification && !selectedNotification.read && (
+                <div className="w-3 h-3 bg-blue-600 rounded-full"></div>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="py-4">
+            <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+              {selectedNotification?.message}
+            </div>
+
+            {selectedNotification?.priority === "high" && (
+              <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <div className="flex items-center gap-2 text-red-800">
+                  <AlertTriangle className="w-4 h-4" />
+                  <span className="text-xs font-medium">High Priority</span>
+                </div>
+              </div>
+            )}
+
+            {selectedNotification?.type === "assignment" && (
+              <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <div className="flex items-center gap-2 text-amber-800">
+                  <Calendar className="w-4 h-4" />
+                  <span className="text-xs font-medium">
+                    Assignment Deadline
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-2 pt-4 border-t">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setNotificationDetailOpen(false)}
+              className="flex-1"
+            >
+              Close
+            </Button>
+            {selectedNotification && !selectedNotification.read && (
+              <Button
+                size="sm"
+                onClick={() =>
+                  markNotificationAsReadAfterViewing(selectedNotification.id)
+                }
+                className="flex-1"
+              >
+                <CheckCircle className="w-4 h-4 mr-2" />
+                Mark as Read
+              </Button>
+            )}
+            {selectedNotification && selectedNotification.read && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  markNotificationAsUnread(selectedNotification.id)
+                }
+                className="flex-1"
+              >
+                <Bell className="w-4 h-4 mr-2" />
+                Mark as Unread
+              </Button>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

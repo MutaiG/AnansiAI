@@ -9,11 +9,13 @@ const IS_DEVELOPMENT =
 
 // Check if we're in a cloud environment (Builder.io, Fly.dev, etc.)
 const IS_CLOUD_ENVIRONMENT =
-  window.location.hostname.includes("builder.codes") ||
-  window.location.hostname.includes("fly.dev") ||
-  window.location.hostname.includes("netlify.app") ||
-  window.location.hostname.includes("vercel.app") ||
-  import.meta.env.VITE_API_URL?.includes("api-not-available");
+  import.meta.env.VITE_FORCE_CLOUD_MODE === "true" ||
+  (!import.meta.env.VITE_FORCE_BACKEND &&
+    (window.location.hostname.includes("builder.codes") ||
+      window.location.hostname.includes("fly.dev") ||
+      window.location.hostname.includes("netlify.app") ||
+      window.location.hostname.includes("vercel.app") ||
+      import.meta.env.VITE_API_URL?.includes("api-not-available")));
 
 // Helper to determine if we should use fallback
 let useFallback = IS_CLOUD_ENVIRONMENT; // Start with fallback in cloud
@@ -58,10 +60,17 @@ async function withFallback<T>(
     return await apiCall();
   } catch (error) {
     if (IS_DEVELOPMENT) {
-      console.warn(
-        `⚠️ ${operationName} failed, falling back to mock data:`,
-        error,
-      );
+      // More specific error messages
+      if (error?.message?.includes("Network Error")) {
+        console.warn(
+          `🌐 ${operationName}: Backend API not available in cloud environment, using mock data`,
+        );
+      } else {
+        console.warn(
+          `⚠️ ${operationName} failed, falling back to mock data:`,
+          error,
+        );
+      }
       useFallback = true; // Remember for future calls
       showFallbackWarning();
       return fallbackCall();

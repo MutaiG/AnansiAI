@@ -489,6 +489,15 @@ export class MockApiService {
           iconUrl: "/icons/discussion.svg",
           isNew: false,
         },
+        {
+          id: "achieve_003",
+          title: "Perfect Score",
+          description: "Achieved 100% on Biology Lab Exam",
+          category: "excellence",
+          earnedDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+          iconUrl: "/icons/perfect-score.svg",
+          isNew: true,
+        },
       ],
       notifications: [
         {
@@ -690,6 +699,16 @@ Would you like to schedule office hours to go through this together?`,
 
   static async markAllNotificationsAsRead(): Promise<ApiResponse<boolean>> {
     await mockDelay(300);
+    return {
+      success: true,
+      data: true,
+    };
+  }
+
+  static async markNotificationAsUnread(
+    notificationId: string,
+  ): Promise<ApiResponse<boolean>> {
+    await mockDelay(200);
     return {
       success: true,
       data: true,

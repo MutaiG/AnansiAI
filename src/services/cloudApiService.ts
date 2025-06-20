@@ -6,12 +6,14 @@ import { MockApiService } from "./mockData";
 import type { ApiResponse } from "./api";
 
 const IS_CLOUD_ENVIRONMENT =
-  typeof window !== "undefined" &&
-  (window.location.hostname.includes("builder.codes") ||
-    window.location.hostname.includes("fly.dev") ||
-    window.location.hostname.includes("netlify.app") ||
-    window.location.hostname.includes("vercel.app") ||
-    import.meta.env.VITE_API_URL?.includes("api-not-available"));
+  import.meta.env.VITE_FORCE_CLOUD_MODE === "true" ||
+  (!import.meta.env.VITE_FORCE_BACKEND &&
+    typeof window !== "undefined" &&
+    (window.location.hostname.includes("builder.codes") ||
+      window.location.hostname.includes("fly.dev") ||
+      window.location.hostname.includes("netlify.app") ||
+      window.location.hostname.includes("vercel.app") ||
+      import.meta.env.VITE_API_URL?.includes("api-not-available")));
 
 class CloudApiService {
   private hasLoggedCloudMode = false;
@@ -68,6 +70,32 @@ class CloudApiService {
   async resetPassword(email: string) {
     this.logCloudMode();
     return MockApiService.resetPassword(email);
+  }
+
+  // Student Dashboard Methods
+  async getStudentDashboard() {
+    this.logCloudMode();
+    return MockApiService.getStudentDashboard();
+  }
+
+  async getCourseLessons(courseId: string) {
+    this.logCloudMode();
+    return MockApiService.getCourseLessons(courseId);
+  }
+
+  async getCourseDiscussion(courseId: string) {
+    this.logCloudMode();
+    return MockApiService.getCourseDiscussion(courseId);
+  }
+
+  async markNotificationAsRead(notificationId: string) {
+    this.logCloudMode();
+    return MockApiService.markNotificationAsRead(notificationId);
+  }
+
+  async markAllNotificationsAsRead() {
+    this.logCloudMode();
+    return MockApiService.markAllNotificationsAsRead();
   }
 
   logout() {
