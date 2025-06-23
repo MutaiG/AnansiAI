@@ -104,8 +104,17 @@ import {
   Upload,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useAdminDashboard, useCreateUser, useUpdateUser, useCreateSubject } from "@/hooks/useAdminApi";
-import type { AdminDashboardData, UserData, SystemAlert } from "@/hooks/useAdminApi";
+import {
+  useAdminDashboard,
+  useCreateUser,
+  useUpdateUser,
+  useCreateSubject,
+} from "@/hooks/useAdminApi";
+import type {
+  AdminDashboardData,
+  UserData,
+  SystemAlert,
+} from "@/hooks/useAdminApi";
 import usePageTitle from "@/hooks/usePageTitle";
 
 // Remove the local interfaces as they're now imported from useAdminApi
@@ -249,24 +258,22 @@ const AdminDashboard = () => {
   const systemAlerts = dashboardData?.systemAlerts || [];
 
   // Transform API user data to component format
-  const users = dashboardData?.users?.map(user => ({
-    id: user.id,
-    name: user.fullName,
-    email: user.email,
-    phone: user.phoneNumber,
-    role: user.role.toLowerCase() as "student" | "teacher",
-    regNo: user.role === "STUDENT" ? `REG${user.id}` : undefined,
-    grade: user.role === "STUDENT" ? "10th" : undefined, // Would come from enrollment data
-    subject: user.role === "TEACHER" ? "Subject" : undefined, // Would come from teacher profile
-    status: user.isActive ? "active" as const : "inactive" as const,
-    lastLogin: user.lastLogin,
-    joinDate: new Date(user.createdAt).toLocaleDateString(),
-    performance: user.averageGrade,
-    courses: user.enrolledLevels || user.createdLessons || 0,
-  })) || [];
-
-  const users: User[] = [
-
+  const users =
+    dashboardData?.users?.map((user) => ({
+      id: user.id,
+      name: user.fullName,
+      email: user.email,
+      phone: user.phoneNumber,
+      role: user.role.toLowerCase() as "student" | "teacher",
+      regNo: user.role === "STUDENT" ? `REG${user.id}` : undefined,
+      grade: user.role === "STUDENT" ? "10th" : undefined, // Would come from enrollment data
+      subject: user.role === "TEACHER" ? "Subject" : undefined, // Would come from teacher profile
+      status: user.isActive ? ("active" as const) : ("inactive" as const),
+      lastLogin: user.lastLogin,
+      joinDate: new Date(user.createdAt).toLocaleDateString(),
+      performance: user.averageGrade,
+      courses: user.enrolledLevels || user.createdLessons || 0,
+    })) || [];
 
   const handleLogout = () => {
     navigate("/login");
