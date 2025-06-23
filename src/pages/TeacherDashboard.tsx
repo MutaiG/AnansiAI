@@ -1163,18 +1163,20 @@ ${twinInsight.twinAdaptations.nextRecommendations.join("\n")}`,
     if (content) {
       setContentForm({
         title: content.title,
-        description: content.description || "",
-        type: content.type as "lesson" | "assignment",
-        difficulty: content.difficulty as "easy" | "medium" | "hard",
-        estimatedDuration: content.estimatedDuration,
-        content: `Editing ${content.title}...`,
+        type: content.type,
+        subject: content.subject,
+        description: content.title, // Using title as description fallback
+        difficulty: content.difficulty,
+        estimatedDuration: content.estimatedDuration || 45,
+        content: "", // Content body would come from API
       });
       setShowCreateContent(true);
       setLastAction({
         type: "info",
-        message: `Editing ${content.title}`,
+        message: `Editing ${content.title} - Make changes and save`,
       });
     }
+  };
   };
 
   const handlePublishContent = (contentId: string) => {
