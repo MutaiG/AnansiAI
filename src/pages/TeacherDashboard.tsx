@@ -875,6 +875,8 @@ export default function TeacherDashboard() {
           });
         }
       });
+      setDashboardData(mockData);
+      console.log("✅ Dashboard data loaded successfully", mockData);
     } catch (err) {
       setError("Failed to load dashboard data. Please try again.");
       console.error("Dashboard data loading error:", err);
