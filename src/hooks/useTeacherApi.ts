@@ -116,14 +116,6 @@ interface CreateContentRequest {
   difficulty: string;
 }
 
-interface UpdateProfileRequest {
-  name?: string;
-  email?: string;
-  subject?: string;
-  bio?: string;
-  certifications?: string[];
-}
-
 interface ApiResponse<T> {
   success: boolean;
   data?: T;
@@ -368,6 +360,21 @@ export function useTeacherDashboard() {
   const [error, setError] = useState<string | null>(null);
 
   const loadDashboard = async () => {
+    // In development, check if we should use immediate fallback
+    const isDevelopment =
+      import.meta.env.DEV || window.location.hostname === "localhost";
+
+    if (isDevelopment) {
+      // Provide immediate mock data in development to prevent loading delays
+      console.info(
+        "📚 Teacher Dashboard: Using immediate mock data for development",
+      );
+      setData(getMockTeacherDashboard());
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -596,60 +603,6 @@ export function useCreateContent() {
   };
 
   return { createContent, loading, error };
-}
-
-export function useUpdateProfile() {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const updateProfile = async (
-    profileData: UpdateProfileRequest,
-  ): Promise<TeacherProfile | null> => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      // Try API first
-      const response = await apiCall<TeacherProfile>("/profile", {
-        method: "PUT",
-        body: JSON.stringify(profileData),
-      });
-
-      if (response.success && response.data) {
-        console.info("✅ Profile updated successfully:", response.data);
-        return response.data;
-      } else {
-        // Fallback to local update for development
-        console.info("📝 Profile update using fallback (API not available)");
-
-        // Create updated profile object
-        const currentProfile = getMockTeacherDashboard().teacherProfile;
-        const updatedProfile = {
-          ...currentProfile,
-          ...profileData,
-        };
-
-        console.info("✅ Profile updated with fallback:", updatedProfile);
-        return updatedProfile;
-      }
-    } catch (err) {
-      // Always fallback to local update
-      console.info("📝 Profile update using fallback (API error):", err);
-
-      const currentProfile = getMockTeacherDashboard().teacherProfile;
-      const updatedProfile = {
-        ...currentProfile,
-        ...profileData,
-      };
-
-      console.info("✅ Profile updated with fallback:", updatedProfile);
-      return updatedProfile;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return { updateProfile, loading, error };
 }
 
 // Export types for use in components

@@ -93,7 +93,6 @@ import { MessageModal } from "@/components/MessageModal";
 import DevelopmentBanner from "@/components/DevelopmentBanner";
 import { IntegrationStatus } from "@/components/IntegrationStatus";
 import usePageTitle from "@/hooks/usePageTitle";
-import { useTeacherDashboard, useUpdateProfile } from "@/hooks/useTeacherApi";
 
 // Types for the teacher dashboard
 interface TeacherProfile {
@@ -106,8 +105,8 @@ interface TeacherProfile {
   rating: number;
   certifications: string[];
   bio: string;
-  schoolId?: string;
-  schoolName?: string;
+  schoolId: string;
+  schoolName: string;
 }
 
 interface TeacherStats {
@@ -130,11 +129,11 @@ interface ClassData {
   progress: number;
   nextLesson: string;
   schedule: string;
-  status: string;
+  status: "active" | "completed" | "draft";
   description: string;
-  studentsEnrolled?: number;
-  averageGrade?: number;
-  lastUpdated?: string;
+  studentsEnrolled: number;
+  averageGrade: number;
+  lastUpdated: string;
 }
 
 interface StudentData {
@@ -152,6 +151,21 @@ interface StudentData {
   aiRecommendations: string[];
   recentSubmissions: number;
   averageGrade: number;
+  courses: string[];
+}
+
+interface LessonContent {
+  id: string;
+  title: string;
+  subject: string;
+  type: "lesson" | "assignment" | "quiz" | "project";
+  difficulty: "easy" | "medium" | "hard";
+  status: "draft" | "published" | "archived";
+  createdAt: string;
+  studentsCompleted: number;
+  averageScore: number;
+  estimatedDuration: number;
+  description: string;
 }
 
 interface AIAlert {
@@ -167,18 +181,49 @@ interface AIAlert {
   recommendations: string[];
 }
 
-interface LessonContent {
+interface AITwinInsight {
   id: string;
-  title: string;
-  subject: string;
-  type: "lesson" | "assignment" | "quiz" | "project";
-  difficulty: "easy" | "medium" | "hard";
-  status: "draft" | "published" | "archived";
-  createdAt: string;
-  studentsCompleted: number;
-  averageScore: number;
-  estimatedDuration: number;
-  description?: string;
+  studentId: string;
+  studentName: string;
+  twinLearningStage: "initializing" | "learning" | "adapting" | "optimized";
+  personalityTraits: {
+    learningStyle: string;
+    motivation: string;
+    strengths: string[];
+    challenges: string[];
+  };
+  learningPreferences: {
+    preferredPace: "slow" | "medium" | "fast";
+    preferredFormat: string[];
+    optimalStudyTime: string;
+    difficultyPreference: number; // 1-10
+  };
+  emotionalState: {
+    currentMood: string;
+    stressLevel: number; // 1-10
+    confidenceLevel: number; // 1-10
+    engagementLevel: number; // 1-10
+  };
+  behaviorAnalysis: {
+    riskScore: number;
+    flaggedBehaviors: string[];
+    positivePatterns: string[];
+    lastSessionQuality: number; // 1-10
+  };
+  twinAdaptations: {
+    contentAdjustments: string[];
+    pacingChanges: string[];
+    supportStrategies: string[];
+    nextRecommendations: string[];
+  };
+  privacySettings: {
+    allowPersonalityAnalysis: boolean;
+    allowBehaviorTracking: boolean;
+    allowInteractionRecording: boolean;
+    parentNotificationEnabled: boolean;
+  };
+  lastTwinInteraction: string;
+  twinEffectivenessScore: number; // 1-100
 }
 
 interface RecentActivity {
@@ -187,21 +232,8 @@ interface RecentActivity {
   title: string;
   description: string;
   timestamp: string;
-}
-
-interface AITwinInsight {
-  id: string;
-  studentId: string;
-  studentName: string;
-  twinLearningStage: string;
-  personalityTraits: any;
-  learningPreferences: any;
-  emotionalState: any;
-  behaviorAnalysis: any;
-  twinAdaptations: any;
-  privacySettings: any;
-  lastTwinInteraction: string;
-  twinEffectivenessScore: number;
+  userId: string;
+  userName: string;
 }
 
 interface TeacherDashboardData {
@@ -210,50 +242,31 @@ interface TeacherDashboardData {
   classes: ClassData[];
   students: StudentData[];
   aiAlerts: AIAlert[];
+  aiTwinInsights: AITwinInsight[];
   recentActivity: RecentActivity[];
   lessonContent: LessonContent[];
-  aiTwinInsights?: AITwinInsight[];
-  loading?: boolean;
-  error?: string | null;
+  loading: boolean;
+  error: string | null;
 }
 
-interface Message {
-  id: string;
-  title: string;
-  message: string;
-  from?: { name: string; role: string };
-  timestamp: string;
-  priority: "low" | "medium" | "high" | "critical";
-  isRead: boolean;
-  type: string;
-}
-
-const TeacherDashboard: React.FC = () => {
+export default function TeacherDashboard() {
+  usePageTitle("Teacher Dashboard - Anansi AI");
   const navigate = useNavigate();
 
-  // Use real API hooks
-  const {
-    data: dashboardData,
-    loading,
-    error,
-    reload: loadDashboardData,
-  } = useTeacherDashboard();
-  const { updateProfile, loading: profileLoading } = useUpdateProfile();
-
-  // Page state
+  // State management
   const [activeTab, setActiveTab] = useState("overview");
+  const [dashboardData, setDashboardData] =
+    useState<TeacherDashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [showCreateClass, setShowCreateClass] = useState(false);
+  const [showCreateContent, setShowCreateContent] = useState(false);
   const [lastAction, setLastAction] = useState<{
     type: string;
     message: string;
   } | null>(null);
-
-  // Modal and form states
-  const [showCreateClass, setShowCreateClass] = useState(false);
-  const [showCreateContent, setShowCreateContent] = useState(false);
-  const [showNotificationCenter, setShowNotificationCenter] = useState(false);
-  const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
-  const [showMessageModal, setShowMessageModal] = useState(false);
-  const [showProfileSettings, setShowProfileSettings] = useState(false);
 
   // Form states
   const [classForm, setClassForm] = useState({
@@ -281,6 +294,12 @@ const TeacherDashboard: React.FC = () => {
   });
 
   // Notification system
+  const [showNotificationCenter, setShowNotificationCenter] = useState(false);
+  const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
+  const [showMessageModal, setShowMessageModal] = useState(false);
+  const [showProfileSettings, setShowProfileSettings] = useState(false);
+
+  // Get notification system
   const {
     notifications,
     messages,
@@ -291,97 +310,576 @@ const TeacherDashboard: React.FC = () => {
     markAsRead,
     markAllAsRead,
     dismissNotification,
+    dismissMessage,
     clearAll,
     getMessageById,
   } = useNotifications();
 
-  // Page title
-  usePageTitle("Teacher Dashboard - Anansi AI");
+  // Authentication check
+  useEffect(() => {
+    const userRole = localStorage.getItem("userRole");
+    if (!userRole || !["TEACHER", "ADMIN", "SUPER_ADMIN"].includes(userRole)) {
+      // Auto-set teacher role for development
+      localStorage.setItem("userRole", "TEACHER");
+      console.log("Setting teacher role for development");
+    }
+    // Immediate load for development
+    loadDashboardData();
+  }, []);
 
-  // Auto-dismiss last action after 5 seconds
+  // Auto-clear action feedback
   useEffect(() => {
     if (lastAction) {
-      const timer = setTimeout(() => {
-        setLastAction(null);
-      }, 5000);
+      const timer = setTimeout(() => setLastAction(null), 3000);
       return () => clearTimeout(timer);
     }
   }, [lastAction]);
 
-  // Initialize user role for development
-  useEffect(() => {
-    const userRole = localStorage.getItem("userRole");
-    if (!userRole || !["TEACHER", "ADMIN", "SUPER_ADMIN"].includes(userRole)) {
-      localStorage.setItem("userRole", "TEACHER");
-      console.log("Setting teacher role for development");
-    }
-  }, []);
-
-  // Profile settings handlers
-  const handleOpenProfileSettings = () => {
-    if (dashboardData?.teacherProfile) {
-      setProfileForm({
-        name: dashboardData.teacherProfile.name,
-        email: dashboardData.teacherProfile.email,
-        subject: dashboardData.teacherProfile.subject,
-        bio: dashboardData.teacherProfile.bio,
-        certifications: dashboardData.teacherProfile.certifications,
-      });
-    }
-    setShowProfileSettings(true);
-  };
-
-  const handleSaveProfile = async () => {
-    if (!profileForm.name.trim() || !profileForm.email.trim()) {
-      setLastAction({
-        type: "error",
-        message: "Name and email are required",
-      });
-      return;
-    }
+  // Load dashboard data
+  const loadDashboardData = async () => {
+    setLoading(true);
+    setError(null);
 
     try {
-      // Call real API
-      const updatedProfile = await updateProfile({
-        name: profileForm.name,
-        email: profileForm.email,
-        subject: profileForm.subject,
-        bio: profileForm.bio,
-        certifications: profileForm.certifications,
+      // Simulate API call with realistic mock data
+      await new Promise((resolve) => setTimeout(resolve, 800));
+
+      const mockData: TeacherDashboardData = {
+        teacherProfile: {
+          id: "teacher_001",
+          name: "Dr. Sarah Johnson",
+          email: "s.johnson@nairobiacademy.ac.ke",
+          avatar: "",
+          subject: "Mathematics",
+          experience: "8 years",
+          rating: 4.8,
+          certifications: [
+            "PhD Mathematics",
+            "Certified AI Educator",
+            "STEM Teaching Certificate",
+          ],
+          bio: "Passionate mathematics educator with expertise in AI-powered learning techniques.",
+          schoolId: "school_001",
+          schoolName: "Nairobi Academy",
+        },
+        stats: {
+          totalStudents: 124,
+          activeClasses: 5,
+          pendingSubmissions: 18,
+          averageProgress: 78,
+          strugglingStudents: 8,
+          excellingStudents: 32,
+          weeklyEngagement: 89,
+          completionRate: 82,
+        },
+        classes: [
+          {
+            id: "class_001",
+            name: "Mathematics 10A",
+            subject: "Mathematics",
+            grade: "Grade 10",
+            studentCount: 28,
+            progress: 85,
+            nextLesson: "Quadratic Equations",
+            schedule: "Mon, Wed, Fri - 10:00 AM",
+            status: "active",
+            description:
+              "Advanced mathematics course focusing on algebra and geometry",
+            studentsEnrolled: 28,
+            averageGrade: 84,
+            lastUpdated: "2 hours ago",
+          },
+          {
+            id: "class_002",
+            name: "Calculus Advanced",
+            subject: "Mathematics",
+            grade: "Grade 12",
+            studentCount: 22,
+            progress: 72,
+            nextLesson: "Integration Techniques",
+            schedule: "Tue, Thu - 2:00 PM",
+            status: "active",
+            description:
+              "Comprehensive calculus course for university preparation",
+            studentsEnrolled: 22,
+            averageGrade: 88,
+            lastUpdated: "1 day ago",
+          },
+          {
+            id: "class_003",
+            name: "Statistics & Probability",
+            subject: "Mathematics",
+            grade: "Grade 11",
+            studentCount: 26,
+            progress: 91,
+            nextLesson: "Normal Distribution",
+            schedule: "Mon, Wed - 1:00 PM",
+            status: "active",
+            description: "Introduction to statistics and probability theory",
+            studentsEnrolled: 26,
+            averageGrade: 79,
+            lastUpdated: "3 hours ago",
+          },
+        ],
+        students: [
+          {
+            id: "student_001",
+            name: "Emma Johnson",
+            email: "emma.j@student.nairobiacademy.ac.ke",
+            avatar: "",
+            grade: "Grade 10",
+            class: "Mathematics 10A",
+            overallProgress: 92,
+            lastActive: "2 hours ago",
+            status: "excelling",
+            currentMood: "Focused",
+            riskScore: 2,
+            aiRecommendations: [
+              "Advanced problem sets",
+              "Peer tutoring opportunities",
+            ],
+            recentSubmissions: 5,
+            averageGrade: 94,
+            courses: ["Mathematics 10A"],
+          },
+          {
+            id: "student_002",
+            name: "Marcus Williams",
+            email: "marcus.w@student.nairobiacademy.ac.ke",
+            avatar: "",
+            grade: "Grade 12",
+            class: "Calculus Advanced",
+            overallProgress: 68,
+            lastActive: "1 day ago",
+            status: "struggling",
+            currentMood: "Stressed",
+            riskScore: 7,
+            aiRecommendations: [
+              "Extra practice sessions",
+              "One-on-one tutoring",
+            ],
+            recentSubmissions: 2,
+            averageGrade: 71,
+            courses: ["Calculus Advanced"],
+          },
+          {
+            id: "student_003",
+            name: "Sophia Chen",
+            email: "sophia.c@student.nairobiacademy.ac.ke",
+            avatar: "",
+            grade: "Grade 11",
+            class: "Statistics & Probability",
+            overallProgress: 87,
+            lastActive: "30 minutes ago",
+            status: "active",
+            currentMood: "Engaged",
+            riskScore: 3,
+            aiRecommendations: [
+              "Challenge problems",
+              "Statistical software training",
+            ],
+            recentSubmissions: 4,
+            averageGrade: 86,
+            courses: ["Statistics & Probability"],
+          },
+        ],
+        aiAlerts: [
+          {
+            id: "alert_001",
+            studentId: "student_002",
+            studentName: "Marcus Williams",
+            type: "academic",
+            severity: "high",
+            title: "AI Twin Detected Learning Struggle",
+            message:
+              "Marcus's AI Twin has identified difficulty with calculus concepts and has automatically adjusted learning pace",
+            timestamp: new Date(Date.now() - 1800000).toISOString(),
+            actionTaken: false,
+            recommendations: [
+              "Review AI Twin's suggested intervention strategies",
+              "Schedule guided practice session",
+              "Check AI Twin's emotional support recommendations",
+            ],
+          },
+          {
+            id: "alert_002",
+            studentId: "student_004",
+            studentName: "Alex Thompson",
+            type: "behavioral",
+            severity: "critical",
+            title: "Unusual Behavioral Pattern Detected",
+            message:
+              "AI Twin flagged significant deviation from normal interaction patterns - possible academic integrity concern",
+            timestamp: new Date(Date.now() - 3600000).toISOString(),
+            actionTaken: false,
+            recommendations: [
+              "Review behavior log details",
+              "Investigate AI Twin interaction history",
+              "Consider privacy-compliant monitoring increase",
+            ],
+          },
+          {
+            id: "alert_003",
+            studentId: "student_001",
+            studentName: "Emma Johnson",
+            type: "emotional",
+            severity: "medium",
+            title: "AI Twin Emotional State Alert",
+            message:
+              "Emma's AI Twin detected increased stress levels during recent math sessions",
+            timestamp: new Date(Date.now() - 7200000).toISOString(),
+            actionTaken: false,
+            recommendations: [
+              "Review AI Twin's stress mitigation strategies",
+              "Consider workload adjustment",
+              "Enable enhanced emotional support mode",
+            ],
+          },
+        ],
+        aiTwinInsights: [
+          {
+            id: "twin_001",
+            studentId: "student_001",
+            studentName: "Emma Johnson",
+            twinLearningStage: "optimized",
+            personalityTraits: {
+              learningStyle: "Visual-Kinesthetic",
+              motivation: "Achievement-oriented",
+              strengths: [
+                "Pattern recognition",
+                "Logical reasoning",
+                "Persistence",
+              ],
+              challenges: ["Time pressure anxiety", "Perfectionism"],
+            },
+            learningPreferences: {
+              preferredPace: "fast",
+              preferredFormat: [
+                "Interactive diagrams",
+                "Step-by-step tutorials",
+                "Practice problems",
+              ],
+              optimalStudyTime: "Morning (8-10 AM)",
+              difficultyPreference: 8,
+            },
+            emotionalState: {
+              currentMood: "Focused and confident",
+              stressLevel: 3,
+              confidenceLevel: 9,
+              engagementLevel: 9,
+            },
+            behaviorAnalysis: {
+              riskScore: 2,
+              flaggedBehaviors: [],
+              positivePatterns: [
+                "Consistent study habits",
+                "Help-seeking when needed",
+                "Collaborative learning",
+              ],
+              lastSessionQuality: 9,
+            },
+            twinAdaptations: {
+              contentAdjustments: [
+                "Increased difficulty level",
+                "Added advanced problems",
+              ],
+              pacingChanges: [
+                "Accelerated through basics",
+                "More time on complex concepts",
+              ],
+              supportStrategies: [
+                "Confidence boosting",
+                "Stress management techniques",
+              ],
+              nextRecommendations: [
+                "Leadership opportunities",
+                "Peer tutoring role",
+                "Advanced placement preparation",
+              ],
+            },
+            privacySettings: {
+              allowPersonalityAnalysis: true,
+              allowBehaviorTracking: true,
+              allowInteractionRecording: true,
+              parentNotificationEnabled: true,
+            },
+            lastTwinInteraction: "5 minutes ago",
+            twinEffectivenessScore: 94,
+          },
+          {
+            id: "twin_002",
+            studentId: "student_002",
+            studentName: "Marcus Williams",
+            twinLearningStage: "adapting",
+            personalityTraits: {
+              learningStyle: "Auditory-Sequential",
+              motivation: "Socially-motivated",
+              strengths: [
+                "Verbal communication",
+                "Collaborative work",
+                "Creative thinking",
+              ],
+              challenges: [
+                "Mathematical anxiety",
+                "Processing speed",
+                "Self-confidence",
+              ],
+            },
+            learningPreferences: {
+              preferredPace: "slow",
+              preferredFormat: [
+                "Audio explanations",
+                "Group discussions",
+                "Real-world examples",
+              ],
+              optimalStudyTime: "Afternoon (2-4 PM)",
+              difficultyPreference: 4,
+            },
+            emotionalState: {
+              currentMood: "Anxious but determined",
+              stressLevel: 7,
+              confidenceLevel: 4,
+              engagementLevel: 6,
+            },
+            behaviorAnalysis: {
+              riskScore: 6,
+              flaggedBehaviors: [
+                "Avoidance patterns",
+                "Help-seeking hesitation",
+              ],
+              positivePatterns: [
+                "Improved consistency",
+                "Better question asking",
+              ],
+              lastSessionQuality: 5,
+            },
+            twinAdaptations: {
+              contentAdjustments: [
+                "Simplified explanations",
+                "More examples",
+                "Reduced complexity",
+              ],
+              pacingChanges: [
+                "Slower progression",
+                "More review time",
+                "Bite-sized lessons",
+              ],
+              supportStrategies: [
+                "Encouragement messaging",
+                "Progress celebration",
+                "Anxiety reduction techniques",
+              ],
+              nextRecommendations: [
+                "Confidence building exercises",
+                "Peer study groups",
+                "Alternative assessment methods",
+              ],
+            },
+            privacySettings: {
+              allowPersonalityAnalysis: true,
+              allowBehaviorTracking: true,
+              allowInteractionRecording: false,
+              parentNotificationEnabled: true,
+            },
+            lastTwinInteraction: "2 hours ago",
+            twinEffectivenessScore: 67,
+          },
+          {
+            id: "twin_003",
+            studentId: "student_003",
+            studentName: "Sophia Chen",
+            twinLearningStage: "learning",
+            personalityTraits: {
+              learningStyle: "Visual-Global",
+              motivation: "Curiosity-driven",
+              strengths: [
+                "Pattern synthesis",
+                "Big picture thinking",
+                "Research skills",
+              ],
+              challenges: [
+                "Detail focus",
+                "Sequential tasks",
+                "Time management",
+              ],
+            },
+            learningPreferences: {
+              preferredPace: "medium",
+              preferredFormat: [
+                "Mind maps",
+                "Concept connections",
+                "Project-based learning",
+              ],
+              optimalStudyTime: "Evening (6-8 PM)",
+              difficultyPreference: 7,
+            },
+            emotionalState: {
+              currentMood: "Curious and engaged",
+              stressLevel: 4,
+              confidenceLevel: 7,
+              engagementLevel: 8,
+            },
+            behaviorAnalysis: {
+              riskScore: 3,
+              flaggedBehaviors: ["Occasional procrastination"],
+              positivePatterns: [
+                "Deep thinking",
+                "Creative solutions",
+                "Active participation",
+              ],
+              lastSessionQuality: 8,
+            },
+            twinAdaptations: {
+              contentAdjustments: [
+                "Connected concepts",
+                "Real-world applications",
+                "Visual representations",
+              ],
+              pacingChanges: [
+                "Flexible deadlines",
+                "Self-paced modules",
+                "Interest-driven sequences",
+              ],
+              supportStrategies: [
+                "Exploration encouragement",
+                "Time management tools",
+                "Goal setting",
+              ],
+              nextRecommendations: [
+                "Independent research projects",
+                "Cross-subject connections",
+                "Statistical software introduction",
+              ],
+            },
+            privacySettings: {
+              allowPersonalityAnalysis: true,
+              allowBehaviorTracking: true,
+              allowInteractionRecording: true,
+              parentNotificationEnabled: false,
+            },
+            lastTwinInteraction: "15 minutes ago",
+            twinEffectivenessScore: 81,
+          },
+        ],
+        recentActivity: [
+          {
+            id: "activity_001",
+            type: "submission",
+            title: "Assignment Submitted",
+            description:
+              "Emma Johnson submitted 'Quadratic Functions Assignment'",
+            timestamp: new Date(Date.now() - 1800000).toISOString(),
+            userId: "student_001",
+            userName: "Emma Johnson",
+          },
+          {
+            id: "activity_002",
+            type: "content_created",
+            title: "New Lesson Created",
+            description:
+              "Created lesson 'Integration by Parts' for Calculus Advanced",
+            timestamp: new Date(Date.now() - 7200000).toISOString(),
+            userId: "teacher_001",
+            userName: "Dr. Sarah Johnson",
+          },
+          {
+            id: "activity_003",
+            type: "grade_posted",
+            title: "Grades Posted",
+            description: "Posted grades for Statistics Quiz #3",
+            timestamp: new Date(Date.now() - 14400000).toISOString(),
+            userId: "teacher_001",
+            userName: "Dr. Sarah Johnson",
+          },
+        ],
+        lessonContent: [
+          {
+            id: "content_001",
+            title: "Quadratic Functions",
+            subject: "Mathematics",
+            type: "lesson",
+            difficulty: "medium",
+            status: "published",
+            createdAt: new Date(Date.now() - 86400000).toISOString(),
+            studentsCompleted: 24,
+            averageScore: 87,
+            estimatedDuration: 45,
+            description:
+              "Introduction to quadratic functions and their properties",
+          },
+          {
+            id: "content_002",
+            title: "Calculus Integration Assignment",
+            subject: "Mathematics",
+            type: "assignment",
+            difficulty: "hard",
+            status: "published",
+            createdAt: new Date(Date.now() - 172800000).toISOString(),
+            studentsCompleted: 18,
+            averageScore: 79,
+            estimatedDuration: 90,
+            description: "Complex integration problems for advanced students",
+          },
+          {
+            id: "content_003",
+            title: "Probability Distributions Quiz",
+            subject: "Mathematics",
+            type: "quiz",
+            difficulty: "medium",
+            status: "draft",
+            createdAt: new Date(Date.now() - 259200000).toISOString(),
+            studentsCompleted: 0,
+            averageScore: 0,
+            estimatedDuration: 30,
+            description: "Assessment on normal and binomial distributions",
+          },
+        ],
+        loading: false,
+        error: null,
+      };
+
+      setDashboardData(mockData);
+
+      // Convert AI alerts to notifications
+      mockData.aiAlerts.forEach((alert) => {
+        if (!alert.actionTaken) {
+          addNotification({
+            type: "ai",
+            priority: alert.severity as "low" | "medium" | "high" | "critical",
+            title: alert.title,
+            message: alert.message,
+            isRead: false,
+            actionRequired: true,
+            metadata: {
+              studentId: alert.studentId,
+              studentName: alert.studentName,
+            },
+            actions: [
+              {
+                id: "view_student",
+                label: "View Student",
+                variant: "default",
+                action: () => handleViewStudent(alert.studentId),
+              },
+              {
+                id: "resolve_alert",
+                label: "Mark Resolved",
+                variant: "secondary",
+                action: () => handleResolveAlert(alert.id),
+              },
+            ],
+          });
+        }
       });
-
-      if (updatedProfile) {
-        // Reload dashboard data to get updated profile
-        await loadDashboardData();
-
-        setShowProfileSettings(false);
-        setLastAction({
-          type: "success",
-          message: "Profile updated successfully!",
-        });
-
-        addNotification({
-          type: "system",
-          priority: "low",
-          title: "Profile Updated",
-          message: "Your profile information has been updated successfully.",
-          isRead: false,
-        });
-      } else {
-        setLastAction({
-          type: "error",
-          message: "Failed to update profile. Please try again.",
-        });
-      }
-    } catch (error) {
-      setLastAction({
-        type: "error",
-        message: "Failed to update profile. Please try again.",
-      });
+    } catch (err) {
+      setError("Failed to load dashboard data. Please try again.");
+      console.error("Dashboard data loading error:", err);
     }
+
+    setLoading(false);
   };
 
-  // Handler functions
+  // Handlers for various actions
   const handleResolveAlert = (alertId: string) => {
     setLastAction({ type: "success", message: "Alert marked as resolved" });
   };
@@ -416,19 +914,49 @@ const TeacherDashboard: React.FC = () => {
     }
 
     try {
+      // Simulate API call
       await new Promise((resolve) => setTimeout(resolve, 1000));
-      setShowCreateClass(false);
-      setLastAction({
-        type: "success",
-        message: `Class "${classForm.name}" created successfully!`,
-      });
 
+      // Add to dashboard data
+      const newClass: ClassData = {
+        id: `class_${Date.now()}`,
+        name: classForm.name,
+        subject: classForm.subject,
+        grade: classForm.grade,
+        studentCount: 0,
+        progress: 0,
+        nextLesson: "Introduction",
+        schedule: classForm.schedule,
+        status: "active",
+        description: classForm.description,
+        studentsEnrolled: 0,
+        averageGrade: 0,
+        lastUpdated: "Just now",
+      };
+
+      if (dashboardData) {
+        setDashboardData({
+          ...dashboardData,
+          classes: [...dashboardData.classes, newClass],
+          stats: {
+            ...dashboardData.stats,
+            activeClasses: dashboardData.stats.activeClasses + 1,
+          },
+        });
+      }
+
+      // Reset form and close dialog
       setClassForm({
         name: "",
         subject: "",
         grade: "",
         description: "",
         schedule: "",
+      });
+      setShowCreateClass(false);
+      setLastAction({
+        type: "success",
+        message: `Class "${classForm.name}" created successfully!`,
       });
 
       addNotification({
@@ -446,8 +974,696 @@ const TeacherDashboard: React.FC = () => {
     }
   };
 
+  // Profile settings handlers
+  const handleOpenProfileSettings = () => {
+    if (dashboardData?.teacherProfile) {
+      setProfileForm({
+        name: dashboardData.teacherProfile.name,
+        email: dashboardData.teacherProfile.email,
+        subject: dashboardData.teacherProfile.subject,
+        bio: dashboardData.teacherProfile.bio,
+        certifications: dashboardData.teacherProfile.certifications,
+      });
+    }
+    setShowProfileSettings(true);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!profileForm.name.trim() || !profileForm.email.trim()) {
+      setLastAction({
+        type: "error",
+        message: "Name and email are required",
+      });
+      return;
+    }
+
+    try {
+      // Simulate API call
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // Update dashboard data
+      if (dashboardData) {
+        setDashboardData({
+          ...dashboardData,
+          teacherProfile: {
+            ...dashboardData.teacherProfile,
+            name: profileForm.name,
+            email: profileForm.email,
+            subject: profileForm.subject,
+            bio: profileForm.bio,
+            certifications: profileForm.certifications,
+          },
+        });
+      }
+
+      setShowProfileSettings(false);
+      setLastAction({
+        type: "success",
+        message: "Profile updated successfully!",
+      });
+
+      addNotification({
+        type: "system",
+        priority: "low",
+        title: "Profile Updated",
+        message: "Your profile information has been updated successfully.",
+        isRead: false,
+      });
+    } catch (error) {
+      setLastAction({
+        type: "error",
+        message: "Failed to update profile. Please try again.",
+      });
+    }
+  };
+
+  // Additional button handlers
+  const handleViewClass = (classId: string) => {
+    const classData = dashboardData?.classes.find((c) => c.id === classId);
+    if (classData) {
+      setLastAction({
+        type: "info",
+        message: `Viewing ${classData.name} details`,
+      });
+      // In a real app, this would navigate to class details page
+    }
+  };
+
+  const handleEditClass = (classId: string) => {
+    const classData = dashboardData?.classes.find((c) => c.id === classId);
+    if (classData) {
+      setClassForm({
+        name: classData.name,
+        subject: classData.subject,
+        grade: classData.grade,
+        description: classData.description,
+        schedule: classData.schedule,
+      });
+      setShowCreateClass(true);
+      setLastAction({
+        type: "info",
+        message: `Editing ${classData.name}`,
+      });
+    }
+  };
+
+  const handleViewStudent = (studentId: string) => {
+    const student = dashboardData?.students.find((s) => s.id === studentId);
+    if (student) {
+      setActiveTab("students");
+      setLastAction({
+        type: "info",
+        message: `Viewing ${student.name}'s profile`,
+      });
+      // In a real app, this would open student details modal or page
+    }
+  };
+
+  const handleSendMessageToStudent = (studentId: string) => {
+    const student = dashboardData?.students.find((s) => s.id === studentId);
+    if (student) {
+      setLastAction({
+        type: "info",
+        message: `Opening message dialog for ${student.name}`,
+      });
+      // In a real app, this would open messaging interface
+      addNotification({
+        type: "student",
+        priority: "low",
+        title: "Message Sent",
+        message: `Message sent to ${student.name}`,
+        isRead: false,
+      });
+    }
+  };
+
+  const handleViewAITwinDetails = (studentId: string) => {
+    const twinInsight = dashboardData?.aiTwinInsights?.find(
+      (insight) => insight.studentId === studentId,
+    );
+    const student = dashboardData?.students.find((s) => s.id === studentId);
+
+    if (twinInsight && student) {
+      setLastAction({
+        type: "info",
+        message: `Viewing ${student.name}'s AI Twin analytics`,
+      });
+
+      // Create detailed message about AI Twin
+      addMessage({
+        type: "ai_insight",
+        priority: "medium",
+        title: `${student.name}'s AI Twin Analysis`,
+        message: `Comprehensive AI Twin learning analysis for ${student.name}`,
+        details: `AI Twin Stage: ${twinInsight.twinLearningStage}
+
+Learning Style: ${twinInsight.personalityTraits.learningStyle}
+Effectiveness Score: ${twinInsight.twinEffectivenessScore}%
+Current Mood: ${twinInsight.emotionalState.currentMood}
+Stress Level: ${twinInsight.emotionalState.stressLevel}/10
+
+Recent Recommendations:
+${twinInsight.twinAdaptations.nextRecommendations.join("\n")}`,
+        from: {
+          type: "ai",
+          name: "AI Twin Analytics",
+        },
+        category: "AI Twin Insights",
+        metadata: {
+          studentId: studentId,
+          studentName: student.name,
+        },
+      });
+
+      setShowMessageModal(true);
+    }
+  };
+
+  const handleViewContent = (contentId: string) => {
+    const content = dashboardData?.lessonContent.find(
+      (c) => c.id === contentId,
+    );
+    if (content) {
+      setLastAction({
+        type: "info",
+        message: `Viewing ${content.title}`,
+      });
+      // In a real app, this would navigate to content editor/viewer
+    }
+  };
+
+  const handleEditContent = (contentId: string) => {
+    const content = dashboardData?.lessonContent.find(
+      (c) => c.id === contentId,
+    );
+    if (content) {
+      setContentForm({
+        title: content.title,
+        description: content.description || "",
+        type: content.type as "lesson" | "assignment",
+        difficulty: content.difficulty as "easy" | "medium" | "hard",
+        estimatedDuration: content.estimatedDuration,
+        content: `Editing ${content.title}...`,
+      });
+      setShowCreateContent(true);
+      setLastAction({
+        type: "info",
+        message: `Editing ${content.title}`,
+      });
+    }
+  };
+
+  const handlePublishContent = (contentId: string) => {
+    const content = dashboardData?.lessonContent.find(
+      (c) => c.id === contentId,
+    );
+    if (content && dashboardData) {
+      const updatedContent = dashboardData.lessonContent.map((c) =>
+        c.id === contentId ? { ...c, status: "published" } : c,
+      );
+
+      setDashboardData({
+        ...dashboardData,
+        lessonContent: updatedContent,
+      });
+
+      setLastAction({
+        type: "success",
+        message: `${content.title} published successfully!`,
+      });
+
+      addNotification({
+        type: "content",
+        priority: "medium",
+        title: "Content Published",
+        message: `${content.title} is now available to students`,
+        isRead: false,
+      });
+    }
+  };
+
+  const handleDownloadAnalytics = () => {
+    setLastAction({
+      type: "info",
+      message: "Preparing analytics report for download...",
+    });
+
+    // Simulate download
+    setTimeout(() => {
+      setLastAction({
+        type: "success",
+        message: "Analytics report downloaded successfully!",
+      });
+    }, 2000);
+  };
+
+  const handleExportClassData = (classId: string) => {
+    const classData = dashboardData?.classes.find((c) => c.id === classId);
+    if (classData) {
+      setLastAction({
+        type: "info",
+        message: `Exporting data for ${classData.name}...`,
+      });
+
+      setTimeout(() => {
+        setLastAction({
+          type: "success",
+          message: `${classData.name} data exported successfully!`,
+        });
+      }, 1500);
+    }
+  };
+
+  const handleBulkAction = (action: string, selectedItems: string[]) => {
+    setLastAction({
+      type: "info",
+      message: `Performing ${action} on ${selectedItems.length} items...`,
+    });
+
+    setTimeout(() => {
+      setLastAction({
+        type: "success",
+        message: `${action} completed for ${selectedItems.length} items!`,
+      });
+    }, 1000);
+  };
+
+  const handleQuickAssignment = () => {
+    setShowCreateContent(true);
+    setContentForm({
+      ...contentForm,
+      type: "assignment",
+      title: "Quick Assignment",
+    });
+    setLastAction({
+      type: "info",
+      message: "Creating quick assignment...",
+    });
+  };
+
+  const handleScheduleMeeting = (studentId: string) => {
+    const student = dashboardData?.students.find((s) => s.id === studentId);
+    if (student) {
+      setLastAction({
+        type: "success",
+        message: `Meeting scheduled with ${student.name}`,
+      });
+
+      addNotification({
+        type: "student",
+        priority: "medium",
+        title: "Meeting Scheduled",
+        message: `One-on-one meeting scheduled with ${student.name} for tomorrow at 2:00 PM`,
+        isRead: false,
+      });
+    }
+  };
+
+  const handleSendToParent = (studentId: string) => {
+    const student = dashboardData?.students.find((s) => s.id === studentId);
+    if (student) {
+      setLastAction({
+        type: "success",
+        message: `Progress report sent to ${student.name}'s parents`,
+      });
+
+      addNotification({
+        type: "student",
+        priority: "low",
+        title: "Parent Communication",
+        message: `Progress report sent to ${student.name}'s parents`,
+        isRead: false,
+      });
+    }
+  };
+
+  // Advanced Class Management Functions
+  const handleDeleteClass = async (classId: string) => {
+    const classData = dashboardData?.classes.find((c) => c.id === classId);
+    if (!classData || !dashboardData) return;
+
+    // Confirmation dialog simulation
+    const confirmed = window.confirm(
+      `Are you sure you want to delete "${classData.name}"?\n\nThis action cannot be undone and will:\n- Remove all class data\n- Unenroll all students\n- Archive associated content\n\nType "DELETE" to confirm this action.`,
+    );
+
+    if (!confirmed) return;
+
+    try {
+      // Simulate API call with loading state
+      setLastAction({
+        type: "info",
+        message: `Deleting ${classData.name}...`,
+      });
+
+      // Simulate network delay
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      // Remove class from dashboard data
+      const updatedClasses = dashboardData.classes.filter(
+        (c) => c.id !== classId,
+      );
+      const updatedStats = {
+        ...dashboardData.stats,
+        activeClasses: dashboardData.stats.activeClasses - 1,
+        totalStudents:
+          dashboardData.stats.totalStudents - classData.studentCount,
+      };
+
+      setDashboardData({
+        ...dashboardData,
+        classes: updatedClasses,
+        stats: updatedStats,
+      });
+
+      setLastAction({
+        type: "success",
+        message: `${classData.name} has been permanently deleted`,
+      });
+
+      addNotification({
+        type: "class",
+        priority: "high",
+        title: "Class Deleted",
+        message: `${classData.name} and all associated data have been permanently removed`,
+        isRead: false,
+      });
+    } catch (error) {
+      setLastAction({
+        type: "error",
+        message: `Failed to delete ${classData.name}. Please try again.`,
+      });
+    }
+  };
+
+  const handleDuplicateClass = (classId: string) => {
+    const classData = dashboardData?.classes.find((c) => c.id === classId);
+    if (!classData || !dashboardData) return;
+
+    const duplicatedClass: ClassData = {
+      ...classData,
+      id: `class_${Date.now()}`,
+      name: `${classData.name} (Copy)`,
+      studentCount: 0,
+      progress: 0,
+      status: "draft" as const,
+      lastUpdated: "Just now",
+    };
+
+    setDashboardData({
+      ...dashboardData,
+      classes: [...dashboardData.classes, duplicatedClass],
+      stats: {
+        ...dashboardData.stats,
+        activeClasses: dashboardData.stats.activeClasses + 1,
+      },
+    });
+
+    setLastAction({
+      type: "success",
+      message: `${classData.name} duplicated successfully`,
+    });
+
+    addNotification({
+      type: "class",
+      priority: "medium",
+      title: "Class Duplicated",
+      message: `${duplicatedClass.name} has been created as a copy`,
+      isRead: false,
+    });
+  };
+
+  const handleArchiveClass = (classId: string) => {
+    const classData = dashboardData?.classes.find((c) => c.id === classId);
+    if (!classData || !dashboardData) return;
+
+    const updatedClasses = dashboardData.classes.map((c) =>
+      c.id === classId ? { ...c, status: "archived" as const } : c,
+    );
+
+    setDashboardData({
+      ...dashboardData,
+      classes: updatedClasses,
+    });
+
+    setLastAction({
+      type: "success",
+      message: `${classData.name} has been archived`,
+    });
+
+    addNotification({
+      type: "class",
+      priority: "medium",
+      title: "Class Archived",
+      message: `${classData.name} is now archived and hidden from students`,
+      isRead: false,
+    });
+  };
+
+  const handleManageStudents = (classId: string) => {
+    const classData = dashboardData?.classes.find((c) => c.id === classId);
+    if (classData) {
+      setActiveTab("students");
+      setLastAction({
+        type: "info",
+        message: `Managing students for ${classData.name}`,
+      });
+    }
+  };
+
+  const handleClassAnalytics = (classId: string) => {
+    const classData = dashboardData?.classes.find((c) => c.id === classId);
+    if (classData) {
+      setActiveTab("analytics");
+      setLastAction({
+        type: "info",
+        message: `Viewing analytics for ${classData.name}`,
+      });
+
+      addMessage({
+        type: "ai_insight",
+        priority: "medium",
+        title: `${classData.name} - Class Analytics Report`,
+        message: `Comprehensive performance analysis for ${classData.name}`,
+        details: `Class Performance Summary:
+
+📊 Overall Progress: ${classData.progress}%
+👥 Total Students: ${classData.studentCount}
+📈 Engagement Rate: 87%
+⭐ Average Grade: ${classData.averageGrade}%
+
+Recent Trends:
+• Student participation increased by 15%
+• Assignment completion rate: 92%
+• Most challenging topic: ${classData.nextLesson}
+• Recommended focus areas identified
+
+AI Insights:
+• Visual learners perform 23% better
+• Morning sessions show higher engagement
+• Interactive content increases retention by 31%`,
+        from: {
+          type: "ai",
+          name: "Class Analytics AI",
+        },
+        category: "Class Performance",
+        metadata: {
+          classId: classId,
+          className: classData.name,
+        },
+      });
+
+      setShowMessageModal(true);
+    }
+  };
+
+  // Advanced Content Management Functions
+  const handleDeleteContent = async (contentId: string) => {
+    const content = dashboardData?.lessonContent.find(
+      (c) => c.id === contentId,
+    );
+    if (!content || !dashboardData) return;
+
+    const confirmed = window.confirm(
+      `Are you sure you want to delete "${content.title}"?\n\nThis will permanently remove:\n- The content and all materials\n- Student progress data\n- Associated assignments\n\nThis action cannot be undone.`,
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setLastAction({
+        type: "info",
+        message: `Deleting ${content.title}...`,
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      const updatedContent = dashboardData.lessonContent.filter(
+        (c) => c.id !== contentId,
+      );
+
+      setDashboardData({
+        ...dashboardData,
+        lessonContent: updatedContent,
+      });
+
+      setLastAction({
+        type: "success",
+        message: `${content.title} has been permanently deleted`,
+      });
+
+      addNotification({
+        type: "content",
+        priority: "high",
+        title: "Content Deleted",
+        message: `${content.title} and all associated data have been removed`,
+        isRead: false,
+      });
+    } catch (error) {
+      setLastAction({
+        type: "error",
+        message: `Failed to delete ${content.title}. Please try again.`,
+      });
+    }
+  };
+
+  const handleDuplicateContent = (contentId: string) => {
+    const content = dashboardData?.lessonContent.find(
+      (c) => c.id === contentId,
+    );
+    if (!content || !dashboardData) return;
+
+    const duplicatedContent: LessonContent = {
+      ...content,
+      id: `content_${Date.now()}`,
+      title: `${content.title} (Copy)`,
+      status: "draft",
+      studentsCompleted: 0,
+      averageScore: 0,
+      createdAt: new Date().toISOString(),
+    };
+
+    setDashboardData({
+      ...dashboardData,
+      lessonContent: [...dashboardData.lessonContent, duplicatedContent],
+    });
+
+    setLastAction({
+      type: "success",
+      message: `${content.title} duplicated successfully`,
+    });
+
+    addNotification({
+      type: "content",
+      priority: "medium",
+      title: "Content Duplicated",
+      message: `${duplicatedContent.title} has been created as a copy`,
+      isRead: false,
+    });
+  };
+
+  const handleArchiveContent = (contentId: string) => {
+    const content = dashboardData?.lessonContent.find(
+      (c) => c.id === contentId,
+    );
+    if (!content || !dashboardData) return;
+
+    const updatedContent = dashboardData.lessonContent.map((c) =>
+      c.id === contentId ? { ...c, status: "archived" } : c,
+    );
+
+    setDashboardData({
+      ...dashboardData,
+      lessonContent: updatedContent,
+    });
+
+    setLastAction({
+      type: "success",
+      message: `${content.title} has been archived`,
+    });
+
+    addNotification({
+      type: "content",
+      priority: "medium",
+      title: "Content Archived",
+      message: `${content.title} is now archived`,
+      isRead: false,
+    });
+  };
+
+  const handleContentAnalytics = (contentId: string) => {
+    const content = dashboardData?.lessonContent.find(
+      (c) => c.id === contentId,
+    );
+    if (content) {
+      addMessage({
+        type: "ai_insight",
+        priority: "medium",
+        title: `${content.title} - Content Performance Report`,
+        message: `Detailed analytics for ${content.title}`,
+        details: `Content Performance Summary:
+
+📊 Completion Rate: ${Math.round((content.studentsCompleted / (dashboardData?.stats.totalStudents || 1)) * 100)}%
+👥 Students Completed: ${content.studentsCompleted}
+⭐ Average Score: ${content.averageScore}%
+⏱️ Estimated Duration: ${content.estimatedDuration} minutes
+
+Learning Effectiveness:
+• Content Difficulty: ${content.difficulty}
+• Student Engagement: High
+• Time to Complete: ${content.estimatedDuration} min avg
+• Improvement Areas: None identified
+
+AI Recommendations:
+• Content is well-suited for current difficulty level
+• Consider adding interactive elements
+• Students respond well to visual components
+• Optimal for ${content.difficulty === "easy" ? "beginner" : content.difficulty === "medium" ? "intermediate" : "advanced"} learners`,
+        from: {
+          type: "ai",
+          name: "Content Analytics AI",
+        },
+        category: "Content Performance",
+        metadata: {
+          contentId: contentId,
+          contentTitle: content.title,
+        },
+      });
+
+      setShowMessageModal(true);
+      setLastAction({
+        type: "info",
+        message: `Viewing analytics for ${content.title}`,
+      });
+    }
+  };
+
+  const handleShareContent = (contentId: string) => {
+    const content = dashboardData?.lessonContent.find(
+      (c) => c.id === contentId,
+    );
+    if (content) {
+      // Simulate sharing functionality
+      const shareUrl = `https://anansi.ai/content/${contentId}`;
+      navigator.clipboard.writeText(shareUrl).then(() => {
+        setLastAction({
+          type: "success",
+          message: `Share link for ${content.title} copied to clipboard`,
+        });
+      });
+
+      addNotification({
+        type: "content",
+        priority: "low",
+        title: "Content Shared",
+        message: `Share link for ${content.title} has been generated`,
+        isRead: false,
+      });
+    }
+  };
+
   const handleCreateContent = async () => {
-    if (!contentForm.title.trim() || !contentForm.subject.trim()) {
+    if (!contentForm.title.trim() || !contentForm.content.trim()) {
       setLastAction({
         type: "error",
         message: "Please fill in required fields",
@@ -456,26 +1672,51 @@ const TeacherDashboard: React.FC = () => {
     }
 
     try {
+      // Simulate API call
       await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // Add to dashboard data
+      const newContent: LessonContent = {
+        id: `content_${Date.now()}`,
+        title: contentForm.title,
+        subject: dashboardData?.teacherProfile.subject || "General",
+        type: contentForm.type,
+        difficulty: contentForm.difficulty,
+        status: "draft",
+        createdAt: new Date().toISOString(),
+        studentsCompleted: 0,
+        averageScore: 0,
+        estimatedDuration: contentForm.estimatedDuration,
+        description: contentForm.description,
+      };
+
+      if (dashboardData) {
+        setDashboardData({
+          ...dashboardData,
+          lessonContent: [...dashboardData.lessonContent, newContent],
+        });
+      }
+
+      // Reset form and close dialog
+      setContentForm({
+        title: "",
+        description: "",
+        type: "lesson",
+        difficulty: "medium",
+        estimatedDuration: 60,
+        content: "",
+      });
       setShowCreateContent(false);
       setLastAction({
         type: "success",
         message: `${contentForm.type} "${contentForm.title}" created successfully!`,
       });
 
-      setContentForm({
-        title: "",
-        type: "lesson",
-        subject: "",
-        description: "",
-        difficulty: "medium",
-      });
-
       addNotification({
         type: "content",
         priority: "medium",
         title: "Content Created Successfully",
-        message: `${contentForm.title} has been created and is ready for use.`,
+        message: `${contentForm.title} has been created and is ready for students.`,
         isRead: false,
       });
     } catch (error) {
@@ -486,12 +1727,52 @@ const TeacherDashboard: React.FC = () => {
     }
   };
 
-  // Loading state
+  // Helper functions
+  const getSeverityColor = (severity: string) => {
+    switch (severity) {
+      case "critical":
+        return "bg-red-100 text-red-800 border-red-200";
+      case "high":
+        return "bg-orange-100 text-orange-800 border-orange-200";
+      case "medium":
+        return "bg-yellow-100 text-yellow-800 border-yellow-200";
+      case "low":
+        return "bg-blue-100 text-blue-800 border-blue-200";
+      default:
+        return "bg-gray-100 text-gray-800 border-gray-200";
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "active":
+        return "bg-green-100 text-green-800";
+      case "struggling":
+        return "bg-red-100 text-red-800";
+      case "excelling":
+        return "bg-blue-100 text-blue-800";
+      case "inactive":
+        return "bg-gray-100 text-gray-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
+  };
+
+  const filteredStudents =
+    dashboardData?.students.filter((student) => {
+      const matchesSearch =
+        student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        student.email.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesFilter =
+        filterStatus === "all" || student.status === filterStatus;
+      return matchesSearch && matchesFilter;
+    }) || [];
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
           <p className="text-lg font-medium text-gray-600">
             Loading Teacher Dashboard...
           </p>
@@ -500,7 +1781,6 @@ const TeacherDashboard: React.FC = () => {
     );
   }
 
-  // Error state
   if (error) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -654,12 +1934,12 @@ const TeacherDashboard: React.FC = () => {
                     <Bell className="h-5 w-5" />
                     {unreadCount > 0 && (
                       <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                        {unreadCount > 9 ? "9+" : unreadCount}
+                        {unreadCount}
                       </span>
                     )}
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-96" align="end">
+                <DropdownMenuContent className="w-96 p-0" align="end">
                   <NotificationCenter
                     notifications={notifications}
                     onMarkAsRead={markAsRead}
@@ -753,28 +2033,28 @@ const TeacherDashboard: React.FC = () => {
               value="classes"
               className="flex items-center space-x-2"
             >
-              <BookOpen className="h-4 w-4" />
+              <Calendar className="h-4 w-4" />
               <span>Classes</span>
             </TabsTrigger>
             <TabsTrigger
               value="content"
               className="flex items-center space-x-2"
             >
-              <FileText className="h-4 w-4" />
+              <BookOpen className="h-4 w-4" />
               <span>Content</span>
             </TabsTrigger>
             <TabsTrigger
               value="analytics"
               className="flex items-center space-x-2"
             >
-              <TrendingUp className="h-4 w-4" />
+              <Target className="h-4 w-4" />
               <span>Analytics</span>
             </TabsTrigger>
           </TabsList>
 
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-6">
-            {/* Stats Cards */}
+            {/* Quick Stats */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -788,7 +2068,8 @@ const TeacherDashboard: React.FC = () => {
                     {dashboardData?.stats?.totalStudents || 0}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Across all classes
+                    +{dashboardData?.stats?.excellingStudents || 0} excelling
+                    this week
                   </p>
                 </CardContent>
               </Card>
@@ -798,7 +2079,7 @@ const TeacherDashboard: React.FC = () => {
                   <CardTitle className="text-sm font-medium">
                     Active Classes
                   </CardTitle>
-                  <BookOpen className="h-4 w-4 text-muted-foreground" />
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">
@@ -860,16 +2141,128 @@ const TeacherDashboard: React.FC = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    <div className="text-center py-8">
-                      <Brain className="h-12 w-12 mx-auto text-purple-500 mb-3" />
-                      <p className="text-gray-600">
-                        AI Twin insights coming soon
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        Monitor student learning with AI companions
-                      </p>
+                  <ScrollArea className="h-64">
+                    <div className="space-y-3">
+                      {dashboardData?.aiTwinInsights?.map((insight) => (
+                        <div
+                          key={insight.id}
+                          className="p-3 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg border border-purple-100"
+                        >
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex items-center space-x-2">
+                              <div className="h-8 w-8 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center">
+                                <Brain className="h-4 w-4 text-white" />
+                              </div>
+                              <div>
+                                <p className="font-medium text-sm">
+                                  {insight.studentName}
+                                </p>
+                                <p className="text-xs text-gray-600">
+                                  AI Twin: {insight.twinLearningStage}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Badge
+                                variant={
+                                  insight.twinEffectivenessScore >= 80
+                                    ? "default"
+                                    : insight.twinEffectivenessScore >= 60
+                                      ? "secondary"
+                                      : "destructive"
+                                }
+                                className="text-xs"
+                              >
+                                {insight.twinEffectivenessScore}% Effective
+                              </Badge>
+                              <Badge
+                                variant={
+                                  insight.emotionalState.stressLevel <= 3
+                                    ? "default"
+                                    : insight.emotionalState.stressLevel <= 6
+                                      ? "secondary"
+                                      : "destructive"
+                                }
+                                className="text-xs"
+                              >
+                                Stress: {insight.emotionalState.stressLevel}/10
+                              </Badge>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            <div>
+                              <span className="font-medium text-purple-700">
+                                Learning Style:
+                              </span>
+                              <p className="text-gray-600">
+                                {insight.personalityTraits.learningStyle}
+                              </p>
+                            </div>
+                            <div>
+                              <span className="font-medium text-blue-700">
+                                Current Mood:
+                              </span>
+                              <p className="text-gray-600">
+                                {insight.emotionalState.currentMood}
+                              </p>
+                            </div>
+                          </div>
+
+                          {insight.twinAdaptations.nextRecommendations.length >
+                            0 && (
+                            <div className="mt-2 p-2 bg-white/50 rounded text-xs">
+                              <span className="font-medium text-green-700">
+                                AI Twin Recommendations:
+                              </span>
+                              <p className="text-gray-600 mt-1">
+                                {insight.twinAdaptations.nextRecommendations[0]}
+                              </p>
+                            </div>
+                          )}
+
+                          {insight.behaviorAnalysis.flaggedBehaviors.length >
+                            0 && (
+                            <div className="mt-2 p-2 bg-red-50 rounded text-xs">
+                              <span className="font-medium text-red-700">
+                                Behavioral Flags:
+                              </span>
+                              <p className="text-red-600 mt-1">
+                                {insight.behaviorAnalysis.flaggedBehaviors.join(
+                                  ", ",
+                                )}
+                              </p>
+                            </div>
+                          )}
+
+                          <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
+                            <span>
+                              Last interaction: {insight.lastTwinInteraction}
+                            </span>
+                            <span>
+                              Risk Score: {insight.behaviorAnalysis.riskScore}
+                              /10
+                            </span>
+                          </div>
+                        </div>
+                      )) || (
+                        <div className="text-center py-8 text-gray-500">
+                          <Brain className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                          <p className="text-sm">No AI Twin data available</p>
+                        </div>
+                      )}
                     </div>
+                  </ScrollArea>
+
+                  <div className="mt-4 pt-3 border-t">
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => setActiveTab("students")}
+                    >
+                      <Users className="mr-2 h-4 w-4" />
+                      View Detailed AI Twin Analytics
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -878,141 +2271,563 @@ const TeacherDashboard: React.FC = () => {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-2">
-                    <Zap className="h-5 w-5 text-orange-500" />
+                    <Zap className="h-5 w-5 text-green-500" />
                     <span>Quick Actions</span>
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Button
-                      variant="outline"
-                      className="h-20 flex flex-col items-center justify-center space-y-2"
-                      onClick={() => setShowCreateClass(true)}
-                    >
-                      <Plus className="h-5 w-5" />
-                      <span className="text-sm">New Class</span>
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="h-20 flex flex-col items-center justify-center space-y-2"
-                      onClick={() => setShowCreateContent(true)}
-                    >
-                      <FileText className="h-5 w-5" />
-                      <span className="text-sm">New Content</span>
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="h-20 flex flex-col items-center justify-center space-y-2"
-                      onClick={() => setActiveTab("students")}
-                    >
-                      <Users className="h-5 w-5" />
-                      <span className="text-sm">View Students</span>
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="h-20 flex flex-col items-center justify-center space-y-2"
-                      onClick={() => setActiveTab("analytics")}
-                    >
-                      <BarChart3 className="h-5 w-5" />
-                      <span className="text-sm">View Analytics</span>
-                    </Button>
-                  </div>
+                <CardContent className="space-y-3">
+                  <Button
+                    className="w-full justify-start"
+                    onClick={() => setShowCreateClass(true)}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Create New Class
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start"
+                    onClick={() => setShowCreateContent(true)}
+                  >
+                    <BookOpen className="mr-2 h-4 w-4" />
+                    Create Lesson Content
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start"
+                    onClick={() => setActiveTab("students")}
+                  >
+                    <Users className="mr-2 h-4 w-4" />
+                    Review Student Progress
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start"
+                    onClick={() => setActiveTab("analytics")}
+                  >
+                    <BarChart3 className="mr-2 h-4 w-4" />
+                    View Analytics
+                  </Button>
                 </CardContent>
               </Card>
             </div>
+
+            {/* Recent Activity */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Activity className="h-5 w-5 text-purple-500" />
+                  <span>Recent Activity</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="h-64">
+                  <div className="space-y-3">
+                    {dashboardData?.recentActivity?.map((activity) => (
+                      <div
+                        key={activity.id}
+                        className="flex items-start space-x-3 p-2 rounded-lg bg-gray-50"
+                      >
+                        <div className="flex-shrink-0">
+                          {activity.type === "submission" && (
+                            <Send className="h-4 w-4 text-green-600" />
+                          )}
+                          {activity.type === "content_created" && (
+                            <BookOpen className="h-4 w-4 text-blue-600" />
+                          )}
+                          {activity.type === "grade_posted" && (
+                            <Award className="h-4 w-4 text-yellow-600" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium">
+                            {activity.title}
+                          </p>
+                          <p className="text-xs text-gray-600">
+                            {activity.description}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-1">
+                            {new Date(activity.timestamp).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                    )) || (
+                      <div className="text-center py-8 text-gray-500">
+                        <Activity className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                        <p className="text-sm">No recent activity</p>
+                      </div>
+                    )}
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
           </TabsContent>
 
-          {/* Students Tab */}
+          {/* Students Tab with AI Twin Insights */}
           <TabsContent value="students" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold">Students</h2>
-              <div className="flex items-center space-x-2">
-                <Input placeholder="Search students..." className="w-64" />
-                <Button variant="outline" size="sm">
-                  <Filter className="h-4 w-4 mr-2" />
-                  Filter
-                </Button>
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                  <Input
+                    placeholder="Search students..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
               </div>
+              <Select value={filterStatus} onValueChange={setFilterStatus}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Students</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="struggling">Struggling</SelectItem>
+                  <SelectItem value="excelling">Excelling</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
+            {/* AI Twin Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {dashboardData?.aiTwinInsights?.map((insight) => (
+                <Card
+                  key={insight.id}
+                  className="border-l-4 border-l-purple-500"
+                >
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <div className="h-6 w-6 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center">
+                          <Brain className="h-3 w-3 text-white" />
+                        </div>
+                        <CardTitle className="text-base">
+                          {insight.studentName}
+                        </CardTitle>
+                      </div>
+                      <Badge
+                        variant={
+                          insight.twinLearningStage === "optimized"
+                            ? "default"
+                            : "secondary"
+                        }
+                        className="text-xs"
+                      >
+                        {insight.twinLearningStage}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="font-medium">Effectiveness:</span>
+                        <Progress
+                          value={insight.twinEffectivenessScore}
+                          className="h-2 mt-1"
+                        />
+                        <span className="text-gray-600">
+                          {insight.twinEffectivenessScore}%
+                        </span>
+                      </div>
+                      <div>
+                        <span className="font-medium">Engagement:</span>
+                        <Progress
+                          value={insight.emotionalState.engagementLevel * 10}
+                          className="h-2 mt-1"
+                        />
+                        <span className="text-gray-600">
+                          {insight.emotionalState.engagementLevel}/10
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="text-xs">
+                      <span className="font-medium">Learning Style:</span>
+                      <p className="text-gray-600">
+                        {insight.personalityTraits.learningStyle}
+                      </p>
+                    </div>
+
+                    <div className="text-xs">
+                      <span className="font-medium">Current State:</span>
+                      <p className="text-gray-600">
+                        {insight.emotionalState.currentMood}
+                      </p>
+                    </div>
+
+                    {insight.behaviorAnalysis.riskScore > 5 && (
+                      <div className="bg-red-50 p-2 rounded text-xs">
+                        <span className="font-medium text-red-700">
+                          ⚠️ Risk Score: {insight.behaviorAnalysis.riskScore}/10
+                        </span>
+                      </div>
+                    )}
+
+                    {insight.twinAdaptations.nextRecommendations.length > 0 && (
+                      <div className="bg-green-50 p-2 rounded text-xs">
+                        <span className="font-medium text-green-700">
+                          💡 AI Recommendation:
+                        </span>
+                        <p className="text-green-600 mt-1">
+                          {insight.twinAdaptations.nextRecommendations[0]}
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="flex justify-between text-xs text-gray-500">
+                      <span>Last Twin Interaction:</span>
+                      <span>{insight.lastTwinInteraction}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {/* Traditional Student Table */}
             <Card>
-              <CardContent className="p-6">
-                <div className="text-center py-8">
-                  <Users className="h-12 w-12 mx-auto text-gray-400 mb-3" />
-                  <p className="text-gray-600">
-                    Student data will be loaded here
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    Monitor student progress and AI Twin interactions
-                  </p>
-                </div>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Users className="h-5 w-5" />
+                  <span>Student Overview & AI Twin Status</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Student</TableHead>
+                      <TableHead>Class</TableHead>
+                      <TableHead>Progress</TableHead>
+                      <TableHead>AI Twin Status</TableHead>
+                      <TableHead>Emotional State</TableHead>
+                      <TableHead>Risk Level</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredStudents.map((student) => {
+                      const twinInsight = dashboardData?.aiTwinInsights?.find(
+                        (insight) => insight.studentId === student.id,
+                      );
+
+                      return (
+                        <TableRow key={student.id}>
+                          <TableCell>
+                            <div className="flex items-center space-x-3">
+                              <Avatar className="h-8 w-8">
+                                <AvatarImage src={student.avatar} />
+                                <AvatarFallback>
+                                  {student.name
+                                    .split(" ")
+                                    .map((n) => n[0])
+                                    .join("")}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <p className="font-medium">{student.name}</p>
+                                <p className="text-sm text-gray-500">
+                                  {student.email}
+                                </p>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>{student.class}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center space-x-2">
+                              <Progress
+                                value={student.overallProgress}
+                                className="w-16"
+                              />
+                              <span className="text-sm">
+                                {student.overallProgress}%
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {twinInsight ? (
+                              <div className="flex items-center space-x-2">
+                                <div className="h-4 w-4 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center">
+                                  <Brain className="h-2 w-2 text-white" />
+                                </div>
+                                <div>
+                                  <Badge variant="outline" className="text-xs">
+                                    {twinInsight.twinLearningStage}
+                                  </Badge>
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    {twinInsight.twinEffectivenessScore}%
+                                    effective
+                                  </p>
+                                </div>
+                              </div>
+                            ) : (
+                              <Badge variant="secondary" className="text-xs">
+                                Twin Initializing
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {twinInsight ? (
+                              <div>
+                                <p className="text-sm">
+                                  {twinInsight.emotionalState.currentMood}
+                                </p>
+                                <div className="flex items-center space-x-1 mt-1">
+                                  <span className="text-xs text-gray-500">
+                                    Stress:
+                                  </span>
+                                  <Badge
+                                    variant={
+                                      twinInsight.emotionalState.stressLevel <=
+                                      3
+                                        ? "default"
+                                        : twinInsight.emotionalState
+                                              .stressLevel <= 6
+                                          ? "secondary"
+                                          : "destructive"
+                                    }
+                                    className="text-xs"
+                                  >
+                                    {twinInsight.emotionalState.stressLevel}/10
+                                  </Badge>
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-gray-400 text-sm">
+                                Analyzing...
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {twinInsight ? (
+                              <Badge
+                                variant={
+                                  twinInsight.behaviorAnalysis.riskScore <= 3
+                                    ? "default"
+                                    : twinInsight.behaviorAnalysis.riskScore <=
+                                        6
+                                      ? "secondary"
+                                      : "destructive"
+                                }
+                                className="text-xs"
+                              >
+                                {twinInsight.behaviorAnalysis.riskScore}/10
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-xs">
+                                Pending
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center space-x-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                title="View AI Twin Details"
+                                onClick={() =>
+                                  handleViewAITwinDetails(student.id)
+                                }
+                              >
+                                <Brain className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                title="View Student Profile"
+                                onClick={() => handleViewStudent(student.id)}
+                              >
+                                <Eye className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                title="Send Message"
+                                onClick={() =>
+                                  handleSendMessageToStudent(student.id)
+                                }
+                              >
+                                <Send className="h-3 w-3" />
+                              </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button size="sm" variant="outline">
+                                    <MoreHorizontal className="h-3 w-3" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent>
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      handleScheduleMeeting(student.id)
+                                    }
+                                  >
+                                    <Calendar className="mr-2 h-3 w-3" />
+                                    Schedule Meeting
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      handleSendToParent(student.id)
+                                    }
+                                  >
+                                    <MessageSquare className="mr-2 h-3 w-3" />
+                                    Contact Parents
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem>
+                                    <FileText className="mr-2 h-3 w-3" />
+                                    Generate Report
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem>
+                                    <UserCheck className="mr-2 h-3 w-3" />
+                                    Mark as Excelling
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem>
+                                    <UserX className="mr-2 h-3 w-3" />
+                                    Flag for Support
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
               </CardContent>
             </Card>
           </TabsContent>
 
           {/* Classes Tab */}
           <TabsContent value="classes" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold">Classes</h2>
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-2xl font-bold">My Classes</h2>
+                <p className="text-gray-600">Manage your active classes</p>
+              </div>
               <Button onClick={() => setShowCreateClass(true)}>
-                <Plus className="h-4 w-4 mr-2" />
+                <Plus className="mr-2 h-4 w-4" />
                 Create Class
               </Button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {dashboardData?.classes?.map((classItem) => (
-                <Card
-                  key={classItem.id}
-                  className="hover:shadow-lg transition-shadow"
-                >
+                <Card key={classItem.id}>
                   <CardHeader>
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-lg">
                         {classItem.name}
                       </CardTitle>
-                      <Badge variant="secondary">{classItem.status}</Badge>
+                      <Badge variant="outline">{classItem.status}</Badge>
                     </div>
                     <p className="text-sm text-gray-600">
                       {classItem.subject} • {classItem.grade}
                     </p>
                   </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between text-sm">
-                        <span>Students</span>
-                        <span className="font-medium">
-                          {classItem.studentCount}
-                        </span>
-                      </div>
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between text-sm">
-                          <span>Progress</span>
-                          <span className="font-medium">
-                            {classItem.progress}%
-                          </span>
-                        </div>
-                        <Progress value={classItem.progress} className="h-2" />
-                      </div>
-                      <div className="text-sm">
-                        <p className="text-gray-600">
-                          Next: {classItem.nextLesson}
-                        </p>
-                        <p className="text-gray-500">{classItem.schedule}</p>
-                      </div>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center justify-between text-sm">
+                      <span>Students:</span>
+                      <span className="font-medium">
+                        {classItem.studentCount}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span>Progress:</span>
+                      <span className="font-medium">{classItem.progress}%</span>
+                    </div>
+                    <Progress value={classItem.progress} />
+                    <div className="flex items-center justify-between text-sm">
+                      <span>Next Lesson:</span>
+                      <span className="font-medium">
+                        {classItem.nextLesson}
+                      </span>
+                    </div>
+                    <div className="flex space-x-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => handleViewClass(classItem.id)}
+                      >
+                        <Eye className="mr-2 h-3 w-3" />
+                        View
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => handleEditClass(classItem.id)}
+                      >
+                        <Edit className="mr-2 h-3 w-3" />
+                        Edit
+                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button size="sm" variant="outline">
+                            <MoreHorizontal className="h-3 w-3" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                          <DropdownMenuItem
+                            onClick={() => handleManageStudents(classItem.id)}
+                          >
+                            <Users className="mr-2 h-3 w-3" />
+                            Manage Students
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleClassAnalytics(classItem.id)}
+                          >
+                            <BarChart3 className="mr-2 h-3 w-3" />
+                            View Analytics
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleExportClassData(classItem.id)}
+                          >
+                            <Download className="mr-2 h-3 w-3" />
+                            Export Data
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleDuplicateClass(classItem.id)}
+                          >
+                            <Copy className="mr-2 h-3 w-3" />
+                            Duplicate Class
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleQuickAssignment()}
+                          >
+                            <Plus className="mr-2 h-3 w-3" />
+                            Quick Assignment
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => handleArchiveClass(classItem.id)}
+                          >
+                            <Archive className="mr-2 h-3 w-3" />
+                            Archive Class
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-red-600"
+                            onClick={() => handleDeleteClass(classItem.id)}
+                          >
+                            <Trash2 className="mr-2 h-3 w-3" />
+                            Delete Class
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </CardContent>
                 </Card>
               )) || (
-                <div className="col-span-full text-center py-8">
-                  <BookOpen className="h-12 w-12 mx-auto text-gray-400 mb-3" />
-                  <p className="text-gray-600">No classes available</p>
+                <div className="col-span-full text-center py-8 text-gray-500">
+                  <Calendar className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No classes created yet</p>
                   <Button
-                    variant="outline"
                     className="mt-2"
                     onClick={() => setShowCreateClass(true)}
                   >
-                    Create your first class
+                    Create Your First Class
                   </Button>
                 </div>
               )}
@@ -1021,181 +2836,366 @@ const TeacherDashboard: React.FC = () => {
 
           {/* Content Tab */}
           <TabsContent value="content" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold">Content</h2>
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-2xl font-bold">Learning Content</h2>
+                <p className="text-gray-600">
+                  Create and manage lessons and assignments
+                </p>
+              </div>
               <Button onClick={() => setShowCreateContent(true)}>
-                <Plus className="h-4 w-4 mr-2" />
+                <Plus className="mr-2 h-4 w-4" />
                 Create Content
               </Button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {dashboardData?.lessonContent?.map((content) => (
-                <Card
-                  key={content.id}
-                  className="hover:shadow-lg transition-shadow"
-                >
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg">{content.title}</CardTitle>
-                      <Badge
-                        variant={
-                          content.status === "published"
-                            ? "default"
-                            : "secondary"
-                        }
-                      >
-                        {content.status}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-gray-600">
-                      {content.type} • {content.subject}
-                    </p>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between text-sm">
-                        <span>Difficulty</span>
-                        <Badge variant="outline" size="sm">
-                          {content.difficulty}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span>Completed</span>
-                        <span className="font-medium">
-                          {content.studentsCompleted} students
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span>Avg Score</span>
-                        <span className="font-medium">
-                          {content.averageScore}%
-                        </span>
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        <Clock className="h-3 w-3 inline mr-1" />
-                        {content.estimatedDuration} min
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )) || (
-                <div className="col-span-full text-center py-8">
-                  <FileText className="h-12 w-12 mx-auto text-gray-400 mb-3" />
-                  <p className="text-gray-600">No content available</p>
-                  <Button
-                    variant="outline"
-                    className="mt-2"
-                    onClick={() => setShowCreateContent(true)}
-                  >
-                    Create your first content
-                  </Button>
-                </div>
-              )}
-            </div>
+            <Card>
+              <CardHeader>
+                <CardTitle>Content Library</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Title</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Subject</TableHead>
+                      <TableHead>Difficulty</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Completed</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {dashboardData?.lessonContent?.map((content) => (
+                      <TableRow key={content.id}>
+                        <TableCell className="font-medium">
+                          {content.title}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{content.type}</Badge>
+                        </TableCell>
+                        <TableCell>{content.subject}</TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              content.difficulty === "hard"
+                                ? "destructive"
+                                : content.difficulty === "medium"
+                                  ? "secondary"
+                                  : "outline"
+                            }
+                          >
+                            {content.difficulty}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              content.status === "published"
+                                ? "default"
+                                : content.status === "draft"
+                                  ? "secondary"
+                                  : "outline"
+                            }
+                          >
+                            {content.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{content.studentsCompleted}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleViewContent(content.id)}
+                              title="View Content"
+                            >
+                              <Eye className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleEditContent(content.id)}
+                              title="Edit Content"
+                            >
+                              <Edit className="h-3 w-3" />
+                            </Button>
+                            {content.status === "draft" && (
+                              <Button
+                                size="sm"
+                                variant="default"
+                                onClick={() => handlePublishContent(content.id)}
+                                title="Publish Content"
+                              >
+                                <Upload className="h-3 w-3" />
+                              </Button>
+                            )}
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button size="sm" variant="outline">
+                                  <MoreHorizontal className="h-3 w-3" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent>
+                                <DropdownMenuItem
+                                  onClick={() => handleViewContent(content.id)}
+                                >
+                                  <Eye className="mr-2 h-3 w-3" />
+                                  Preview Content
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() =>
+                                    handleContentAnalytics(content.id)
+                                  }
+                                >
+                                  <BarChart3 className="mr-2 h-3 w-3" />
+                                  View Analytics
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => handleShareContent(content.id)}
+                                >
+                                  <Send className="mr-2 h-3 w-3" />
+                                  Share Content
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() =>
+                                    handleDuplicateContent(content.id)
+                                  }
+                                >
+                                  <Copy className="mr-2 h-3 w-3" />
+                                  Duplicate
+                                </DropdownMenuItem>
+                                <DropdownMenuItem>
+                                  <Download className="mr-2 h-3 w-3" />
+                                  Export
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() =>
+                                    handleArchiveContent(content.id)
+                                  }
+                                >
+                                  <Archive className="mr-2 h-3 w-3" />
+                                  Archive
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="text-red-600"
+                                  onClick={() =>
+                                    handleDeleteContent(content.id)
+                                  }
+                                >
+                                  <Trash2 className="mr-2 h-3 w-3" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )) || (
+                      <TableRow>
+                        <TableCell
+                          colSpan={7}
+                          className="text-center py-8 text-gray-500"
+                        >
+                          <BookOpen className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                          <p className="text-sm">No content created yet</p>
+                          <Button
+                            className="mt-2"
+                            onClick={() => setShowCreateContent(true)}
+                          >
+                            Create Your First Content
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Analytics Tab */}
           <TabsContent value="analytics" className="space-y-6">
-            <h2 className="text-2xl font-bold">Analytics</h2>
+            <div>
+              <h2 className="text-2xl font-bold">Teaching Analytics</h2>
+              <p className="text-gray-600">
+                Insights into your teaching effectiveness
+              </p>
+            </div>
 
-            <Card>
-              <CardContent className="p-6">
-                <div className="text-center py-8">
-                  <BarChart3 className="h-12 w-12 mx-auto text-gray-400 mb-3" />
-                  <p className="text-gray-600">
-                    Analytics dashboard coming soon
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    Track student performance and AI insights
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle>Class Performance Overview</CardTitle>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleDownloadAnalytics}
+                    >
+                      <Download className="mr-2 h-3 w-3" />
+                      Export Report
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <span>Average Completion Rate</span>
+                      <span className="font-bold">
+                        {dashboardData?.stats?.completionRate || 0}%
+                      </span>
+                    </div>
+                    <Progress
+                      value={dashboardData?.stats?.completionRate || 0}
+                    />
+
+                    <div className="flex justify-between items-center">
+                      <span>Weekly Engagement</span>
+                      <span className="font-bold">
+                        {dashboardData?.stats?.weeklyEngagement || 0}%
+                      </span>
+                    </div>
+                    <Progress
+                      value={dashboardData?.stats?.weeklyEngagement || 0}
+                    />
+
+                    <div className="pt-3 border-t">
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => setActiveTab("students")}
+                      >
+                        <BarChart3 className="mr-2 h-4 w-4" />
+                        View Detailed Analytics
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle>AI Teaching Insights</CardTitle>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        addMessage({
+                          type: "ai_insight",
+                          priority: "medium",
+                          title: "Weekly AI Teaching Report",
+                          message:
+                            "Your personalized teaching insights are ready",
+                          details:
+                            "Comprehensive analysis of your teaching effectiveness this week:\n\n• Interactive lessons showed 23% better engagement\n• Visual learning approaches increased retention by 18%\n• Student participation increased across all classes\n• Recommended focus areas identified for optimal learning",
+                          from: {
+                            type: "ai",
+                            name: "AI Teaching Assistant",
+                          },
+                          category: "Teaching Analytics",
+                        });
+                        setShowMessageModal(true);
+                      }}
+                    >
+                      <FileText className="mr-2 h-3 w-3" />
+                      Full Report
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-2">
+                      <Lightbulb className="h-4 w-4 text-yellow-500" />
+                      <span className="text-sm">
+                        Interactive lessons yield 23% better engagement
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <TrendingUp className="h-4 w-4 text-green-500" />
+                      <span className="text-sm">
+                        Student participation increased this week
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Target className="h-4 w-4 text-blue-500" />
+                      <span className="text-sm">
+                        Focus on visual learners in Class 10A
+                      </span>
+                    </div>
+
+                    <div className="pt-3 border-t">
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => {
+                          setActiveTab("students");
+                          setLastAction({
+                            type: "info",
+                            message:
+                              "Viewing AI Twin analytics for all students",
+                          });
+                        }}
+                      >
+                        <Brain className="mr-2 h-4 w-4" />
+                        View AI Twin Analytics
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
         </Tabs>
       </div>
 
       {/* Create Class Dialog */}
       <Dialog open={showCreateClass} onOpenChange={setShowCreateClass}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Create New Class</DialogTitle>
             <DialogDescription>
-              Set up a new class for your students.
+              Set up a new class for your students
             </DialogDescription>
           </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="class-name">Class Name *</Label>
-                <Input
-                  id="class-name"
-                  value={classForm.name}
-                  onChange={(e) =>
-                    setClassForm({ ...classForm, name: e.target.value })
-                  }
-                  placeholder="e.g., Mathematics 10A"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="class-subject">Subject *</Label>
-                <Select
-                  value={classForm.subject}
-                  onValueChange={(value) =>
-                    setClassForm({ ...classForm, subject: value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select subject" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Mathematics">Mathematics</SelectItem>
-                    <SelectItem value="English">English Language</SelectItem>
-                    <SelectItem value="Science">Science</SelectItem>
-                    <SelectItem value="Social Studies">
-                      Social Studies
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="class-name">Class Name *</Label>
+              <Input
+                id="class-name"
+                value={classForm.name}
+                onChange={(e) =>
+                  setClassForm({ ...classForm, name: e.target.value })
+                }
+                placeholder="e.g., Mathematics 10A"
+              />
             </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="class-grade">Grade</Label>
-                <Select
-                  value={classForm.grade}
-                  onValueChange={(value) =>
-                    setClassForm({ ...classForm, grade: value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select grade" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Grade 9">Grade 9</SelectItem>
-                    <SelectItem value="Grade 10">Grade 10</SelectItem>
-                    <SelectItem value="Grade 11">Grade 11</SelectItem>
-                    <SelectItem value="Grade 12">Grade 12</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="class-schedule">Schedule</Label>
-                <Input
-                  id="class-schedule"
-                  value={classForm.schedule}
-                  onChange={(e) =>
-                    setClassForm({ ...classForm, schedule: e.target.value })
-                  }
-                  placeholder="e.g., Mon, Wed, Fri - 9:00 AM"
-                />
-              </div>
+            <div>
+              <Label htmlFor="class-subject">Subject *</Label>
+              <Input
+                id="class-subject"
+                value={classForm.subject}
+                onChange={(e) =>
+                  setClassForm({ ...classForm, subject: e.target.value })
+                }
+                placeholder="e.g., Mathematics"
+              />
             </div>
-
-            <div className="space-y-2">
+            <div>
+              <Label htmlFor="class-grade">Grade</Label>
+              <Input
+                id="class-grade"
+                value={classForm.grade}
+                onChange={(e) =>
+                  setClassForm({ ...classForm, grade: e.target.value })
+                }
+                placeholder="e.g., Grade 10"
+              />
+            </div>
+            <div>
               <Label htmlFor="class-description">Description</Label>
               <Textarea
                 id="class-description"
@@ -1207,8 +3207,18 @@ const TeacherDashboard: React.FC = () => {
                 rows={3}
               />
             </div>
+            <div>
+              <Label htmlFor="class-schedule">Schedule</Label>
+              <Input
+                id="class-schedule"
+                value={classForm.schedule}
+                onChange={(e) =>
+                  setClassForm({ ...classForm, schedule: e.target.value })
+                }
+                placeholder="e.g., Mon, Wed, Fri - 10:00 AM"
+              />
+            </div>
           </div>
-
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCreateClass(false)}>
               Cancel
@@ -1220,80 +3230,59 @@ const TeacherDashboard: React.FC = () => {
 
       {/* Create Content Dialog */}
       <Dialog open={showCreateContent} onOpenChange={setShowCreateContent}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Create New Content</DialogTitle>
+            <DialogTitle>Create Learning Content</DialogTitle>
             <DialogDescription>
-              Create lessons, assignments, or other educational content.
+              Create a new lesson or assignment for your students
             </DialogDescription>
           </DialogHeader>
-
-          <div className="space-y-4 py-4">
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="content-title">Title *</Label>
+              <Input
+                id="content-title"
+                value={contentForm.title}
+                onChange={(e) =>
+                  setContentForm({ ...contentForm, title: e.target.value })
+                }
+                placeholder="e.g., Introduction to Algebra"
+              />
+            </div>
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="content-title">Title *</Label>
-                <Input
-                  id="content-title"
-                  value={contentForm.title}
-                  onChange={(e) =>
-                    setContentForm({ ...contentForm, title: e.target.value })
-                  }
-                  placeholder="e.g., Introduction to Algebra"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="content-type">Type *</Label>
+              <div>
+                <Label htmlFor="content-type">Type</Label>
                 <Select
                   value={contentForm.type}
                   onValueChange={(value) =>
-                    setContentForm({ ...contentForm, type: value })
+                    setContentForm({
+                      ...contentForm,
+                      type: value as "lesson" | "assignment",
+                    })
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select type" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="lesson">Lesson</SelectItem>
                     <SelectItem value="assignment">Assignment</SelectItem>
-                    <SelectItem value="quiz">Quiz</SelectItem>
-                    <SelectItem value="project">Project</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="content-subject">Subject *</Label>
-                <Select
-                  value={contentForm.subject}
-                  onValueChange={(value) =>
-                    setContentForm({ ...contentForm, subject: value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select subject" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Mathematics">Mathematics</SelectItem>
-                    <SelectItem value="English">English Language</SelectItem>
-                    <SelectItem value="Science">Science</SelectItem>
-                    <SelectItem value="Social Studies">
-                      Social Studies
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
+              <div>
                 <Label htmlFor="content-difficulty">Difficulty</Label>
                 <Select
                   value={contentForm.difficulty}
                   onValueChange={(value) =>
-                    setContentForm({ ...contentForm, difficulty: value })
+                    setContentForm({
+                      ...contentForm,
+                      difficulty: value as "easy" | "medium" | "hard",
+                    })
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select difficulty" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="easy">Easy</SelectItem>
@@ -1303,8 +3292,7 @@ const TeacherDashboard: React.FC = () => {
                 </Select>
               </div>
             </div>
-
-            <div className="space-y-2">
+            <div>
               <Label htmlFor="content-description">Description</Label>
               <Textarea
                 id="content-description"
@@ -1315,12 +3303,40 @@ const TeacherDashboard: React.FC = () => {
                     description: e.target.value,
                   })
                 }
-                placeholder="Describe the content objectives and activities..."
-                rows={3}
+                placeholder="Brief description of the content..."
+                rows={2}
+              />
+            </div>
+            <div>
+              <Label htmlFor="content-body">Content *</Label>
+              <Textarea
+                id="content-body"
+                value={contentForm.content}
+                onChange={(e) =>
+                  setContentForm({ ...contentForm, content: e.target.value })
+                }
+                placeholder="Enter the lesson content or assignment instructions..."
+                rows={6}
+              />
+            </div>
+            <div>
+              <Label htmlFor="estimated-duration">
+                Estimated Duration (minutes)
+              </Label>
+              <Input
+                id="estimated-duration"
+                type="number"
+                value={contentForm.estimatedDuration}
+                onChange={(e) =>
+                  setContentForm({
+                    ...contentForm,
+                    estimatedDuration: parseInt(e.target.value) || 60,
+                  })
+                }
+                placeholder="60"
               />
             </div>
           </div>
-
           <DialogFooter>
             <Button
               variant="outline"
@@ -1332,6 +3348,18 @@ const TeacherDashboard: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Message Modal */}
+      <MessageModal
+        isOpen={showMessageModal}
+        onClose={() => {
+          setShowMessageModal(false);
+          setSelectedMessage(null);
+        }}
+        message={selectedMessage}
+        onAction={handleMessageAction}
+        onReply={handleMessageReply}
+      />
 
       {/* Profile Settings Dialog */}
       <Dialog open={showProfileSettings} onOpenChange={setShowProfileSettings}>
@@ -1494,28 +3522,13 @@ const TeacherDashboard: React.FC = () => {
             <Button
               variant="outline"
               onClick={() => setShowProfileSettings(false)}
-              disabled={profileLoading}
             >
               Cancel
             </Button>
-            <Button onClick={handleSaveProfile} disabled={profileLoading}>
-              {profileLoading ? "Saving..." : "Save Changes"}
-            </Button>
+            <Button onClick={handleSaveProfile}>Save Changes</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Message Modal */}
-      <MessageModal
-        isOpen={showMessageModal}
-        onClose={() => {
-          setShowMessageModal(false);
-          setSelectedMessage(null);
-        }}
-        message={selectedMessage}
-        onAction={handleMessageAction}
-        onReply={handleMessageReply}
-      />
 
       {/* Integration Status Component */}
       <IntegrationStatus />
@@ -1524,6 +3537,4 @@ const TeacherDashboard: React.FC = () => {
       <DevelopmentBanner />
     </div>
   );
-};
-
-export default TeacherDashboard;
+}

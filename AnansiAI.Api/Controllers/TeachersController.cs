@@ -990,69 +990,6 @@ public class TeachersController : ControllerBase
         }
     }
 
-    // PUT: api/teachers/profile
-    [HttpPut("profile")]
-    public async Task<ActionResult<ApiResponse<TeacherProfileDto>>> UpdateTeacherProfile([FromBody] UpdateTeacherProfileRequest request)
-    {
-        try
-        {
-            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized();
-            }
-
-            var user = await _context.Users.FindAsync(userId);
-            if (user == null)
-            {
-                return Ok(new ApiResponse<TeacherProfileDto>
-                {
-                    Success = false,
-                    Error = "User not found"
-                });
-            }
-
-            // Update user properties
-            if (!string.IsNullOrEmpty(request.Name))
-                user.FullName = request.Name;
-
-            if (!string.IsNullOrEmpty(request.Email))
-                user.Email = request.Email;
-
-            user.UpdatedAt = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
-
-            // Return updated profile
-            var updatedProfile = new TeacherProfileDto
-            {
-                Id = userId,
-                Name = user.FullName,
-                Email = user.Email ?? "",
-                Subject = request.Subject ?? "Mathematics", // This should come from teacher assignments
-                Experience = "8 years", // This should be calculated or stored
-                Rating = 4.8, // This should be calculated from feedback
-                Certifications = request.Certifications ?? new List<string> { "Advanced Mathematics", "STEM Education" },
-                Bio = request.Bio ?? "Passionate educator focused on innovative teaching methods."
-            };
-
-            return Ok(new ApiResponse<TeacherProfileDto>
-            {
-                Success = true,
-                Data = updatedProfile,
-                Message = "Profile updated successfully"
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error updating teacher profile for user {UserId}", User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
-            return Ok(new ApiResponse<TeacherProfileDto>
-            {
-                Success = false,
-                Error = "Failed to update profile"
-            });
-        }
-    }
-
     // GET: api/teachers/students/{id}/aitwin
     [HttpGet("students/{id}/aitwin")]
     public async Task<ActionResult<ApiResponse<AITwinInsightDto>>> GetStudentAITwinDetails(string id)
