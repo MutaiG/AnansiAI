@@ -1066,7 +1066,7 @@ export default function TeacherDashboard() {
       setShowCreateClass(true);
       setLastAction({
         type: "info",
-        message: `Editing ${classData.name}`,
+        message: `Editing ${classData.name} - Update details and save changes`,
       });
     }
   };
