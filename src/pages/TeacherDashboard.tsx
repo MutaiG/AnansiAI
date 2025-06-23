@@ -1724,10 +1724,73 @@ ${analyticsReport.recommendations.map((rec) => `- ${rec}`).join("\n")}
   const handleManageStudents = (classId: string) => {
     const classData = dashboardData?.classes.find((c) => c.id === classId);
     if (classData) {
+      // Filter students for this specific class
+      const classStudents =
+        dashboardData?.students?.filter((s) => s.class === classData.name) ||
+        [];
+
+      addMessage({
+        type: "student_management",
+        priority: "medium",
+        title: `Student Management - ${classData.name}`,
+        message: `Managing ${classStudents.length} students in ${classData.name}`,
+        details: `👥 **Students in ${classData.name}:**
+
+${
+  classStudents.length === 0
+    ? "No students enrolled yet."
+    : classStudents
+        .map(
+          (student, index) =>
+            `${index + 1}. **${student.name}**
+   📧 ${student.email}
+   📊 Progress: ${student.overallProgress}%
+   ⭐ Average Grade: ${student.averageGrade}%
+   📈 Status: ${student.status.charAt(0).toUpperCase() + student.status.slice(1)}
+   ⏰ Last Active: ${student.lastActive}
+   ${student.status === "struggling" ? "⚠️ Needs attention" : ""}
+   ${student.status === "excelling" ? "🌟 Top performer" : ""}
+
+   **AI Recommendations:**
+   ${student.aiRecommendations.map((rec) => `   • ${rec}`).join("\n")}
+`,
+        )
+        .join("\n---\n")
+}
+
+**Management Actions Available:**
+• Add new students to class
+• Remove students from class
+• Send messages to students
+• Schedule individual meetings
+• View detailed progress reports
+• Export student data
+• Generate parent reports
+
+**Class Statistics:**
+• Total Enrolled: ${classStudents.length}
+• Average Progress: ${classStudents.reduce((sum, s) => sum + s.overallProgress, 0) / (classStudents.length || 1)}%
+• Students Excelling: ${classStudents.filter((s) => s.status === "excelling").length}
+• Students Struggling: ${classStudents.filter((s) => s.status === "struggling").length}`,
+        from: {
+          type: "system",
+          name: "Student Management System",
+        },
+        category: "Student Management",
+        metadata: {
+          classId: classId,
+          className: classData.name,
+          studentCount: classStudents.length,
+        },
+      });
+
+      setSelectedMessage(null);
+      setShowMessageModal(true);
       setActiveTab("students");
+
       setLastAction({
         type: "info",
-        message: `Managing students for ${classData.name}`,
+        message: `Managing ${classStudents.length} students in ${classData.name}`,
       });
     }
   };
