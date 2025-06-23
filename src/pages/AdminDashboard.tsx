@@ -287,54 +287,66 @@ const AdminDashboard = () => {
     navigate("/admin-schedule");
   };
 
-  const handleAddUser = () => {
+  const handleAddUser = async () => {
     if (!newUser.name) {
       alert("Please enter the user's name");
       return;
     }
 
-    if (
-      newUser.role === "teacher" &&
-      (!newUser.email || !newUser.phone || !newUser.subject)
-    ) {
+    if (newUser.role === "teacher" && (!newUser.email || !newUser.phone)) {
       alert("Please fill in all required fields for teacher role");
       return;
     }
 
-    if (newUser.role === "student" && (!newUser.regNo || !newUser.grade)) {
-      alert("Please fill in all required fields for student role");
+    if (newUser.role === "student" && !newUser.email) {
+      alert("Please provide an email address");
       return;
     }
 
-    // Generate login ID and password
-    const loginId =
-      newUser.role === "student"
-        ? `${newUser.regNo}-STU-${Math.floor(Math.random() * 1000)
-            .toString()
-            .padStart(3, "0")}`
-        : `${adminInfo.school.replace(/\s+/g, "").substring(0, 3).toUpperCase()}-TCH-${Math.floor(
-            Math.random() * 1000,
-          )
-            .toString()
-            .padStart(3, "0")}`;
+    try {
+      const userData = {
+        fullName: newUser.name,
+        email: newUser.email,
+        phoneNumber: newUser.phone,
+        address: "", // Could be added to form
+        role: newUser.role.toUpperCase() as "STUDENT" | "TEACHER",
+      };
 
-    const tempPassword = Math.random().toString(36).slice(-8);
+      const success = await createUser(userData);
 
-    console.log("Creating user:", { ...newUser, loginId, tempPassword });
-    alert(
-      `User created successfully!\n\nLogin ID: ${loginId}\nTemporary Password: ${tempPassword}\n\nThe user must change their password on first login.`,
-    );
+      if (success) {
+        // Generate display credentials for the user
+        const loginId = `${adminInfo.school.replace(/\s+/g, "").substring(0, 3).toUpperCase()}-${newUser.role.toUpperCase()}-${Math.floor(
+          Math.random() * 1000,
+        )
+          .toString()
+          .padStart(3, "0")}`;
+        const tempPassword = Math.random().toString(36).slice(-8);
 
-    setIsAddUserOpen(false);
-    setNewUser({
-      name: "",
-      email: "",
-      phone: "",
-      role: "student",
-      regNo: "",
-      grade: "",
-      subject: "",
-    });
+        alert(
+          `User created successfully!\n\nLogin ID: ${loginId}\nTemporary Password: ${tempPassword}\n\nThe user must change their password on first login.`,
+        );
+
+        setIsAddUserOpen(false);
+        setNewUser({
+          name: "",
+          email: "",
+          phone: "",
+          role: "student",
+          regNo: "",
+          grade: "",
+          subject: "",
+        });
+
+        // Reload dashboard to show new user
+        reload();
+      } else {
+        alert("Failed to create user. Please try again.");
+      }
+    } catch (error) {
+      console.error("Error creating user:", error);
+      alert("An error occurred while creating the user. Please try again.");
+    }
   };
 
   const handleDeleteUser = (userId: string, userName: string) => {
