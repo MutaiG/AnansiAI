@@ -104,6 +104,18 @@ import {
   Upload,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import {
+  useAdminDashboard,
+  useCreateUser,
+  useUpdateUser,
+  useCreateSubject,
+} from "@/hooks/useAdminApi";
+import type {
+  AdminDashboardData,
+  UserData,
+  SystemAlert,
+} from "@/hooks/useAdminApi";
+import usePageTitle from "@/hooks/usePageTitle";
 
 interface User {
   id: string;
