@@ -15,11 +15,17 @@ public class Lesson
     [Column(TypeName = "jsonb")]
     public string Content { get; set; } = "{}"; // JSON content for flexible lesson structure
 
+    public string? Description { get; set; }
+
+    public int EstimatedDurationMinutes { get; set; } = 30;
+
+    public string? VideoUrl { get; set; }
+
     [Range(1, 10)]
     public int DifficultyLevel { get; set; } = 1; // 1 to 10
 
     [Required]
-    public string CreatedById { get; set; } = string.Empty; // FK to identity user
+    public string CreatedbyId { get; set; } = string.Empty; // FK to identity user
 
     public ApprovalStatus ApprovalStatus { get; set; } = ApprovalStatus.Draft;
 
@@ -38,7 +44,6 @@ public class Lesson
     public virtual AppUser CreatedBy { get; set; } = null!;
     public virtual AppUser? ApprovedBy { get; set; }
     public virtual ICollection<Assignment> Assignments { get; set; } = new List<Assignment>();
-    public virtual ICollection<TwinInteraction> TwinInteractions { get; set; } = new List<TwinInteraction>();
     public virtual ICollection<BehaviorLog> BehaviorLogs { get; set; } = new List<BehaviorLog>();
 }
 

@@ -15,13 +15,8 @@ public class Submission
     [Column(TypeName = "jsonb")]
     public string Content { get; set; } = "{}"; // JSON content for flexible submission structure
 
-    [Range(0, 100)]
     public float? AutoGrade { get; set; }
-
-    [Range(0, 100)]
     public float? TeacherGrade { get; set; }
-
-    [Range(0, 100)]
     public float? FinalGrade { get; set; }
 
     [MaxLength(2000)]

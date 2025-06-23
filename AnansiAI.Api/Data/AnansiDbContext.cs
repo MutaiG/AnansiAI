@@ -14,6 +14,7 @@ public class AnansiDbContext : IdentityDbContext<AppUser>
     public DbSet<School> Schools { get; set; }
     public DbSet<SystemAlert> SystemAlerts { get; set; }
     public DbSet<Notification> Notifications { get; set; }
+    public DbSet<NotificationAction> NotificationActions { get; set; }
 
     // New comprehensive education entities
     public DbSet<Subject> Subjects { get; set; }
@@ -99,7 +100,7 @@ public class AnansiDbContext : IdentityDbContext<AppUser>
                   .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(e => e.CreatedBy)
                   .WithMany(u => u.CreatedLessons)
-                  .HasForeignKey(e => e.CreatedById)
+                  .HasForeignKey(e => e.CreatedbyId)
                   .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(e => e.ApprovedBy)
                   .WithMany(u => u.ApprovedLessons)
@@ -258,6 +259,25 @@ public class AnansiDbContext : IdentityDbContext<AppUser>
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => e.Time);
             entity.HasIndex(e => e.Read);
+            entity.HasOne(e => e.User)
+                  .WithMany(u => u.Notifications)
+                  .HasForeignKey(e => e.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // NotificationAction configuration
+        modelBuilder.Entity<NotificationAction>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => new { e.NotificationId, e.UserId });
+            entity.HasOne(e => e.Notification)
+                  .WithMany(n => n.Actions)
+                  .HasForeignKey(e => e.NotificationId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.User)
+                  .WithMany(u => u.NotificationActions)
+                  .HasForeignKey(e => e.UserId)
+                  .OnDelete(DeleteBehavior.Restrict);
         });
     }
 
@@ -408,7 +428,11 @@ public class AnansiDbContext : IdentityDbContext<AppUser>
                 Time = DateTime.UtcNow.AddHours(-1),
                 Read = false,
                 Priority = NotificationPriority.Medium,
-                UserId = 1
+                Category = NotificationCategory.System,
+                ActionRequired = true,
+                RelatedEntityType = "system",
+                Metadata = "{\"maintenanceWindow\": \"2-6 AM\", \"affectedServices\": [\"authentication\", \"reporting\"]}",
+                UserId = "teacher-001"
             },
             new Notification
             {
@@ -419,7 +443,27 @@ public class AnansiDbContext : IdentityDbContext<AppUser>
                 Time = DateTime.UtcNow.AddHours(-3),
                 Read = false,
                 Priority = NotificationPriority.Low,
-                UserId = 1
+                Category = NotificationCategory.Performance,
+                ActionRequired = false,
+                RelatedEntityType = "report",
+                Metadata = "{\"reportType\": \"weekly\", \"period\": \"" + DateTime.UtcNow.AddDays(-7).ToString("yyyy-MM-dd") + " to " + DateTime.UtcNow.ToString("yyyy-MM-dd") + "\"}",
+                UserId = "teacher-001"
+            },
+            new Notification
+            {
+                Id = 3,
+                Type = NotificationType.Alert,
+                Title = "AI Twin Alert: Student Needs Attention",
+                Message = "John Smith is showing signs of academic struggle based on AI analysis",
+                Time = DateTime.UtcNow.AddMinutes(-30),
+                Read = false,
+                Priority = NotificationPriority.High,
+                Category = NotificationCategory.AI,
+                ActionRequired = true,
+                RelatedEntityId = "student-001",
+                RelatedEntityType = "student",
+                Metadata = "{\"studentId\": \"student-001\", \"riskScore\": 0.75, \"alertType\": \"academic_struggle\"}",
+                UserId = "teacher-001"
             }
         );
     }

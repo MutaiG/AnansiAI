@@ -20,8 +20,7 @@ public class BehaviorLog
     [Column(TypeName = "jsonb")]
     public string Details { get; set; } = "{}"; // JSON for detailed behavior data
 
-    [Range(0.0f, 1.0f)]
-    public float RiskScore { get; set; } = 0.0f; // AI-calculated risk score
+    public float RiskScore { get; set; } = 0.0f;
 
     public bool Flagged { get; set; } = false;
 
@@ -40,25 +39,25 @@ public enum BehaviorActionType
     LessonAbandoned,
     QuestionAnswered,
     QuestionSkipped,
-    
+
     // Interaction behaviors
     ClickPattern,
     ScrollPattern,
     TimeSpentOnTask,
     FocusLoss,
     FocusReturn,
-    
+
     // Social behaviors
     HelpRequested,
     PeerInteraction,
     TeacherInteraction,
-    
+
     // Risk indicators
     FrustrationDetected,
     ConfusionDetected,
     DisengagementDetected,
     ExcessiveGuessing,
-    
+
     // Positive indicators
     FlowStateDetected,
     MasteryAchieved,

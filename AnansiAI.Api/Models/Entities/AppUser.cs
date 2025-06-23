@@ -39,4 +39,6 @@ public class AppUser : IdentityUser
     public virtual ICollection<AuditLog> AuditLogs { get; set; } = new List<AuditLog>();
     public virtual ICollection<Subject> CreatedSubjects { get; set; } = new List<Subject>();
     public virtual ICollection<LevelStudents> LevelStudents { get; set; } = new List<LevelStudents>();
+    public virtual ICollection<Notification> Notifications { get; set; } = new List<Notification>();
+    public virtual ICollection<NotificationAction> NotificationActions { get; set; } = new List<NotificationAction>();
 }

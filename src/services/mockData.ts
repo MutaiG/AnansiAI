@@ -9,6 +9,7 @@ import type {
   Notification,
   SuperAdminInfo,
 } from "./api";
+import { teacherStudentIntegration } from "./teacherStudentIntegration";
 
 // Mock delay to simulate network requests
 const mockDelay = (ms: number = 800) =>
@@ -386,6 +387,8 @@ export class MockApiService {
         },
       },
       enrolledCourses: [
+        // Include teacher-created courses from integration service
+        ...teacherStudentIntegration.getStudentEnrolledCourses("student_001"),
         {
           id: "course_001",
           title: "Advanced Calculus",
@@ -416,6 +419,9 @@ export class MockApiService {
               status: "pending",
             },
           ],
+          teacherCreated: false, // Original mock course
+          classId: "",
+          schedule: "Mon, Wed, Fri - 10:00 AM",
         },
         {
           id: "course_002",
@@ -440,6 +446,9 @@ export class MockApiService {
               status: "pending",
             },
           ],
+          teacherCreated: false,
+          classId: "",
+          schedule: "Tue, Thu - 2:00 PM",
         },
         {
           id: "course_003",
@@ -456,6 +465,9 @@ export class MockApiService {
             description: "Literature analysis and creative writing",
           },
           upcomingAssignments: [],
+          teacherCreated: false,
+          classId: "",
+          schedule: "Mon, Wed - 1:00 PM",
         },
       ],
       behaviorSummary: {

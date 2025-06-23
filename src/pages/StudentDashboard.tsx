@@ -1237,41 +1237,31 @@ const StudentDashboard = () => {
                           key={course.id}
                           className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
                         >
-                          <div className="flex items-center gap-4">
-                            <div className="p-2 bg-blue-100 rounded-lg">
-                              <BookOpen className="w-5 h-5 text-blue-600" />
-                            </div>
-                            <div>
-                              <h3 className="font-medium text-gray-900 flex items-center gap-2">
-                                {course.title}
-                                {course.aiRecommended && (
-                                  <Badge className="bg-purple-100 text-purple-700">
-                                    <Brain className="w-3 h-3 mr-1" />
-                                    AI Recommended
-                                  </Badge>
-                                )}
-                              </h3>
-                              <p className="text-sm text-gray-600">
-                                {course.instructor} • {course.completedLessons}/
-                                {course.totalLessons} lessons
-                              </p>
-                              {course.recentGrade && (
-                                <p className="text-sm text-green-600 font-medium">
-                                  Latest: {course.recentGrade}%
-                                </p>
+                          <div className="flex items-center justify-between mb-2">
+                            <h3 className="font-semibold text-gray-900">
+                              {course.title}
+                            </h3>
+                            <div className="flex gap-1">
+                              {course.teacherCreated && (
+                                <Badge
+                                  variant="secondary"
+                                  className="text-xs bg-blue-100 text-blue-800"
+                                >
+                                  <GraduationCap className="w-3 h-3 mr-1" />
+                                  Teacher Created
+                                </Badge>
                               )}
+                              <Badge
+                                variant={
+                                  course.aiRecommended ? "default" : "outline"
+                                }
+                                className="text-xs"
+                              >
+                                {course.aiRecommended
+                                  ? "AI Recommended"
+                                  : course.subject.name}
+                              </Badge>
                             </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="w-32 mb-2">
-                              <Progress
-                                value={course.progress}
-                                className="h-2"
-                              />
-                            </div>
-                            <p className="text-sm text-gray-600">
-                              {course.progress}% complete
-                            </p>
                           </div>
                         </div>
                       ))}
@@ -1416,9 +1406,15 @@ const StudentDashboard = () => {
                                 </Badge>
                               )}
                             </CardTitle>
-                            <CardDescription>
-                              {course.instructor}
-                            </CardDescription>
+                            <div className="space-y-1 text-sm text-muted-foreground">
+                              <div>{course.instructor}</div>
+                              {course.teacherCreated && course.schedule && (
+                                <div className="flex items-center gap-1 text-xs text-blue-600">
+                                  <Calendar className="w-3 h-3" />
+                                  {course.schedule}
+                                </div>
+                              )}
+                            </div>
                           </div>
                           <div className="text-right">
                             {course.recentGrade && (
