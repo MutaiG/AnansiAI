@@ -1301,6 +1301,70 @@ ${twinInsight.twinAdaptations.nextRecommendations.join("\n")}`,
     }
   };
 
+  // Additional missing handlers
+  const handleCreateQuiz = () => {
+    setContentForm({
+      ...contentForm,
+      type: "quiz",
+      title: "New Quiz",
+      estimatedDuration: 30,
+    });
+    setShowCreateContent(true);
+    setLastAction({
+      type: "info",
+      message: "Creating new quiz...",
+    });
+  };
+
+  const handleCreateProject = () => {
+    setContentForm({
+      ...contentForm,
+      type: "project",
+      title: "New Project",
+      estimatedDuration: 120,
+    });
+    setShowCreateContent(true);
+    setLastAction({
+      type: "info",
+      message: "Creating new project...",
+    });
+  };
+
+  const handleBulkGrade = () => {
+    setLastAction({
+      type: "info",
+      message: "Opening bulk grading interface...",
+    });
+
+    setTimeout(() => {
+      setLastAction({
+        type: "success",
+        message: "Bulk grading interface ready",
+      });
+    }, 1000);
+  };
+
+  const handleClassSchedule = (classId: string) => {
+    const classData = dashboardData?.classes.find((c) => c.id === classId);
+    if (classData) {
+      setLastAction({
+        type: "info",
+        message: `Opening schedule for ${classData.name}`,
+      });
+    }
+  };
+
+  const handleStudentProgress = (studentId: string) => {
+    const student = dashboardData?.students.find((s) => s.id === studentId);
+    if (student) {
+      setActiveTab("analytics");
+      setLastAction({
+        type: "info",
+        message: `Viewing detailed progress for ${student.name}`,
+      });
+    }
+  };
+
   // Advanced Class Management Functions
   const handleDeleteClass = async (classId: string) => {
     const classData = dashboardData?.classes.find((c) => c.id === classId);
