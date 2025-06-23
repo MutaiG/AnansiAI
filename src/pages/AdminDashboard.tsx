@@ -255,47 +255,25 @@ const AdminDashboard = () => {
     },
   ];
 
-  const systemAlerts: SystemAlert[] = [
-    {
-      id: "1",
-      type: "warning",
-      title: "Database Performance Issue",
-      message:
-        "Database response times are 40% above normal thresholds. Consider optimizing queries.",
-      time: "15 min ago",
-      priority: "high",
-      actionRequired: true,
-    },
-    {
-      id: "2",
-      type: "success",
-      title: "User Activity Milestone",
-      message:
-        "Congratulations! 95% student engagement rate achieved this week.",
-      time: "1 hour ago",
-      priority: "low",
-      actionRequired: false,
-    },
-    {
-      id: "3",
-      type: "error",
-      title: "AI Service Disruption",
-      message:
-        "Machine learning inference service experiencing intermittent failures in Math module.",
-      time: "2 hours ago",
-      priority: "high",
-      actionRequired: true,
-    },
-    {
-      id: "4",
-      type: "info",
-      title: "Security Update Available",
-      message: "New security patches available for immediate deployment.",
-      time: "6 hours ago",
-      priority: "medium",
-      actionRequired: true,
-    },
-  ];
+  const systemAlerts = dashboardData?.systemAlerts || [];
+
+  // Transform API user data to component format
+  const users =
+    dashboardData?.users?.map((user) => ({
+      id: user.id,
+      name: user.fullName,
+      email: user.email,
+      phone: user.phoneNumber,
+      role: user.role.toLowerCase() as "student" | "teacher",
+      regNo: user.role === "STUDENT" ? `REG${user.id}` : undefined,
+      grade: user.role === "STUDENT" ? "10th" : undefined, // Would come from enrollment data
+      subject: user.role === "TEACHER" ? "Subject" : undefined, // Would come from teacher profile
+      status: user.isActive ? ("active" as const) : ("inactive" as const),
+      lastLogin: user.lastLogin,
+      joinDate: new Date(user.createdAt).toLocaleDateString(),
+      performance: user.averageGrade,
+      courses: user.enrolledLevels || user.createdLessons || 0,
+    })) || [];
 
   const users: User[] = [
     {
