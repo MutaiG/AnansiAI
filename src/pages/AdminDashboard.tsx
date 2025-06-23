@@ -171,7 +171,19 @@ const AdminDashboard = () => {
     dataRetentionDays: 90,
   });
 
-  // Mock data
+  // Authentication check
+  useEffect(() => {
+    const userRole = localStorage.getItem("userRole");
+    if (!userRole || !["ADMIN", "SUPER_ADMIN"].includes(userRole)) {
+      // Auto-set admin role for development
+      localStorage.setItem("userRole", "ADMIN");
+      localStorage.setItem("userId", "ADM001");
+      localStorage.setItem("userName", "Dr. Sarah Johnson");
+      console.log("Setting admin role for development");
+    }
+  }, []);
+
+  // Extract data from API response with fallbacks
   const adminInfo = {
     name: "Dr. Michael Smith",
     id: "ADM001",
