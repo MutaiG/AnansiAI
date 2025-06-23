@@ -37,8 +37,9 @@ const App = () => (
           <div className="min-h-screen">
             <DevelopmentBanner />
             <Routes>
-              {/* Redirect root to school login */}
+              {/* Redirect root to school login - but allow direct teacher dashboard access in dev */}
               <Route path="/" element={<Navigate to="/login" replace />} />
+              <Route path="/dev-teacher" element={<TeacherDashboard />} />
 
               {/* Authentication Routes */}
               <Route path="/login" element={<SchoolLogin />} />
