@@ -283,6 +283,8 @@ export default function TeacherDashboard() {
     subject: "",
     description: "",
     difficulty: "medium",
+    estimatedDuration: 45,
+    content: "",
   });
 
   const [profileForm, setProfileForm] = useState({
