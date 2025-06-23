@@ -204,57 +204,6 @@ const AdminDashboard = () => {
     assignmentsCompleted: dashboardData?.schoolStats?.totalAssignments || 0,
   };
 
-  const notifications: Notification[] = [
-    {
-      id: "1",
-      type: "alert",
-      title: "System Performance Alert",
-      message:
-        "High memory usage detected on server cluster - immediate attention required",
-      time: "5 min ago",
-      read: false,
-      priority: "high",
-    },
-    {
-      id: "2",
-      type: "user",
-      title: "New User Registrations",
-      message: "12 new teacher accounts pending approval and activation",
-      time: "45 min ago",
-      read: false,
-      priority: "medium",
-    },
-    {
-      id: "3",
-      type: "performance",
-      title: "Student Performance Update",
-      message:
-        "Weekly performance analytics report is now available for review",
-      time: "2 hours ago",
-      read: true,
-      priority: "low",
-    },
-    {
-      id: "4",
-      type: "maintenance",
-      title: "Scheduled System Maintenance",
-      message: "Planned maintenance window tonight from 11 PM to 2 AM",
-      time: "4 hours ago",
-      read: true,
-      priority: "medium",
-    },
-    {
-      id: "5",
-      type: "system",
-      title: "AI Model Update Complete",
-      message:
-        "Latest machine learning models deployed successfully across all courses",
-      time: "1 day ago",
-      read: true,
-      priority: "low",
-    },
-  ];
-
   const systemAlerts = dashboardData?.systemAlerts || [];
 
   // Transform API user data to component format
