@@ -104,17 +104,8 @@ import {
   Upload,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import {
-  useAdminDashboard,
-  useCreateUser,
-  useUpdateUser,
-  useCreateSubject,
-} from "@/hooks/useAdminApi";
-import type {
-  AdminDashboardData,
-  UserData,
-  SystemAlert,
-} from "@/hooks/useAdminApi";
+import { useAdminDashboard, useCreateUser, useUpdateUser, useCreateSubject } from "@/hooks/useAdminApi";
+import type { AdminDashboardData, UserData, SystemAlert } from "@/hooks/useAdminApi";
 import usePageTitle from "@/hooks/usePageTitle";
 
 // Remove the local interfaces as they're now imported from useAdminApi
@@ -258,97 +249,24 @@ const AdminDashboard = () => {
   const systemAlerts = dashboardData?.systemAlerts || [];
 
   // Transform API user data to component format
-  const users =
-    dashboardData?.users?.map((user) => ({
-      id: user.id,
-      name: user.fullName,
-      email: user.email,
-      phone: user.phoneNumber,
-      role: user.role.toLowerCase() as "student" | "teacher",
-      regNo: user.role === "STUDENT" ? `REG${user.id}` : undefined,
-      grade: user.role === "STUDENT" ? "10th" : undefined, // Would come from enrollment data
-      subject: user.role === "TEACHER" ? "Subject" : undefined, // Would come from teacher profile
-      status: user.isActive ? ("active" as const) : ("inactive" as const),
-      lastLogin: user.lastLogin,
-      joinDate: new Date(user.createdAt).toLocaleDateString(),
-      performance: user.averageGrade,
-      courses: user.enrolledLevels || user.createdLessons || 0,
-    })) || [];
+  const users = dashboardData?.users?.map(user => ({
+    id: user.id,
+    name: user.fullName,
+    email: user.email,
+    phone: user.phoneNumber,
+    role: user.role.toLowerCase() as "student" | "teacher",
+    regNo: user.role === "STUDENT" ? `REG${user.id}` : undefined,
+    grade: user.role === "STUDENT" ? "10th" : undefined, // Would come from enrollment data
+    subject: user.role === "TEACHER" ? "Subject" : undefined, // Would come from teacher profile
+    status: user.isActive ? "active" as const : "inactive" as const,
+    lastLogin: user.lastLogin,
+    joinDate: new Date(user.createdAt).toLocaleDateString(),
+    performance: user.averageGrade,
+    courses: user.enrolledLevels || user.createdLessons || 0,
+  })) || [];
 
   const users: User[] = [
-    {
-      id: "USR001",
-      name: "Alex Johnson",
-      role: "student",
-      regNo: "ST2024001",
-      grade: "10th",
-      status: "active",
-      lastLogin: "2 hours ago",
-      joinDate: "Jan 15, 2024",
-      performance: 89,
-      courses: 6,
-    },
-    {
-      id: "USR002",
-      name: "Sarah Chen",
-      email: "sarah.chen@school.edu",
-      phone: "+1-555-0123",
-      role: "teacher",
-      subject: "Mathematics",
-      status: "active",
-      lastLogin: "30 min ago",
-      joinDate: "Aug 20, 2023",
-      courses: 4,
-    },
-    {
-      id: "USR003",
-      name: "Maria Rodriguez",
-      role: "student",
-      regNo: "ST2024002",
-      grade: "11th",
-      status: "active",
-      lastLogin: "1 day ago",
-      joinDate: "Jan 20, 2024",
-      performance: 94,
-      courses: 7,
-    },
-    {
-      id: "USR004",
-      name: "David Wilson",
-      email: "david.wilson@school.edu",
-      phone: "+1-555-0456",
-      role: "teacher",
-      subject: "Science",
-      status: "pending",
-      lastLogin: "Never",
-      joinDate: "Mar 1, 2024",
-      courses: 0,
-    },
-    {
-      id: "USR005",
-      name: "Emily Davis",
-      role: "student",
-      regNo: "ST2024003",
-      grade: "9th",
-      status: "active",
-      lastLogin: "5 hours ago",
-      joinDate: "Feb 10, 2024",
-      performance: 76,
-      courses: 5,
-    },
-    {
-      id: "USR006",
-      name: "Michael Thompson",
-      email: "michael.t@school.edu",
-      phone: "+1-555-0789",
-      role: "teacher",
-      subject: "English Literature",
-      status: "active",
-      lastLogin: "1 hour ago",
-      joinDate: "Sep 5, 2023",
-      courses: 3,
-    },
-  ];
+
 
   const handleLogout = () => {
     navigate("/login");
