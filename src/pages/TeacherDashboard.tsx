@@ -1047,11 +1047,52 @@ export default function TeacherDashboard() {
   const handleViewClass = (classId: string) => {
     const classData = dashboardData?.classes.find((c) => c.id === classId);
     if (classData) {
+      // Show detailed class information
+      addMessage({
+        type: "class_info",
+        priority: "medium",
+        title: `${classData.name} - Class Details`,
+        message: `Complete overview of ${classData.name}`,
+        details: `📚 Class: ${classData.name}
+📖 Subject: ${classData.subject}
+🎓 Grade: ${classData.grade}
+👥 Students: ${classData.studentCount}
+📊 Progress: ${classData.progress}%
+📅 Schedule: ${classData.schedule}
+📝 Next Lesson: ${classData.nextLesson}
+📋 Status: ${classData.status.charAt(0).toUpperCase() + classData.status.slice(1)}
+
+Description:
+${classData.description}
+
+Recent Activities:
+• Last updated: ${classData.lastUpdated || "Recently"}
+• Average grade: ${classData.averageGrade || "Not yet available"}%
+• Students enrolled: ${classData.studentsEnrolled || classData.studentCount}
+
+Quick Actions Available:
+• Edit class details
+• Manage students
+• View analytics
+• Export class data`,
+        from: {
+          type: "system",
+          name: "Class Management System",
+        },
+        category: "Class Details",
+        metadata: {
+          classId: classId,
+          className: classData.name,
+        },
+      });
+
+      setSelectedMessage(null);
+      setShowMessageModal(true);
+
       setLastAction({
         type: "info",
-        message: `Viewing ${classData.name} details`,
+        message: `Viewing detailed information for ${classData.name}`,
       });
-      // In a real app, this would navigate to class details page
     }
   };
 
