@@ -193,15 +193,15 @@ const AdminDashboard = () => {
     lastLogin: dashboardData?.adminProfile?.lastLogin || "Today",
   };
 
-  const schoolStats: SchoolStats = {
-    totalStudents: 1247,
-    totalTeachers: 87,
-    activeUsers: 952,
-    systemUptime: 99.7,
-    avgPerformance: 82.5,
-    aiAccuracy: 94.2,
-    coursesCreated: 156,
-    assignmentsCompleted: 3420,
+  const schoolStats = {
+    totalStudents: dashboardData?.schoolStats?.totalStudents || 0,
+    totalTeachers: dashboardData?.schoolStats?.totalTeachers || 0,
+    activeUsers: dashboardData?.schoolStats?.activeUsers || 0,
+    systemUptime: dashboardData?.schoolStats?.systemUptime || 99.0,
+    avgPerformance: dashboardData?.schoolStats?.avgPerformance || 0,
+    aiAccuracy: 94.2, // This would come from AI metrics
+    coursesCreated: dashboardData?.schoolStats?.totalSubjects || 0,
+    assignmentsCompleted: dashboardData?.schoolStats?.totalAssignments || 0,
   };
 
   const notifications: Notification[] = [
