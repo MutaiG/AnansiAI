@@ -117,55 +117,18 @@ import type {
 } from "@/hooks/useAdminApi";
 import usePageTitle from "@/hooks/usePageTitle";
 
-interface User {
-  id: string;
-  name: string;
-  email?: string;
-  phone?: string;
-  role: "student" | "teacher";
-  regNo?: string;
-  grade?: string;
-  subject?: string;
-  status: "active" | "inactive" | "pending";
-  lastLogin: string;
-  joinDate: string;
-  performance?: number;
-  courses?: number;
-}
-
-interface SystemAlert {
-  id: string;
-  type: "warning" | "info" | "error" | "success";
-  title: string;
-  message: string;
-  time: string;
-  priority: "high" | "medium" | "low";
-  actionRequired: boolean;
-}
-
-interface Notification {
-  id: string;
-  type: "alert" | "system" | "user" | "maintenance" | "performance";
-  title: string;
-  message: string;
-  time: string;
-  read: boolean;
-  priority: "high" | "medium" | "low";
-}
-
-interface SchoolStats {
-  totalStudents: number;
-  totalTeachers: number;
-  activeUsers: number;
-  systemUptime: number;
-  avgPerformance: number;
-  aiAccuracy: number;
-  coursesCreated: number;
-  assignmentsCompleted: number;
-}
+// Remove the local interfaces as they're now imported from useAdminApi
 
 const AdminDashboard = () => {
+  usePageTitle("Admin Dashboard - Anansi AI");
   const navigate = useNavigate();
+
+  // API hooks
+  const { data: dashboardData, loading, error, reload } = useAdminDashboard();
+  const { createUser, loading: createUserLoading } = useCreateUser();
+  const { updateUser, loading: updateUserLoading } = useUpdateUser();
+  const { createSubject, loading: createSubjectLoading } = useCreateSubject();
+
   const [selectedTab, setSelectedTab] = useState("overview");
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
