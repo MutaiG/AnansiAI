@@ -1768,10 +1768,11 @@ AI Recommendations:
       // Reset form and close dialog
       setContentForm({
         title: "",
-        description: "",
         type: "lesson",
+        subject: "",
+        description: "",
         difficulty: "medium",
-        estimatedDuration: 60,
+        estimatedDuration: 45,
         content: "",
       });
       setShowCreateContent(false);
