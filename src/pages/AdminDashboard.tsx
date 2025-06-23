@@ -469,10 +469,62 @@ const AdminDashboard = () => {
     }
   };
 
+  // Create notifications array from system alerts for compatibility
+  const notifications = systemAlerts.map((alert) => ({
+    id: alert.id,
+    type: alert.type as
+      | "alert"
+      | "system"
+      | "user"
+      | "maintenance"
+      | "performance",
+    title: alert.title,
+    message: alert.message,
+    time: alert.timestamp,
+    read: alert.resolved,
+    priority: alert.severity as "high" | "medium" | "low",
+  }));
+
   const unreadNotifications = notifications.filter((n) => !n.read).length;
   const highPriorityAlerts = systemAlerts.filter(
-    (alert) => alert.priority === "high",
+    (alert) => alert.severity === "high",
   ).length;
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="text-lg font-medium text-gray-600">
+            Loading Admin Dashboard...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Card className="max-w-md">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-500" />
+              Error Loading Dashboard
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-gray-600">{error}</p>
+            <Button onClick={reload} className="w-full">
+              Try Again
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-accent-50">
