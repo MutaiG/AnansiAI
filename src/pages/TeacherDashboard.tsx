@@ -1177,7 +1177,6 @@ ${twinInsight.twinAdaptations.nextRecommendations.join("\n")}`,
       });
     }
   };
-  };
 
   const handlePublishContent = (contentId: string) => {
     const content = dashboardData?.lessonContent.find(
