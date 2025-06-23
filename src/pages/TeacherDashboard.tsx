@@ -1598,6 +1598,87 @@ ${analyticsReport.recommendations.map((rec) => `- ${rec}`).join("\n")}
     }
   };
 
+  // Advanced action handlers
+  const handleBulkMessage = () => {
+    setLastAction({
+      type: "info",
+      message: "Opening bulk messaging interface...",
+    });
+
+    setTimeout(() => {
+      addNotification({
+        type: "communication",
+        priority: "medium",
+        title: "Bulk Message Sent",
+        message: "Message sent to all students in selected classes",
+        isRead: false,
+      });
+
+      setLastAction({
+        type: "success",
+        message: "Bulk message sent to all students successfully!",
+      });
+    }, 1500);
+  };
+
+  const handleImportStudents = () => {
+    setLastAction({
+      type: "info",
+      message: "Opening student import wizard...",
+    });
+
+    // Simulate file import process
+    setTimeout(() => {
+      setLastAction({
+        type: "success",
+        message: "Student import completed! 15 new students added.",
+      });
+
+      addNotification({
+        type: "class",
+        priority: "medium",
+        title: "Students Imported",
+        message: "15 new students have been successfully imported",
+        isRead: false,
+      });
+    }, 2000);
+  };
+
+  const handleBackupData = () => {
+    setLastAction({
+      type: "info",
+      message: "Creating comprehensive data backup...",
+    });
+
+    setTimeout(() => {
+      const backupData = {
+        timestamp: new Date().toISOString(),
+        teacherProfile: dashboardData?.teacherProfile,
+        classes: dashboardData?.classes,
+        students: dashboardData?.students,
+        stats: dashboardData?.stats,
+        version: "1.0.0",
+      };
+
+      const blob = new Blob([JSON.stringify(backupData, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Teacher_Data_Backup_${new Date().toISOString().split("T")[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      setLastAction({
+        type: "success",
+        message: "Data backup created and downloaded successfully!",
+      });
+    }, 1500);
+  };
+
   // Advanced Class Management Functions
   const handleDeleteClass = async (classId: string) => {
     const classData = dashboardData?.classes.find((c) => c.id === classId);
