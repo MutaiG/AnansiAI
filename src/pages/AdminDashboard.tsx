@@ -740,7 +740,7 @@ const AdminDashboard = () => {
         </div>
 
         <Tabs value={selectedTab} onValueChange={setSelectedTab}>
-          <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:grid-cols-5 mb-8">
+          <TabsList className="grid w-full grid-cols-8 lg:w-auto lg:grid-cols-8 mb-8">
             <TabsTrigger value="overview" className="flex items-center gap-2">
               <BarChart3 className="w-4 h-4" />
               Overview
@@ -749,20 +749,37 @@ const AdminDashboard = () => {
               <Users className="w-4 h-4" />
               Users
             </TabsTrigger>
+            <TabsTrigger value="content" className="flex items-center gap-2">
+              <BookOpen className="w-4 h-4" />
+              Content
+            </TabsTrigger>
             <TabsTrigger
-              value="ai-oversight"
+              value="assignments"
               className="flex items-center gap-2"
             >
-              <Brain className="w-4 h-4" />
-              AI Oversight
+              <FileText className="w-4 h-4" />
+              Assignments
             </TabsTrigger>
-            <TabsTrigger value="analytics" className="flex items-center gap-2">
-              <TrendingUp className="w-4 h-4" />
-              Analytics
+            <TabsTrigger value="behavior" className="flex items-center gap-2">
+              <Activity className="w-4 h-4" />
+              Behavior
             </TabsTrigger>
-            <TabsTrigger value="settings" className="flex items-center gap-2">
-              <Settings className="w-4 h-4" />
-              Settings
+            <TabsTrigger value="privacy" className="flex items-center gap-2">
+              <Shield className="w-4 h-4" />
+              Privacy
+            </TabsTrigger>
+            <TabsTrigger value="alerts" className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4" />
+              Alerts
+              {highPriorityAlerts > 0 && (
+                <span className="ml-1 px-2 py-0.5 text-xs bg-destructive-500 text-white rounded-full">
+                  {highPriorityAlerts}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="audit" className="flex items-center gap-2">
+              <Database className="w-4 h-4" />
+              Audit
             </TabsTrigger>
           </TabsList>
 
