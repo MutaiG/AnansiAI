@@ -185,12 +185,12 @@ const AdminDashboard = () => {
 
   // Extract data from API response with fallbacks
   const adminInfo = {
-    name: "Dr. Michael Smith",
-    id: "ADM001",
-    school: "Lincoln High School",
+    name: dashboardData?.adminProfile?.fullName || "Administrator",
+    id: dashboardData?.adminProfile?.id || "ADM001",
+    school: dashboardData?.adminProfile?.schoolName || "School",
     avatar: "",
-    role: "School Administrator",
-    lastLogin: "Today at 9:15 AM",
+    role: dashboardData?.adminProfile?.role || "Admin",
+    lastLogin: dashboardData?.adminProfile?.lastLogin || "Today",
   };
 
   const schoolStats: SchoolStats = {
