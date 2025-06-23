@@ -349,23 +349,66 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleDeleteUser = (userId: string, userName: string) => {
+  const handleDeleteUser = async (userId: string, userName: string) => {
     if (
       window.confirm(
         `Are you sure you want to delete user "${userName}"? This action cannot be undone.`,
       )
     ) {
-      console.log(`Deleting user: ${userId}`);
-      alert(`User "${userName}" deleted successfully!`);
+      try {
+        // In a real implementation, you'd call a delete API endpoint
+        const success = await updateUser(userId, { isActive: false });
+
+        if (success) {
+          alert(`User "${userName}" has been deactivated successfully!`);
+          reload(); // Refresh the dashboard
+        } else {
+          alert("Failed to deactivate user. Please try again.");
+        }
+      } catch (error) {
+        console.error("Error deactivating user:", error);
+        alert("An error occurred while deactivating the user.");
+      }
     }
   };
 
   const handleEditUser = (userId: string) => {
-    navigate(`/admin/users/${userId}/edit`);
+    const user = users.find((u) => u.id === userId);
+    if (user) {
+      // In a real app, this would open an edit modal or navigate to edit page
+      const newName = prompt("Enter new name:", user.name);
+      const newEmail = prompt("Enter new email:", user.email);
+
+      if (newName && newEmail) {
+        handleUpdateUser(userId, { fullName: newName, email: newEmail });
+      }
+    }
+  };
+
+  const handleUpdateUser = async (userId: string, updates: any) => {
+    try {
+      const success = await updateUser(userId, updates);
+
+      if (success) {
+        alert("User updated successfully!");
+        reload(); // Refresh the dashboard
+      } else {
+        alert("Failed to update user. Please try again.");
+      }
+    } catch (error) {
+      console.error("Error updating user:", error);
+      alert("An error occurred while updating the user.");
+    }
   };
 
   const handleViewUser = (userId: string) => {
-    navigate(`/admin/users/${userId}/profile`);
+    const user = users.find((u) => u.id === userId);
+    if (user) {
+      // Show user details in an alert or modal
+      alert(
+        `User Details:\n\nName: ${user.name}\nEmail: ${user.email}\nRole: ${user.role}\nStatus: ${user.status}\nLast Login: ${user.lastLogin}\nJoined: ${user.joinDate}`,
+      );
+    }
   };
 
   const handlePasswordChange = () => {
