@@ -321,6 +321,8 @@ export default function TeacherDashboard() {
     if (!userRole || !["TEACHER", "ADMIN", "SUPER_ADMIN"].includes(userRole)) {
       // Auto-set teacher role for development
       localStorage.setItem("userRole", "TEACHER");
+      localStorage.setItem("userId", "teacher_001");
+      localStorage.setItem("userName", "Dr. Sarah Johnson");
       console.log("Setting teacher role for development");
     }
     // Immediate load for development
