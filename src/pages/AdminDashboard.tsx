@@ -2373,6 +2373,698 @@ const AdminDashboard = () => {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* Content Management Tab */}
+          <TabsContent value="content" className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">
+                  Content Management
+                </h2>
+                <p className="text-gray-600">
+                  Manage lessons, subjects, and educational content
+                </p>
+              </div>
+              <Button onClick={() => setIsAddUserOpen(true)}>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Subject
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <BookOpen className="w-5 h-5" />
+                    Subjects ({dashboardData?.subjects?.length || 0})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {dashboardData?.subjects?.slice(0, 3).map((subject) => (
+                      <div
+                        key={subject.subjectId}
+                        className="flex items-center justify-between p-2 bg-gray-50 rounded"
+                      >
+                        <div>
+                          <span className="font-medium">
+                            {subject.subjectName}
+                          </span>
+                          <p className="text-xs text-gray-500">
+                            {subject.totalLessons} lessons
+                          </p>
+                        </div>
+                        <Badge
+                          variant={subject.isActive ? "default" : "secondary"}
+                        >
+                          {subject.isActive ? "Active" : "Inactive"}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="w-5 h-5" />
+                    Lessons ({dashboardData?.lessons?.length || 0})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {dashboardData?.lessons?.slice(0, 3).map((lesson) => (
+                      <div
+                        key={lesson.lessonId}
+                        className="flex items-center justify-between p-2 bg-gray-50 rounded"
+                      >
+                        <div>
+                          <span className="font-medium">{lesson.title}</span>
+                          <p className="text-xs text-gray-500">
+                            Level {lesson.difficultyLevel}
+                          </p>
+                        </div>
+                        <Badge
+                          variant={
+                            lesson.approvalStatus === "Approved"
+                              ? "default"
+                              : lesson.approvalStatus === "Pending"
+                                ? "secondary"
+                                : "destructive"
+                          }
+                        >
+                          {lesson.approvalStatus}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <CheckCircle className="w-5 h-5" />
+                    Pending Reviews (
+                    {dashboardData?.contentReviews?.filter(
+                      (r) => r.reviewStatus === "Pending",
+                    ).length || 0}
+                    )
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {dashboardData?.contentReviews
+                      ?.filter((r) => r.reviewStatus === "Pending")
+                      .slice(0, 3)
+                      .map((review) => (
+                        <div
+                          key={review.reviewId}
+                          className="flex items-center justify-between p-2 bg-gray-50 rounded"
+                        >
+                          <div>
+                            <span className="font-medium">
+                              {review.contentType}
+                            </span>
+                            <p className="text-xs text-gray-500">
+                              Priority: {review.priority}
+                            </p>
+                          </div>
+                          <Button size="sm" variant="outline">
+                            Review
+                          </Button>
+                        </div>
+                      ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* Assignments Tab */}
+          <TabsContent value="assignments" className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">
+                  Assignment Management
+                </h2>
+                <p className="text-gray-600">
+                  Monitor assignments and submissions across all classes
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600">Total Assignments</p>
+                      <p className="text-2xl font-bold">
+                        {dashboardData?.assignments?.length || 0}
+                      </p>
+                    </div>
+                    <FileText className="w-8 h-8 text-blue-500" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600">Pending Approval</p>
+                      <p className="text-2xl font-bold">
+                        {dashboardData?.assignments?.filter(
+                          (a) => a.approvalStatus === "Pending",
+                        ).length || 0}
+                      </p>
+                    </div>
+                    <Clock className="w-8 h-8 text-yellow-500" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600">Submissions</p>
+                      <p className="text-2xl font-bold">
+                        {dashboardData?.submissions?.length || 0}
+                      </p>
+                    </div>
+                    <Upload className="w-8 h-8 text-green-500" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600">Avg Grade</p>
+                      <p className="text-2xl font-bold">
+                        {dashboardData?.submissions?.reduce(
+                          (sum, s) => sum + (s.finalGrade || 0),
+                          0,
+                        ) / (dashboardData?.submissions?.length || 1) || 0}
+                        %
+                      </p>
+                    </div>
+                    <Award className="w-8 h-8 text-purple-500" />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Assignments</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Assignment</TableHead>
+                      <TableHead>Lesson</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Submissions</TableHead>
+                      <TableHead>Deadline</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {dashboardData?.assignments
+                      ?.slice(0, 10)
+                      .map((assignment) => (
+                        <TableRow key={assignment.assignmentId}>
+                          <TableCell className="font-medium">
+                            {assignment.title}
+                          </TableCell>
+                          <TableCell>{assignment.lessonTitle}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline">
+                              {assignment.questionType}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant={
+                                assignment.approvalStatus === "Approved"
+                                  ? "default"
+                                  : assignment.approvalStatus === "Pending"
+                                    ? "secondary"
+                                    : "destructive"
+                              }
+                            >
+                              {assignment.approvalStatus}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {assignment.totalSubmissions}/
+                            {assignment.gradedSubmissions}
+                          </TableCell>
+                          <TableCell>
+                            {assignment.deadline
+                              ? new Date(
+                                  assignment.deadline,
+                                ).toLocaleDateString()
+                              : "No deadline"}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-2">
+                              <Button size="sm" variant="outline">
+                                <Eye className="w-3 w-3" />
+                              </Button>
+                              <Button size="sm" variant="outline">
+                                <Edit className="w-3 w-3" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Behavior Monitoring Tab */}
+          <TabsContent value="behavior" className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">
+                  Behavior Monitoring
+                </h2>
+                <p className="text-gray-600">
+                  Track student behavior patterns and risk indicators
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-red-500" />
+                    High Risk Students
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-red-600">
+                    {dashboardData?.behaviorLogs?.filter(
+                      (log) => log.riskScore > 0.7,
+                    ).length || 0}
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    Require immediate attention
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Activity className="w-5 h-5 text-blue-500" />
+                    Total Interactions
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-blue-600">
+                    {dashboardData?.behaviorLogs?.length || 0}
+                  </div>
+                  <p className="text-sm text-gray-600">This week</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <CheckCircle className="w-5 h-5 text-green-500" />
+                    Flagged Behaviors
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-green-600">
+                    {dashboardData?.behaviorLogs?.filter((log) => log.flagged)
+                      .length || 0}
+                  </div>
+                  <p className="text-sm text-gray-600">Need review</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Behavior Logs</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Student</TableHead>
+                      <TableHead>Lesson</TableHead>
+                      <TableHead>Action</TableHead>
+                      <TableHead>Risk Score</TableHead>
+                      <TableHead>Flagged</TableHead>
+                      <TableHead>Time</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {dashboardData?.behaviorLogs?.slice(0, 10).map((log) => (
+                      <TableRow key={log.behaviorLogId}>
+                        <TableCell className="font-medium">
+                          {log.studentName}
+                        </TableCell>
+                        <TableCell>{log.lessonTitle}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{log.actionType}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <div
+                              className={`w-2 h-2 rounded-full ${
+                                log.riskScore > 0.7
+                                  ? "bg-red-500"
+                                  : log.riskScore > 0.4
+                                    ? "bg-yellow-500"
+                                    : "bg-green-500"
+                              }`}
+                            />
+                            {(log.riskScore * 100).toFixed(0)}%
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {log.flagged ? (
+                            <Badge variant="destructive">Flagged</Badge>
+                          ) : (
+                            <Badge variant="secondary">Normal</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {new Date(log.createdAt).toLocaleString()}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Privacy Management Tab */}
+          <TabsContent value="privacy" className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">
+                  Privacy Management
+                </h2>
+                <p className="text-gray-600">
+                  Monitor and manage student privacy settings and data sharing
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600">
+                        AI Analysis Enabled
+                      </p>
+                      <p className="text-2xl font-bold">
+                        {dashboardData?.privacySettings?.filter(
+                          (p) => p.allowAiPersonalityAnalysis,
+                        ).length || 0}
+                      </p>
+                    </div>
+                    <Brain className="w-8 h-8 text-blue-500" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600">Behavior Tracking</p>
+                      <p className="text-2xl font-bold">
+                        {dashboardData?.privacySettings?.filter(
+                          (p) => p.allowBehaviorTracking,
+                        ).length || 0}
+                      </p>
+                    </div>
+                    <Activity className="w-8 h-8 text-green-500" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600">Recording Allowed</p>
+                      <p className="text-2xl font-bold">
+                        {dashboardData?.privacySettings?.filter(
+                          (p) => p.allowInteractionRecording,
+                        ).length || 0}
+                      </p>
+                    </div>
+                    <Monitor className="w-8 h-8 text-purple-500" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600">
+                        Parent Notifications
+                      </p>
+                      <p className="text-2xl font-bold">
+                        {dashboardData?.privacySettings?.filter(
+                          (p) => p.parentNotificationEnabled,
+                        ).length || 0}
+                      </p>
+                    </div>
+                    <Bell className="w-8 h-8 text-orange-500" />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Privacy Settings Overview</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Student</TableHead>
+                      <TableHead>AI Analysis</TableHead>
+                      <TableHead>Behavior Tracking</TableHead>
+                      <TableHead>Recording</TableHead>
+                      <TableHead>Data Sharing</TableHead>
+                      <TableHead>Parent Notifications</TableHead>
+                      <TableHead>Last Updated</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {dashboardData?.privacySettings
+                      ?.slice(0, 10)
+                      .map((setting) => (
+                        <TableRow key={setting.settingId}>
+                          <TableCell className="font-medium">
+                            {setting.userName}
+                          </TableCell>
+                          <TableCell>
+                            {setting.allowAiPersonalityAnalysis ? (
+                              <CheckCircle className="w-4 h-4 text-green-500" />
+                            ) : (
+                              <X className="w-4 h-4 text-red-500" />
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {setting.allowBehaviorTracking ? (
+                              <CheckCircle className="w-4 h-4 text-green-500" />
+                            ) : (
+                              <X className="w-4 h-4 text-red-500" />
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {setting.allowInteractionRecording ? (
+                              <CheckCircle className="w-4 h-4 text-green-500" />
+                            ) : (
+                              <X className="w-4 h-4 text-red-500" />
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">
+                              {setting.dataSharingLevel}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {setting.parentNotificationEnabled ? (
+                              <CheckCircle className="w-4 h-4 text-green-500" />
+                            ) : (
+                              <X className="w-4 h-4 text-red-500" />
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {new Date(setting.updatedAt).toLocaleDateString()}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* System Alerts Tab */}
+          <TabsContent value="alerts" className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">
+                  System Alerts
+                </h2>
+                <p className="text-gray-600">
+                  Monitor system health and security alerts
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {systemAlerts.map((alert) => (
+                <Card
+                  key={alert.id}
+                  className={`border-l-4 ${
+                    alert.severity === "critical"
+                      ? "border-red-500"
+                      : alert.severity === "high"
+                        ? "border-orange-500"
+                        : alert.severity === "medium"
+                          ? "border-yellow-500"
+                          : "border-blue-500"
+                  }`}
+                >
+                  <CardContent className="p-6">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <AlertTriangle
+                            className={`w-5 h-5 ${
+                              alert.severity === "critical"
+                                ? "text-red-500"
+                                : alert.severity === "high"
+                                  ? "text-orange-500"
+                                  : alert.severity === "medium"
+                                    ? "text-yellow-500"
+                                    : "text-blue-500"
+                            }`}
+                          />
+                          <h3 className="font-semibold text-lg">
+                            {alert.title}
+                          </h3>
+                          <Badge
+                            variant={
+                              alert.severity === "critical"
+                                ? "destructive"
+                                : alert.severity === "high"
+                                  ? "destructive"
+                                  : alert.severity === "medium"
+                                    ? "secondary"
+                                    : "outline"
+                            }
+                          >
+                            {alert.severity.toUpperCase()}
+                          </Badge>
+                        </div>
+                        <p className="text-gray-600 mb-2">{alert.message}</p>
+                        <p className="text-sm text-gray-500">
+                          {alert.timestamp}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        {!alert.resolved && (
+                          <Button size="sm" variant="outline">
+                            Resolve
+                          </Button>
+                        )}
+                        <Button size="sm" variant="outline">
+                          View Details
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </TabsContent>
+
+          {/* Audit Logs Tab */}
+          <TabsContent value="audit" className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">Audit Logs</h2>
+                <p className="text-gray-600">
+                  Track all system changes and user actions
+                </p>
+              </div>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Activity</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>User</TableHead>
+                      <TableHead>Action</TableHead>
+                      <TableHead>Entity</TableHead>
+                      <TableHead>Target</TableHead>
+                      <TableHead>IP Address</TableHead>
+                      <TableHead>Timestamp</TableHead>
+                      <TableHead>Details</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {dashboardData?.auditLogs?.slice(0, 20).map((log) => (
+                      <TableRow key={log.auditLogId}>
+                        <TableCell className="font-medium">
+                          {log.userFullName}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{log.actionType}</Badge>
+                        </TableCell>
+                        <TableCell>{log.entityName}</TableCell>
+                        <TableCell>{log.targetUserId || "N/A"}</TableCell>
+                        <TableCell className="font-mono text-sm">
+                          {log.ipAddress}
+                        </TableCell>
+                        <TableCell>
+                          {new Date(log.timestamp).toLocaleString()}
+                        </TableCell>
+                        <TableCell>
+                          <Button size="sm" variant="outline">
+                            <Eye className="w-3 h-3" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
 
         {/* Password Change Dialog */}
