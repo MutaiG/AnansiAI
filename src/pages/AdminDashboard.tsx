@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, Suspense, lazy } from "react";
 import {
   Card,
   CardContent,
@@ -34,12 +34,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Slider } from "@/components/ui/slider";
 import {
   Select,
   SelectContent,
@@ -47,6 +45,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Brain,
   Users,
@@ -102,6 +109,39 @@ import {
   Lock,
   Unlock,
   Upload,
+  UserCheck,
+  UserX,
+  MessageSquare,
+  Archive,
+  Copy,
+  Send,
+  MoreHorizontal,
+  CircleDot,
+  Layers,
+  PlusCircle,
+  Briefcase,
+  Building,
+  ClipboardList,
+  Play,
+  Smile,
+  Heart,
+  Focus,
+  Coffee,
+  Headphones,
+  Sparkles,
+  TrendingUp as Trending,
+  Timer,
+  ChevronRight,
+  ExternalLink,
+  DollarSign,
+  Calendar as CalendarDays,
+  Clock as ClockIcon,
+  Users as UsersIcon,
+  BrainCircuit,
+  Gamepad2,
+  Trophy,
+  Bookmark,
+  ThumbsUp,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -114,10 +154,40 @@ import type {
   AdminDashboardData,
   UserData,
   SystemAlert,
+  SubjectData,
 } from "@/hooks/useAdminApi";
+import { MessageModal, type SystemMessage } from "@/components/MessageModal";
 import usePageTitle from "@/hooks/usePageTitle";
 
-// Remove the local interfaces as they're now imported from useAdminApi
+// Lazy load AI components for better performance
+const LazyBehaviorAnalytics = lazy(() =>
+  import("@/components/BehaviorAnalytics").catch(() => ({
+    default: () => (
+      <div className="p-8 text-center">
+        <Activity className="w-12 h-12 mx-auto mb-4 text-blue-600" />
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">
+          Behavior Analytics
+        </h3>
+        <p className="text-gray-600">
+          Advanced behavior analytics temporarily unavailable
+        </p>
+      </div>
+    ),
+  })),
+);
+
+const LazyAITwinChat = lazy(() =>
+  import("@/components/AITwinChat").catch(() => ({
+    default: () => (
+      <div className="p-4 text-center">
+        <Brain className="w-8 h-8 mx-auto mb-2 text-blue-600" />
+        <p className="text-gray-600">
+          AI Twin monitoring temporarily unavailable
+        </p>
+      </div>
+    ),
+  })),
+);
 
 const AdminDashboard = () => {
   usePageTitle("Admin Dashboard - Anansi AI");
@@ -131,13 +201,36 @@ const AdminDashboard = () => {
 
   const [selectedTab, setSelectedTab] = useState("overview");
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
+  const [isAddSubjectOpen, setIsAddSubjectOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPasswordChangeOpen, setIsPasswordChangeOpen] = useState(false);
   const [isAIConfigOpen, setIsAIConfigOpen] = useState(false);
+  const [isUserDetailsOpen, setIsUserDetailsOpen] = useState(false);
+  const [isAIMonitorOpen, setIsAIMonitorOpen] = useState(false);
+  const [isBehaviorReportOpen, setIsBehaviorReportOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<UserData | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterRole, setFilterRole] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [subjectSearchQuery, setSubjectSearchQuery] = useState("");
+
+  // Message modal state
+  const [currentMessage, setCurrentMessage] = useState<SystemMessage | null>(
+    null,
+  );
+  const [isMessageModalOpen, setIsMessageModalOpen] = useState(false);
+
+  // Show message function
+  const showMessage = (message: SystemMessage) => {
+    setCurrentMessage(message);
+    setIsMessageModalOpen(true);
+  };
+
+  const closeMessageModal = () => {
+    setIsMessageModalOpen(false);
+    setCurrentMessage(null);
+  };
 
   const [newUser, setNewUser] = useState({
     name: "",
@@ -147,6 +240,14 @@ const AdminDashboard = () => {
     regNo: "",
     grade: "",
     subject: "",
+    bio: "",
+    experience: "",
+  });
+
+  const [newSubject, setNewSubject] = useState({
+    name: "",
+    description: "",
+    category: "",
   });
 
   const [passwordData, setPasswordData] = useState({
@@ -169,7 +270,29 @@ const AdminDashboard = () => {
     enableAdvancedFeatures: true,
     autoUpdateModels: true,
     dataRetentionDays: 90,
+    aiTwinEnabled: true,
+    behaviorTrackingEnabled: true,
+    personalizedLearning: true,
   });
+
+  const [schoolSettings, setSchoolSettings] = useState({
+    schoolName: "",
+    adminName: "",
+    department: "",
+  });
+
+  // Extract data with fallbacks - memoized to prevent recreation
+  const adminInfo = useMemo(() => {
+    return (
+      dashboardData?.adminInfo || {
+        name: "Dr. Sarah Johnson",
+        school: "Westfield High School",
+        lastLogin: "Today, 9:30 AM",
+        role: "Principal",
+        department: "Administration",
+      }
+    );
+  }, [dashboardData?.adminInfo]);
 
   // Authentication check
   useEffect(() => {
@@ -183,79 +306,148 @@ const AdminDashboard = () => {
     }
   }, []);
 
-  // Extract data from API response with fallbacks
-  const adminInfo = {
-    name: dashboardData?.adminProfile?.fullName || "Administrator",
-    id: dashboardData?.adminProfile?.id || "ADM001",
-    school: dashboardData?.adminProfile?.schoolName || "School",
-    avatar: "",
-    role: dashboardData?.adminProfile?.role || "Admin",
-    lastLogin: dashboardData?.adminProfile?.lastLogin || "Today",
-  };
+  // Initialize school settings when adminInfo is available
+  useEffect(() => {
+    if (adminInfo && adminInfo.name) {
+      setSchoolSettings((prev) => {
+        // Only update if values are actually different
+        if (
+          prev.schoolName !== (adminInfo.school || "") ||
+          prev.adminName !== (adminInfo.name || "") ||
+          prev.department !== (adminInfo.department || "")
+        ) {
+          return {
+            schoolName: adminInfo.school || "",
+            adminName: adminInfo.name || "",
+            department: adminInfo.department || "",
+          };
+        }
+        return prev;
+      });
+    }
+  }, [adminInfo.school, adminInfo.name, adminInfo.department]);
 
   const schoolStats = {
-    totalStudents: dashboardData?.schoolStats?.totalStudents || 0,
-    totalTeachers: dashboardData?.schoolStats?.totalTeachers || 0,
-    activeUsers: dashboardData?.schoolStats?.activeUsers || 0,
-    systemUptime: dashboardData?.schoolStats?.systemUptime || 99.0,
-    avgPerformance: dashboardData?.schoolStats?.avgPerformance || 0,
-    aiAccuracy: 94.2, // This would come from AI metrics
-    coursesCreated: dashboardData?.schoolStats?.totalSubjects || 0,
-    assignmentsCompleted: dashboardData?.schoolStats?.totalAssignments || 0,
+    totalStudents: dashboardData?.schoolStats?.totalStudents ?? 1247,
+    totalTeachers: dashboardData?.schoolStats?.totalTeachers ?? 89,
+    totalClasses: dashboardData?.schoolStats?.totalClasses ?? 34,
+    totalSubjects: dashboardData?.schoolStats?.totalSubjects ?? 12,
+    avgPerformance: dashboardData?.schoolStats?.avgPerformance ?? 87,
+    systemUptime: dashboardData?.schoolStats?.systemUptime ?? 99.8,
+    dataStorage: dashboardData?.schoolStats?.dataStorage ?? 45.2,
+    activeUsers: dashboardData?.schoolStats?.activeUsers ?? 234,
+    dailyLogins: dashboardData?.schoolStats?.dailyLogins ?? 456,
+    coursesCreated: dashboardData?.schoolStats?.coursesCreated ?? 28,
+    assignmentsCompleted:
+      dashboardData?.schoolStats?.assignmentsCompleted ?? 1847,
+    aiInteractions: dashboardData?.schoolStats?.aiInteractions ?? 892,
+    behaviorAlerts: dashboardData?.schoolStats?.behaviorAlerts ?? 15,
+    avgEngagement: dashboardData?.schoolStats?.avgEngagement ?? 78,
+    achievementsEarned: dashboardData?.schoolStats?.achievementsEarned ?? 156,
   };
 
   const systemAlerts = dashboardData?.systemAlerts || [];
+  const users = dashboardData?.users || [];
+  const subjects = dashboardData?.subjects || [];
 
-  // Transform API user data to component format
-  const users =
-    dashboardData?.users?.map((user) => ({
-      id: user.id,
-      name: user.fullName,
-      email: user.email,
-      phone: user.phoneNumber,
-      role: user.role.toLowerCase() as "student" | "teacher",
-      regNo: user.role === "STUDENT" ? `REG${user.id}` : undefined,
-      grade: user.role === "STUDENT" ? "10th" : undefined, // Would come from enrollment data
-      subject: user.role === "TEACHER" ? "Subject" : undefined, // Would come from teacher profile
-      status: user.isActive ? ("active" as const) : ("inactive" as const),
-      lastLogin: user.lastLogin,
-      joinDate: new Date(user.createdAt).toLocaleDateString(),
-      performance: user.averageGrade,
-      courses: user.enrolledLevels || user.createdLessons || 0,
-    })) || [];
-
-  const handleLogout = () => {
-    navigate("/login");
+  // Mock AI and behavior data (would come from API in real system)
+  const aiSystemStats = {
+    totalInteractions: 8924,
+    activeAITwins: 892,
+    avgAccuracy: 94.2,
+    behaviorAlertsToday: 12,
+    moodAnalysisActive: 1156,
+    personalizedRecommendations: 2341,
+    studentEngagementUp: 15.3,
+    averageSessionTime: "24 min",
   };
 
-  const handleSettings = () => {
-    navigate("/admin-settings");
-  };
+  const recentBehaviorAlerts = [
+    {
+      id: "ba001",
+      studentName: "Alex Thompson",
+      type: "Engagement Drop",
+      severity: "medium",
+      timestamp: "2 hours ago",
+      description: "Significant decrease in course engagement",
+    },
+    {
+      id: "ba002",
+      studentName: "Sarah Wilson",
+      type: "Mood Change",
+      severity: "low",
+      timestamp: "4 hours ago",
+      description: "Detected shift to stressed mood state",
+    },
+    {
+      id: "ba003",
+      studentName: "Mike Chen",
+      type: "Performance Alert",
+      severity: "high",
+      timestamp: "6 hours ago",
+      description: "Struggling with Mathematics concepts",
+    },
+  ];
 
-  const handleSchedule = () => {
-    navigate("/admin-schedule");
-  };
+  const topPerformingStudents = [
+    { name: "Emma Davis", grade: "A+", subject: "Science", progress: 98 },
+    {
+      name: "James Rodriguez",
+      grade: "A",
+      subject: "Mathematics",
+      progress: 96,
+    },
+    { name: "Olivia Johnson", grade: "A", subject: "English", progress: 94 },
+    { name: "Noah Brown", grade: "A-", subject: "History", progress: 92 },
+  ];
 
   const handleAddUser = async () => {
     if (!newUser.name) {
-      alert("Please enter the user's name");
+      showMessage({
+        id: Date.now().toString(),
+        type: "error",
+        priority: "medium",
+        title: "Validation Error",
+        message: "Please enter the user's name",
+        timestamp: new Date().toISOString(),
+      });
       return;
     }
 
-    if (newUser.role === "teacher" && (!newUser.email || !newUser.phone)) {
-      alert("Please fill in all required fields for teacher role");
+    if (
+      newUser.role === "teacher" &&
+      (!newUser.email || !newUser.phone || !newUser.subject)
+    ) {
+      showMessage({
+        id: Date.now().toString(),
+        type: "error",
+        priority: "medium",
+        title: "Validation Error",
+        message:
+          "Please fill in all required fields for teacher (email, phone, and subject)",
+        timestamp: new Date().toISOString(),
+      });
       return;
     }
 
-    if (newUser.role === "student" && !newUser.email) {
-      alert("Please provide an email address");
+    if (newUser.role === "student" && (!newUser.regNo || !newUser.grade)) {
+      showMessage({
+        id: Date.now().toString(),
+        type: "error",
+        priority: "medium",
+        title: "Validation Error",
+        message: "Please fill in registration number and grade for student",
+        timestamp: new Date().toISOString(),
+      });
       return;
     }
 
     try {
       const userData = {
         fullName: newUser.name,
-        email: newUser.email,
+        email:
+          newUser.email ||
+          `${newUser.regNo || "temp"}@${adminInfo.school.replace(/\s+/g, "").toLowerCase()}.edu`,
         phoneNumber: newUser.phone,
         address: "", // Could be added to form
         role: newUser.role.toUpperCase() as "STUDENT" | "TEACHER",
@@ -264,17 +456,16 @@ const AdminDashboard = () => {
       const success = await createUser(userData);
 
       if (success) {
-        // Generate display credentials for the user
-        const loginId = `${adminInfo.school.replace(/\s+/g, "").substring(0, 3).toUpperCase()}-${newUser.role.toUpperCase()}-${Math.floor(
-          Math.random() * 1000,
-        )
-          .toString()
-          .padStart(3, "0")}`;
-        const tempPassword = Math.random().toString(36).slice(-8);
-
-        alert(
-          `User created successfully!\n\nLogin ID: ${loginId}\nTemporary Password: ${tempPassword}\n\nThe user must change their password on first login.`,
-        );
+        showMessage({
+          id: Date.now().toString(),
+          type: "success",
+          priority: "high",
+          title: "User Created Successfully",
+          message: `New ${newUser.role} account has been created successfully.`,
+          details: `The user can now log in using their email address: ${userData.email}${newUser.role === "student" ? "\n\nAI Twin will be automatically configured for personalized learning." : ""}`,
+          timestamp: new Date().toISOString(),
+          requiresResponse: false,
+        });
 
         setIsAddUserOpen(false);
         setNewUser({
@@ -285,92 +476,130 @@ const AdminDashboard = () => {
           regNo: "",
           grade: "",
           subject: "",
+          bio: "",
+          experience: "",
         });
 
         // Reload dashboard to show new user
         reload();
       } else {
-        alert("Failed to create user. Please try again.");
+        showMessage({
+          id: Date.now().toString(),
+          type: "error",
+          priority: "high",
+          title: "User Creation Failed",
+          message:
+            "Failed to create user. Please check the information and try again.",
+          timestamp: new Date().toISOString(),
+        });
       }
     } catch (error) {
       console.error("Error creating user:", error);
-      alert("An error occurred while creating the user. Please try again.");
+      showMessage({
+        id: Date.now().toString(),
+        type: "error",
+        priority: "critical",
+        title: "System Error",
+        message: "An unexpected error occurred while creating the user.",
+        details:
+          error instanceof Error ? error.message : "Unknown error occurred",
+        timestamp: new Date().toISOString(),
+      });
     }
   };
 
-  const handleDeleteUser = async (userId: string, userName: string) => {
-    if (
-      window.confirm(
-        `Are you sure you want to delete user "${userName}"? This action cannot be undone.`,
-      )
-    ) {
-      try {
-        // In a real implementation, you'd call a delete API endpoint
-        const success = await updateUser(userId, { isActive: false });
-
-        if (success) {
-          alert(`User "${userName}" has been deactivated successfully!`);
-          reload(); // Refresh the dashboard
-        } else {
-          alert("Failed to deactivate user. Please try again.");
-        }
-      } catch (error) {
-        console.error("Error deactivating user:", error);
-        alert("An error occurred while deactivating the user.");
-      }
+  const handleAddSubject = async () => {
+    if (!newSubject.name || !newSubject.description) {
+      showMessage({
+        id: Date.now().toString(),
+        type: "error",
+        priority: "medium",
+        title: "Validation Error",
+        message: "Please fill in both subject name and description",
+        timestamp: new Date().toISOString(),
+      });
+      return;
     }
-  };
 
-  const handleEditUser = (userId: string) => {
-    const user = users.find((u) => u.id === userId);
-    if (user) {
-      // In a real app, this would open an edit modal or navigate to edit page
-      const newName = prompt("Enter new name:", user.name);
-      const newEmail = prompt("Enter new email:", user.email);
-
-      if (newName && newEmail) {
-        handleUpdateUser(userId, { fullName: newName, email: newEmail });
-      }
-    }
-  };
-
-  const handleUpdateUser = async (userId: string, updates: any) => {
     try {
-      const success = await updateUser(userId, updates);
+      const success = await createSubject({
+        subjectName: newSubject.name,
+        description: newSubject.description,
+      });
 
       if (success) {
-        alert("User updated successfully!");
-        reload(); // Refresh the dashboard
+        showMessage({
+          id: Date.now().toString(),
+          type: "success",
+          priority: "high",
+          title: "Subject Created Successfully",
+          message: `Subject "${newSubject.name}" has been added to the system.`,
+          details:
+            "AI will automatically generate personalized content for this subject.",
+          timestamp: new Date().toISOString(),
+        });
+
+        setIsAddSubjectOpen(false);
+        setNewSubject({ name: "", description: "", category: "" });
+        reload();
       } else {
-        alert("Failed to update user. Please try again.");
+        showMessage({
+          id: Date.now().toString(),
+          type: "error",
+          priority: "high",
+          title: "Subject Creation Failed",
+          message: "Failed to create subject. Please try again.",
+          timestamp: new Date().toISOString(),
+        });
       }
     } catch (error) {
-      console.error("Error updating user:", error);
-      alert("An error occurred while updating the user.");
+      console.error("Error creating subject:", error);
+      showMessage({
+        id: Date.now().toString(),
+        type: "error",
+        priority: "critical",
+        title: "System Error",
+        message: "An unexpected error occurred while creating the subject.",
+        timestamp: new Date().toISOString(),
+      });
     }
   };
 
-  const handleViewUser = (userId: string) => {
-    const user = users.find((u) => u.id === userId);
-    if (user) {
-      // Show user details in an alert or modal
-      alert(
-        `User Details:\n\nName: ${user.name}\nEmail: ${user.email}\nRole: ${user.role}\nStatus: ${user.status}\nLast Login: ${user.lastLogin}\nJoined: ${user.joinDate}`,
-      );
-    }
-  };
-
-  const handlePasswordChange = () => {
+  const handlePasswordChange = async () => {
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      alert("New passwords don't match!");
+      showMessage({
+        id: Date.now().toString(),
+        type: "error",
+        priority: "medium",
+        title: "Password Mismatch",
+        message: "New passwords don't match. Please try again.",
+        timestamp: new Date().toISOString(),
+      });
       return;
     }
     if (passwordData.newPassword.length < 8) {
-      alert("Password must be at least 8 characters long!");
+      showMessage({
+        id: Date.now().toString(),
+        type: "error",
+        priority: "medium",
+        title: "Weak Password",
+        message: "Password must be at least 8 characters long.",
+        timestamp: new Date().toISOString(),
+      });
       return;
     }
 
-    alert("Password changed successfully!");
+    // Simulate password change
+    console.log("Password change requested");
+    showMessage({
+      id: Date.now().toString(),
+      type: "success",
+      priority: "medium",
+      title: "Password Changed",
+      message: "Your password has been updated successfully.",
+      timestamp: new Date().toISOString(),
+    });
+
     setIsPasswordChangeOpen(false);
     setPasswordData({
       currentPassword: "",
@@ -379,35 +608,95 @@ const AdminDashboard = () => {
     });
   };
 
+  const handleSaveSchoolSettings = () => {
+    console.log("Saving school settings:", schoolSettings);
+    showMessage({
+      id: Date.now().toString(),
+      type: "success",
+      priority: "medium",
+      title: "Settings Saved",
+      message: "School information has been updated successfully.",
+      timestamp: new Date().toISOString(),
+    });
+  };
+
   const handleExportReport = () => {
-    console.log("Exporting comprehensive school report...");
-    alert("Report exported successfully! Check your downloads folder.");
+    showMessage({
+      id: Date.now().toString(),
+      type: "info",
+      priority: "low",
+      title: "Export Started",
+      message:
+        "Your comprehensive report is being generated and will be downloaded shortly.",
+      details:
+        "Report includes user analytics, AI insights, and behavior patterns.",
+      timestamp: new Date().toISOString(),
+    });
   };
 
-  const handleScheduleReports = () => {
-    navigate("/admin/reports/schedule");
+  const handleLogout = () => {
+    localStorage.removeItem("userRole");
+    localStorage.removeItem("userId");
+    localStorage.removeItem("userName");
+    navigate("/login");
   };
 
-  const handleReviewPatterns = () => {
-    navigate("/admin/alerts/patterns");
+  const handleViewUser = (user: UserData) => {
+    setSelectedUser(user);
+    setIsUserDetailsOpen(true);
   };
 
-  const handleScheduleUpdates = () => {
-    navigate("/admin/system/updates");
+  const handleEditUser = (user: UserData) => {
+    setNewUser({
+      name: user.name,
+      email: user.email,
+      phone: user.phone || "",
+      role: user.role.toLowerCase() as "student" | "teacher",
+      regNo: "",
+      grade: "",
+      subject: "",
+      bio: "",
+      experience: "",
+    });
+    setIsAddUserOpen(true);
   };
 
-  const handleConfigureAI = () => {
-    console.log("AI Configuration updated:", aiConfig);
-    alert("AI configuration saved successfully!");
-    setIsAIConfigOpen(false);
+  const handleDeleteUser = (user: UserData) => {
+    showMessage({
+      id: Date.now().toString(),
+      type: "warning",
+      priority: "high",
+      title: "Confirm Deletion",
+      message: `Are you sure you want to delete ${user.name}? This action cannot be undone.`,
+      details:
+        "This will also remove all associated AI Twin data and learning progress.",
+      timestamp: new Date().toISOString(),
+      actions: [
+        {
+          id: "confirm",
+          label: "Delete User",
+          variant: "destructive",
+          action: () => {
+            // Implement actual deletion
+            showMessage({
+              id: Date.now().toString(),
+              type: "success",
+              priority: "medium",
+              title: "User Deleted",
+              message: `${user.name} has been removed from the system.`,
+              timestamp: new Date().toISOString(),
+            });
+          },
+        },
+      ],
+    });
   };
 
+  // Filter users based on search and filters
   const filteredUsers = users.filter((user) => {
     const matchesSearch =
-      user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.regNo?.toLowerCase().includes(searchQuery.toLowerCase());
-
+      (user.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (user.email || "").toLowerCase().includes(searchQuery.toLowerCase());
     const matchesRole = filterRole === "all" || user.role === filterRole;
     const matchesStatus =
       filterStatus === "all" || user.status === filterStatus;
@@ -415,61 +704,79 @@ const AdminDashboard = () => {
     return matchesSearch && matchesRole && matchesStatus;
   });
 
-  const getStatusColor = (status: string) => {
+  // Filter subjects based on search
+  const filteredSubjects = subjects.filter(
+    (subject) =>
+      (subject.subjectName || "")
+        .toLowerCase()
+        .includes(subjectSearchQuery.toLowerCase()) ||
+      (subject.description || "")
+        .toLowerCase()
+        .includes(subjectSearchQuery.toLowerCase()),
+  );
+
+  const getStatusBadgeClass = (status: string) => {
     switch (status) {
       case "active":
-        return "bg-accent-100 text-accent-700";
+        return "bg-green-100 text-green-700 border-green-200";
       case "inactive":
-        return "bg-secondary-100 text-secondary-700";
+        return "bg-gray-100 text-gray-700 border-gray-200";
       case "pending":
-        return "bg-warning-100 text-warning-700";
+        return "bg-yellow-100 text-yellow-700 border-yellow-200";
       default:
-        return "bg-secondary-100 text-secondary-700";
+        return "bg-gray-100 text-gray-700 border-gray-200";
     }
   };
 
-  const getAlertIcon = (type: string) => {
-    switch (type) {
-      case "warning":
-        return <AlertTriangle className="w-4 h-4 text-warning-600" />;
-      case "info":
-        return <Info className="w-4 h-4 text-blue-600" />;
-      case "error":
-        return <AlertCircle className="w-4 h-4 text-destructive-600" />;
-      case "success":
-        return <CheckCircle className="w-4 h-4 text-accent-600" />;
+  const getRoleBadgeClass = (role: string) => {
+    switch (role.toLowerCase()) {
+      case "teacher":
+        return "bg-blue-100 text-blue-700 border-blue-200";
+      case "student":
+        return "bg-purple-100 text-purple-700 border-purple-200";
       default:
-        return <Bell className="w-4 h-4" />;
+        return "bg-gray-100 text-gray-700 border-gray-200";
     }
   };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
+  const getSeverityBadgeClass = (severity: string) => {
+    switch (severity) {
       case "high":
-        return "bg-destructive-100 text-destructive-700";
+        return "bg-red-100 text-red-700 border-red-200";
       case "medium":
-        return "bg-warning-100 text-warning-700";
+        return "bg-yellow-100 text-yellow-700 border-yellow-200";
       case "low":
-        return "bg-blue-100 text-blue-700";
+        return "bg-blue-100 text-blue-700 border-blue-200";
       default:
-        return "bg-secondary-100 text-secondary-700";
+        return "bg-gray-100 text-gray-700 border-gray-200";
     }
   };
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
-      case "alert":
-        return <AlertTriangle className="w-4 h-4 text-destructive-600" />;
-      case "system":
-        return <Settings className="w-4 h-4 text-blue-600" />;
-      case "user":
-        return <Users className="w-4 h-4 text-accent-600" />;
-      case "maintenance":
-        return <Cog className="w-4 h-4 text-warning-600" />;
-      case "performance":
-        return <TrendingUp className="w-4 h-4 text-primary-600" />;
+      case "warning":
+        return <AlertTriangle className="w-4 h-4 text-orange-600" />;
+      case "info":
+        return <Info className="w-4 h-4 text-blue-600" />;
+      case "error":
+        return <AlertCircle className="w-4 h-4 text-red-600" />;
+      case "success":
+        return <CheckCircle className="w-4 h-4 text-green-600" />;
       default:
         return <Bell className="w-4 h-4" />;
+    }
+  };
+
+  const getPriorityBadgeClass = (priority: string) => {
+    switch (priority) {
+      case "high":
+        return "bg-red-100 text-red-700";
+      case "medium":
+        return "bg-yellow-100 text-yellow-700";
+      case "low":
+        return "bg-blue-100 text-blue-700";
+      default:
+        return "bg-gray-100 text-gray-700";
     }
   };
 
@@ -494,6 +801,27 @@ const AdminDashboard = () => {
     (alert) => alert.severity === "high",
   ).length;
 
+  // Available subjects for teacher assignment
+  const availableSubjects = subjects
+    .map((subject) => subject.subjectName)
+    .concat([
+      "Mathematics",
+      "Science",
+      "English",
+      "History",
+      "Geography",
+      "Physics",
+      "Chemistry",
+      "Biology",
+      "Computer Science",
+      "Art",
+      "Music",
+      "Physical Education",
+    ]);
+
+  // Remove duplicates
+  const uniqueSubjects = [...new Set(availableSubjects)];
+
   // Loading state
   if (loading) {
     return (
@@ -502,6 +830,9 @@ const AdminDashboard = () => {
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
           <p className="text-lg font-medium text-gray-600">
             Loading Admin Dashboard...
+          </p>
+          <p className="text-sm text-gray-500">
+            Initializing AI systems and behavior analytics...
           </p>
         </div>
       </div>
@@ -531,2623 +862,2330 @@ const AdminDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-accent-50">
-      {/* Header */}
-      <header className="bg-white/80 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-3">
-              <img
-                src="https://cdn.builder.io/api/v1/assets/2d09da496e544a1eab05e596d02031d8/twinternet-logo-b18833?format=webp&width=800"
-                alt="AnansiAI Logo"
-                className="w-10 h-10 object-contain"
-              />
-              <div>
-                <h1 className="font-bold text-xl text-secondary-800">
-                  AnansiAI
-                </h1>
-                <p className="text-xs text-secondary-500">Admin Portal</p>
+    <TooltipProvider>
+      <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-accent-50">
+        {/* Header */}
+        <header className="bg-white/80 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-40">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between h-16">
+              <div className="flex items-center gap-3">
+                <img
+                  src="https://cdn.builder.io/api/v1/assets/2d09da496e544a1eab05e596d02031d8/twinternet-logo-b18833?format=webp&width=800"
+                  alt="AnansiAI Logo"
+                  className="w-10 h-10 object-contain"
+                />
+                <div>
+                  <h1 className="font-bold text-xl text-gray-800">AnansiAI</h1>
+                  <p className="text-xs text-gray-500 flex items-center gap-1">
+                    <BrainCircuit className="w-3 h-3" />
+                    Admin Portal
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4">
+                {/* AI Status Indicator */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-green-100 text-green-700">
+                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                      <span className="text-xs font-medium">AI Active</span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>AI systems running normally</p>
+                    <p className="text-xs text-gray-500">
+                      {aiSystemStats.activeAITwins} AI Twins active
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+
+                {/* Notifications */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="relative"
+                  onClick={() => setIsNotificationOpen(true)}
+                >
+                  <Bell className="w-5 h-5" />
+                  {unreadNotifications > 0 && (
+                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                      {unreadNotifications}
+                    </span>
+                  )}
+                </Button>
+
+                {/* Quick AI Monitor */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setIsAIMonitorOpen(true)}
+                    >
+                      <Brain className="w-5 h-5 text-purple-600" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>AI System Monitor</p>
+                  </TooltipContent>
+                </Tooltip>
+
+                {/* Settings */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                      <Settings className="w-5 h-5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>Account Settings</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => setIsPasswordChangeOpen(true)}
+                    >
+                      <Key className="w-4 h-4 mr-2" />
+                      Change Password
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setIsAIConfigOpen(true)}>
+                      <Brain className="w-4 h-4 mr-2" />
+                      AI Configuration
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={handleLogout}>
+                      <LogOut className="w-4 h-4 mr-2" />
+                      Sign Out
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                {/* Profile */}
+                <div className="flex items-center gap-3 pl-4 border-l border-gray-200">
+                  <Avatar className="w-8 h-8">
+                    <AvatarImage src="/placeholder-avatar.jpg" />
+                    <AvatarFallback>
+                      {(adminInfo.name || "")
+                        .split(" ")
+                        .map((n) => n[0])
+                        .join("")}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="text-sm">
+                    <p className="font-medium text-gray-800">
+                      {adminInfo.name}
+                    </p>
+                    <p className="text-gray-600">{adminInfo.role}</p>
+                  </div>
+                </div>
               </div>
             </div>
+          </div>
+        </header>
 
-            <div className="flex items-center gap-4">
-              {/* Notifications */}
-              <Dialog
-                open={isNotificationOpen}
-                onOpenChange={setIsNotificationOpen}
+        {/* Main Content */}
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="mb-8">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-3xl font-bold text-gray-800 mb-2">
+                  School Administration Center
+                </h2>
+                <p className="text-gray-600 flex items-center gap-2">
+                  <School className="w-4 h-4" />
+                  Welcome back, {adminInfo.name} • {adminInfo.school}
+                </p>
+                <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
+                  <div className="flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    Last login: {adminInfo.lastLogin}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Activity className="w-3 h-3" />
+                    {schoolStats.activeUsers} users active
+                  </div>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-4 py-2 rounded-lg">
+                  <p className="text-sm font-medium">AI Accuracy</p>
+                  <p className="text-xl font-bold">
+                    {aiSystemStats.avgAccuracy}%
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* High Priority Alerts */}
+          {highPriorityAlerts > 0 && (
+            <Alert className="mb-6 border-red-200 bg-red-50">
+              <AlertTriangle className="h-4 w-4 text-red-600" />
+              <AlertTitle className="text-red-800">
+                {highPriorityAlerts} High Priority Alert
+                {highPriorityAlerts > 1 ? "s" : ""} Require Attention
+              </AlertTitle>
+              <AlertDescription className="text-red-700">
+                Please review the system alerts in the notifications panel.
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="ml-4"
+                  onClick={() => setIsNotificationOpen(true)}
+                >
+                  View Alerts
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Main Dashboard Tabs */}
+          <Tabs value={selectedTab} onValueChange={setSelectedTab}>
+            <TabsList className="grid w-full grid-cols-7">
+              <TabsTrigger value="overview" className="flex items-center gap-2">
+                <BarChart3 className="w-4 h-4" />
+                Overview
+              </TabsTrigger>
+              <TabsTrigger value="users" className="flex items-center gap-2">
+                <Users className="w-4 h-4" />
+                Users
+              </TabsTrigger>
+              <TabsTrigger value="subjects" className="flex items-center gap-2">
+                <BookOpen className="w-4 h-4" />
+                Subjects
+              </TabsTrigger>
+              <TabsTrigger
+                value="ai-insights"
+                className="flex items-center gap-2"
               >
-                <DialogTrigger asChild>
-                  <Button variant="ghost" size="icon" className="relative">
-                    <Bell className="w-5 h-5" />
-                    {unreadNotifications > 0 && (
-                      <span className="absolute -top-1 -right-1 w-5 h-5 bg-destructive-500 text-white text-xs rounded-full flex items-center justify-center">
-                        {unreadNotifications}
-                      </span>
-                    )}
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-md">
-                  <DialogHeader>
-                    <DialogTitle>Notifications</DialogTitle>
-                    <DialogDescription>
-                      {unreadNotifications > 0
-                        ? `You have ${unreadNotifications} unread notifications`
-                        : "You're all caught up!"}
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4 max-h-96 overflow-y-auto">
-                    {notifications.map((notification) => (
-                      <div
-                        key={notification.id}
-                        className={`p-4 rounded-lg border ${
-                          notification.read
-                            ? "bg-secondary-50 border-secondary-200"
-                            : "bg-blue-50 border-blue-200"
-                        }`}
+                <Brain className="w-4 h-4" />
+                AI Insights
+              </TabsTrigger>
+              <TabsTrigger
+                value="analytics"
+                className="flex items-center gap-2"
+              >
+                <TrendingUp className="w-4 h-4" />
+                Analytics
+              </TabsTrigger>
+              <TabsTrigger value="reports" className="flex items-center gap-2">
+                <FileText className="w-4 h-4" />
+                Reports
+              </TabsTrigger>
+              <TabsTrigger value="settings" className="flex items-center gap-2">
+                <Settings className="w-4 h-4" />
+                Settings
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="overview" className="space-y-6">
+              {/* Enhanced Stats Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <Card className="relative overflow-hidden border-l-4 border-l-blue-500">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">
+                      Total Students
+                    </CardTitle>
+                    <Users className="h-4 w-4 text-blue-600" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-blue-600">
+                      {(schoolStats.totalStudents || 0).toLocaleString()}
+                    </div>
+                    <p className="text-xs text-gray-600 flex items-center gap-1">
+                      <TrendingUp className="w-3 h-3" />
+                      +5.2% from last month
+                    </p>
+                    <div className="mt-2">
+                      <Progress value={78} className="h-1" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="relative overflow-hidden border-l-4 border-l-green-500">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">
+                      Active AI Twins
+                    </CardTitle>
+                    <Brain className="h-4 w-4 text-green-600" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-green-600">
+                      {aiSystemStats.activeAITwins.toLocaleString()}
+                    </div>
+                    <p className="text-xs text-gray-600 flex items-center gap-1">
+                      <Sparkles className="w-3 h-3" />
+                      {aiSystemStats.avgAccuracy}% accuracy
+                    </p>
+                    <div className="mt-2">
+                      <Progress value={94} className="h-1" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="relative overflow-hidden border-l-4 border-l-purple-500">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">
+                      Engagement Rate
+                    </CardTitle>
+                    <Activity className="h-4 w-4 text-purple-600" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-purple-600">
+                      {schoolStats.avgEngagement}%
+                    </div>
+                    <p className="text-xs text-gray-600 flex items-center gap-1">
+                      <TrendingUp className="w-3 h-3" />+
+                      {aiSystemStats.studentEngagementUp}% this week
+                    </p>
+                    <div className="mt-2">
+                      <Progress
+                        value={schoolStats.avgEngagement}
+                        className="h-1"
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="relative overflow-hidden border-l-4 border-l-orange-500">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">
+                      Achievements
+                    </CardTitle>
+                    <Trophy className="h-4 w-4 text-orange-600" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-orange-600">
+                      {schoolStats.achievementsEarned}
+                    </div>
+                    <p className="text-xs text-gray-600 flex items-center gap-1">
+                      <Award className="w-3 h-3" />
+                      This month
+                    </p>
+                    <div className="mt-2">
+                      <Progress value={85} className="h-1" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Quick Actions and AI Insights */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Zap className="w-5 h-5 text-blue-600" />
+                      Quick Actions
+                    </CardTitle>
+                    <CardDescription>
+                      Common administrative tasks
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <Button
+                      className="w-full"
+                      onClick={() => setIsAddUserOpen(true)}
+                    >
+                      <UserPlus className="w-4 h-4 mr-2" />
+                      Add User
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => setIsAddSubjectOpen(true)}
+                    >
+                      <PlusCircle className="w-4 h-4 mr-2" />
+                      Add Subject
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => setIsBehaviorReportOpen(true)}
+                    >
+                      <Activity className="w-4 h-4 mr-2" />
+                      Behavior Report
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={handleExportReport}
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Export Report
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                <Card className="lg:col-span-2">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Brain className="w-5 h-5 text-purple-600" />
+                      AI System Overview
+                    </CardTitle>
+                    <CardDescription>
+                      Real-time AI performance and insights
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-600">
+                            Total Interactions
+                          </span>
+                          <span className="font-semibold">
+                            {aiSystemStats.totalInteractions.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-600">
+                            Avg Session
+                          </span>
+                          <span className="font-semibold">
+                            {aiSystemStats.averageSessionTime}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-600">
+                            Mood Analysis
+                          </span>
+                          <span className="font-semibold">
+                            {aiSystemStats.moodAnalysisActive}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-600">
+                            Recommendations
+                          </span>
+                          <span className="font-semibold">
+                            {aiSystemStats.personalizedRecommendations.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-600">
+                            Alerts Today
+                          </span>
+                          <span className="font-semibold text-orange-600">
+                            {aiSystemStats.behaviorAlertsToday}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-600">
+                            Engagement Up
+                          </span>
+                          <span className="font-semibold text-green-600">
+                            +{aiSystemStats.studentEngagementUp}%
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-4 pt-4 border-t">
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => setIsAIMonitorOpen(true)}
                       >
-                        <div className="flex items-start gap-3">
-                          {getNotificationIcon(notification.type)}
-                          <div className="flex-1 space-y-1">
-                            <div className="flex items-start justify-between">
-                              <h4 className="font-medium text-secondary-800 text-sm">
-                                {notification.title}
-                              </h4>
-                              <Badge
-                                className={getPriorityColor(
-                                  notification.priority,
-                                )}
-                              >
-                                {notification.priority}
-                              </Badge>
-                            </div>
-                            <p className="text-sm text-secondary-600">
-                              {notification.message}
+                        <Brain className="w-4 h-4 mr-2" />
+                        View AI Monitor
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Recent Behavior Alerts and Top Performers */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <AlertTriangle className="w-5 h-5 text-orange-600" />
+                      Recent Behavior Alerts
+                    </CardTitle>
+                    <CardDescription>
+                      Latest AI-detected behavior patterns
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {recentBehaviorAlerts.map((alert) => (
+                      <div
+                        key={alert.id}
+                        className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg"
+                      >
+                        <div className="p-2 bg-orange-100 rounded-lg">
+                          <Activity className="w-4 h-4 text-orange-600" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <p className="font-medium text-sm">
+                              {alert.studentName}
                             </p>
-                            <p className="text-xs text-secondary-500">
-                              {notification.time}
+                            <Badge
+                              className={getSeverityBadgeClass(alert.severity)}
+                            >
+                              {alert.severity}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-gray-600">{alert.type}</p>
+                          <p className="text-xs text-gray-500">
+                            {alert.timestamp}
+                          </p>
+                        </div>
+                        <Button variant="ghost" size="sm">
+                          <ChevronRight className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ))}
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => setIsBehaviorReportOpen(true)}
+                    >
+                      View All Alerts
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Star className="w-5 h-5 text-yellow-600" />
+                      Top Performing Students
+                    </CardTitle>
+                    <CardDescription>
+                      Students excelling with AI assistance
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {topPerformingStudents.map((student, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center gap-3 p-3 bg-green-50 rounded-lg"
+                      >
+                        <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                          <span className="text-green-600 font-semibold text-sm">
+                            {index + 1}
+                          </span>
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <p className="font-medium text-sm">
+                              {student.name}
                             </p>
+                            <span className="font-semibold text-green-600">
+                              {student.grade}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-600">
+                            {student.subject}
+                          </p>
+                          <div className="mt-1">
+                            <Progress
+                              value={student.progress}
+                              className="h-1"
+                            />
                           </div>
                         </div>
                       </div>
                     ))}
-                  </div>
-                </DialogContent>
-              </Dialog>
+                    <Button variant="outline" className="w-full">
+                      View All Students
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
 
-              {/* User Menu */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="flex items-center gap-2">
-                    <Avatar className="w-8 h-8">
-                      <AvatarImage src={adminInfo.avatar} />
-                      <AvatarFallback className="bg-primary-100 text-primary-700">
-                        {adminInfo.name
+            <TabsContent value="users" className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-semibold text-gray-800">
+                    User Management
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    Manage students and teachers • {filteredUsers.length} of{" "}
+                    {users.length} users • {aiSystemStats.activeAITwins} AI
+                    Twins active
+                  </p>
+                </div>
+                <Button onClick={() => setIsAddUserOpen(true)}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add User
+                </Button>
+              </div>
+
+              {/* Search and Filters */}
+              <Card>
+                <CardContent className="p-6">
+                  <div className="grid md:grid-cols-4 gap-4">
+                    <div className="md:col-span-2">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Input
+                          placeholder="Search users by name, email, or registration number..."
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="pl-10"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Select value={filterRole} onValueChange={setFilterRole}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Filter by role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Roles</SelectItem>
+                          <SelectItem value="student">Students</SelectItem>
+                          <SelectItem value="teacher">Teachers</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Select
+                        value={filterStatus}
+                        onValueChange={setFilterStatus}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Filter by status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Status</SelectItem>
+                          <SelectItem value="active">Active</SelectItem>
+                          <SelectItem value="inactive">Inactive</SelectItem>
+                          <SelectItem value="pending">Pending</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Enhanced Users Table */}
+              <Card>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>User</TableHead>
+                        <TableHead>Role</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>AI Twin</TableHead>
+                        <TableHead>Last Active</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredUsers.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center py-8">
+                            <div className="flex flex-col items-center gap-2">
+                              <Users className="w-8 h-8 text-gray-400" />
+                              <p className="text-gray-500">
+                                {searchQuery ||
+                                filterRole !== "all" ||
+                                filterStatus !== "all"
+                                  ? "No users match your filters"
+                                  : "No users found"}
+                              </p>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredUsers.slice(0, 10).map((user) => (
+                          <TableRow key={user.id}>
+                            <TableCell>
+                              <div className="flex items-center gap-3">
+                                <Avatar className="w-8 h-8">
+                                  <AvatarImage src={user.avatar} />
+                                  <AvatarFallback>
+                                    {(user.name || "")
+                                      .split(" ")
+                                      .map((n) => n[0])
+                                      .join("")}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div>
+                                  <p className="font-medium">{user.name}</p>
+                                  <p className="text-sm text-gray-500">
+                                    {user.email}
+                                  </p>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={getRoleBadgeClass(user.role)}>
+                                {user.role}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                className={getStatusBadgeClass(user.status)}
+                              >
+                                {user.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {user.role === "student" ? (
+                                <div className="flex items-center gap-2">
+                                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                  <span className="text-sm text-gray-600">
+                                    Active
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-sm text-gray-400">
+                                  N/A
+                                </span>
+                              )}
+                            </TableCell>
+                            <TableCell>{user.lastActive}</TableCell>
+                            <TableCell>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm">
+                                    <MoreHorizontal className="w-4 h-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem
+                                    onClick={() => handleViewUser(user)}
+                                  >
+                                    <Eye className="w-4 h-4 mr-2" />
+                                    View Profile
+                                  </DropdownMenuItem>
+                                  {user.role === "student" && (
+                                    <DropdownMenuItem>
+                                      <Brain className="w-4 h-4 mr-2" />
+                                      View AI Twin
+                                    </DropdownMenuItem>
+                                  )}
+                                  <DropdownMenuItem
+                                    onClick={() => handleEditUser(user)}
+                                  >
+                                    <Edit className="w-4 h-4 mr-2" />
+                                    Edit User
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    className="text-red-600"
+                                    onClick={() => handleDeleteUser(user)}
+                                  >
+                                    <Trash2 className="w-4 h-4 mr-2" />
+                                    Delete User
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="subjects" className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-semibold text-gray-800">
+                    Subject Management
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    Manage school subjects • {filteredSubjects.length} of{" "}
+                    {subjects.length} subjects • AI-powered content generation
+                    enabled
+                  </p>
+                </div>
+                <Button onClick={() => setIsAddSubjectOpen(true)}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Subject
+                </Button>
+              </div>
+
+              {/* Subject Search */}
+              <Card>
+                <CardContent className="p-6">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input
+                      placeholder="Search subjects by name or description..."
+                      value={subjectSearchQuery}
+                      onChange={(e) => setSubjectSearchQuery(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Enhanced Subjects Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredSubjects.length === 0 ? (
+                  <Card className="col-span-full">
+                    <CardContent className="p-8 text-center">
+                      <BookOpen className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-500">
+                        {subjectSearchQuery
+                          ? "No subjects match your search"
+                          : "No subjects found"}
+                      </p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  filteredSubjects.map((subject) => (
+                    <Card
+                      key={subject.subjectId}
+                      className="hover:shadow-md transition-shadow"
+                    >
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-lg flex items-center gap-2">
+                            <BookOpen className="w-5 h-5 text-blue-600" />
+                            {subject.subjectName}
+                          </CardTitle>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm">
+                                <MoreHorizontal className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem>
+                                <Brain className="w-4 h-4 mr-2" />
+                                AI Content
+                              </DropdownMenuItem>
+                              <DropdownMenuItem>
+                                <Edit className="w-4 h-4 mr-2" />
+                                Edit Subject
+                              </DropdownMenuItem>
+                              <DropdownMenuItem>
+                                <Eye className="w-4 h-4 mr-2" />
+                                View Details
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem className="text-red-600">
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                Delete Subject
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-sm text-gray-600 mb-4">
+                          {subject.description}
+                        </p>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-500">
+                            ID: {subject.subjectId}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <Badge className="bg-purple-100 text-purple-700">
+                              <Brain className="w-3 h-3 mr-1" />
+                              AI Enhanced
+                            </Badge>
+                            <Badge
+                              variant="outline"
+                              className="bg-green-50 text-green-700"
+                            >
+                              Active
+                            </Badge>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="ai-insights" className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
+                    <Brain className="w-6 h-6 text-purple-600" />
+                    AI System Insights
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    Monitor AI behavior analysis, recommendations, and system
+                    performance
+                  </p>
+                </div>
+                <Button onClick={() => setIsAIMonitorOpen(true)}>
+                  <Brain className="w-4 h-4 mr-2" />
+                  Open AI Monitor
+                </Button>
+              </div>
+
+              {/* AI System Status Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <Card className="border-purple-200 bg-purple-50">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-purple-800">
+                      <BrainCircuit className="w-5 h-5" />
+                      AI Twins Active
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold text-purple-600 mb-2">
+                      {aiSystemStats.activeAITwins}
+                    </div>
+                    <p className="text-sm text-purple-700">
+                      Operating at {aiSystemStats.avgAccuracy}% accuracy
+                    </p>
+                    <div className="mt-4">
+                      <Progress value={94} className="h-2" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-blue-200 bg-blue-50">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-blue-800">
+                      <Activity className="w-5 h-5" />
+                      Behavior Analysis
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold text-blue-600 mb-2">
+                      {aiSystemStats.moodAnalysisActive}
+                    </div>
+                    <p className="text-sm text-blue-700">
+                      Students under mood analysis
+                    </p>
+                    <div className="mt-4">
+                      <div className="flex justify-between text-xs text-blue-600">
+                        <span>Happy: 67%</span>
+                        <span>Focused: 23%</span>
+                        <span>Stressed: 10%</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-green-200 bg-green-50">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-green-800">
+                      <Lightbulb className="w-5 h-5" />
+                      Recommendations
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold text-green-600 mb-2">
+                      {aiSystemStats.personalizedRecommendations.toLocaleString()}
+                    </div>
+                    <p className="text-sm text-green-700">
+                      Generated this month
+                    </p>
+                    <div className="mt-4">
+                      <Progress value={87} className="h-2" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Behavior Analytics Component */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Activity className="w-5 h-5 text-orange-600" />
+                    System-wide Behavior Analytics
+                  </CardTitle>
+                  <CardDescription>
+                    Real-time behavior monitoring and analysis across all
+                    students
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Suspense
+                    fallback={
+                      <div className="flex items-center justify-center p-8">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                        <span className="ml-2">
+                          Loading behavior analytics...
+                        </span>
+                      </div>
+                    }
+                  >
+                    <LazyBehaviorAnalytics
+                      studentId="system-overview"
+                      currentMood="neutral"
+                      riskScore={0.15}
+                      showSystemOverview={true}
+                    />
+                  </Suspense>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="analytics" className="space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <BarChart3 className="w-5 h-5 text-blue-600" />
+                      System Performance
+                    </CardTitle>
+                    <CardDescription>
+                      Monitor system health and performance metrics
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span>System Uptime</span>
+                        <span>{schoolStats.systemUptime}%</span>
+                      </div>
+                      <Progress
+                        value={schoolStats.systemUptime}
+                        className="h-2"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span>AI Processing Load</span>
+                        <span>67%</span>
+                      </div>
+                      <Progress value={67} className="h-2" />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span>Data Storage Used</span>
+                        <span>{schoolStats.dataStorage}%</span>
+                      </div>
+                      <Progress
+                        value={schoolStats.dataStorage}
+                        className="h-2"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span>Average Performance</span>
+                        <span>{schoolStats.avgPerformance}%</span>
+                      </div>
+                      <Progress
+                        value={schoolStats.avgPerformance}
+                        className="h-2"
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Users className="w-5 h-5 text-green-600" />
+                      Usage Statistics
+                    </CardTitle>
+                    <CardDescription>
+                      Daily activity and engagement metrics
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="text-center p-4 bg-blue-50 rounded-lg">
+                        <div className="text-2xl font-bold text-blue-600">
+                          {schoolStats.activeUsers}
+                        </div>
+                        <p className="text-xs text-gray-600">Active Users</p>
+                      </div>
+                      <div className="text-center p-4 bg-green-50 rounded-lg">
+                        <div className="text-2xl font-bold text-green-600">
+                          {schoolStats.dailyLogins}
+                        </div>
+                        <p className="text-xs text-gray-600">Daily Logins</p>
+                      </div>
+                      <div className="text-center p-4 bg-purple-50 rounded-lg">
+                        <div className="text-2xl font-bold text-purple-600">
+                          {schoolStats.coursesCreated}
+                        </div>
+                        <p className="text-xs text-gray-600">Courses Created</p>
+                      </div>
+                      <div className="text-center p-4 bg-orange-50 rounded-lg">
+                        <div className="text-2xl font-bold text-orange-600">
+                          {(
+                            schoolStats.assignmentsCompleted || 0
+                          ).toLocaleString()}
+                        </div>
+                        <p className="text-xs text-gray-600">
+                          Assignments Completed
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-6 pt-4 border-t">
+                      <h4 className="font-medium mb-3">
+                        AI Engagement Metrics
+                      </h4>
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>AI Interactions Today</span>
+                          <span className="font-semibold">
+                            {Math.floor(aiSystemStats.totalInteractions / 30)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span>Avg Session Time</span>
+                          <span className="font-semibold">
+                            {aiSystemStats.averageSessionTime}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span>Student Satisfaction</span>
+                          <span className="font-semibold text-green-600">
+                            92%
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="reports" className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <Card className="hover:shadow-md transition-shadow cursor-pointer">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Users className="w-5 h-5 text-blue-600" />
+                      User Analytics Report
+                    </CardTitle>
+                    <CardDescription>
+                      Comprehensive user analytics, engagement, and performance
+                      data
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2 text-sm text-gray-600 mb-4">
+                      <div>• User activity patterns</div>
+                      <div>• Learning progress analytics</div>
+                      <div>• AI interaction summaries</div>
+                    </div>
+                    <Button className="w-full" onClick={handleExportReport}>
+                      <Download className="w-4 h-4 mr-2" />
+                      Generate Report
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                <Card className="hover:shadow-md transition-shadow cursor-pointer">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Brain className="w-5 h-5 text-purple-600" />
+                      AI Performance Report
+                    </CardTitle>
+                    <CardDescription>
+                      AI Twin effectiveness, behavior analysis, and
+                      recommendations
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2 text-sm text-gray-600 mb-4">
+                      <div>• AI Twin accuracy metrics</div>
+                      <div>• Behavior prediction success</div>
+                      <div>• Personalization effectiveness</div>
+                    </div>
+                    <Button className="w-full" onClick={handleExportReport}>
+                      <Download className="w-4 h-4 mr-2" />
+                      Generate Report
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                <Card className="hover:shadow-md transition-shadow cursor-pointer">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <TrendingUp className="w-5 h-5 text-green-600" />
+                      Academic Performance
+                    </CardTitle>
+                    <CardDescription>
+                      Student achievements, progress tracking, and learning
+                      outcomes
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2 text-sm text-gray-600 mb-4">
+                      <div>• Grade distributions</div>
+                      <div>• Subject performance</div>
+                      <div>• Achievement statistics</div>
+                    </div>
+                    <Button className="w-full" onClick={handleExportReport}>
+                      <Download className="w-4 h-4 mr-2" />
+                      Generate Report
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                <Card className="hover:shadow-md transition-shadow cursor-pointer">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Activity className="w-5 h-5 text-orange-600" />
+                      Behavior Analysis Report
+                    </CardTitle>
+                    <CardDescription>
+                      Student behavior patterns, mood analysis, and
+                      interventions
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2 text-sm text-gray-600 mb-4">
+                      <div>• Mood trend analysis</div>
+                      <div>• Risk factor identification</div>
+                      <div>• Intervention effectiveness</div>
+                    </div>
+                    <Button
+                      className="w-full"
+                      onClick={() => setIsBehaviorReportOpen(true)}
+                    >
+                      <Activity className="w-4 h-4 mr-2" />
+                      View Live Report
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                <Card className="hover:shadow-md transition-shadow cursor-pointer">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Shield className="w-5 h-5 text-red-600" />
+                      System Security Report
+                    </CardTitle>
+                    <CardDescription>
+                      Security events, access logs, and system integrity
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2 text-sm text-gray-600 mb-4">
+                      <div>• Login activity logs</div>
+                      <div>• Security incident reports</div>
+                      <div>• Data access audits</div>
+                    </div>
+                    <Button className="w-full" onClick={handleExportReport}>
+                      <Download className="w-4 h-4 mr-2" />
+                      Generate Report
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                <Card className="hover:shadow-md transition-shadow cursor-pointer">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Calendar className="w-5 h-5 text-indigo-600" />
+                      Custom Reports
+                    </CardTitle>
+                    <CardDescription>
+                      Build custom reports with specific metrics and timeframes
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2 text-sm text-gray-600 mb-4">
+                      <div>• Custom date ranges</div>
+                      <div>• Specific user groups</div>
+                      <div>• Multiple data sources</div>
+                    </div>
+                    <Button variant="outline" className="w-full">
+                      <Settings className="w-4 h-4 mr-2" />
+                      Build Custom Report
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="settings" className="space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>School Information</CardTitle>
+                    <CardDescription>
+                      Manage basic school information and administrative
+                      settings
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <Label htmlFor="schoolName">School Name</Label>
+                      <Input
+                        id="schoolName"
+                        value={schoolSettings.schoolName}
+                        onChange={(e) =>
+                          setSchoolSettings({
+                            ...schoolSettings,
+                            schoolName: e.target.value,
+                          })
+                        }
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="adminName">Administrator Name</Label>
+                      <Input
+                        id="adminName"
+                        value={schoolSettings.adminName}
+                        onChange={(e) =>
+                          setSchoolSettings({
+                            ...schoolSettings,
+                            adminName: e.target.value,
+                          })
+                        }
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="department">Department</Label>
+                      <Input
+                        id="department"
+                        value={schoolSettings.department}
+                        onChange={(e) =>
+                          setSchoolSettings({
+                            ...schoolSettings,
+                            department: e.target.value,
+                          })
+                        }
+                        className="mt-1"
+                      />
+                    </div>
+                    <Button
+                      className="w-full"
+                      onClick={handleSaveSchoolSettings}
+                    >
+                      <Save className="w-4 h-4 mr-2" />
+                      Save Changes
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Brain className="w-5 h-5 text-purple-600" />
+                      AI System Configuration
+                    </CardTitle>
+                    <CardDescription>
+                      Configure AI behavior, analytics, and personalization
+                      settings
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">AI Twin System</p>
+                        <p className="text-sm text-gray-500">
+                          Enable personalized AI companions for students
+                        </p>
+                      </div>
+                      <Button
+                        variant={aiConfig.aiTwinEnabled ? "default" : "outline"}
+                        size="sm"
+                        onClick={() =>
+                          setAIConfig({
+                            ...aiConfig,
+                            aiTwinEnabled: !aiConfig.aiTwinEnabled,
+                          })
+                        }
+                      >
+                        {aiConfig.aiTwinEnabled ? "Enabled" : "Disabled"}
+                      </Button>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">Behavior Tracking</p>
+                        <p className="text-sm text-gray-500">
+                          Monitor student behavior and mood patterns
+                        </p>
+                      </div>
+                      <Button
+                        variant={
+                          aiConfig.behaviorTrackingEnabled
+                            ? "default"
+                            : "outline"
+                        }
+                        size="sm"
+                        onClick={() =>
+                          setAIConfig({
+                            ...aiConfig,
+                            behaviorTrackingEnabled:
+                              !aiConfig.behaviorTrackingEnabled,
+                          })
+                        }
+                      >
+                        {aiConfig.behaviorTrackingEnabled
+                          ? "Enabled"
+                          : "Disabled"}
+                      </Button>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">Personalized Learning</p>
+                        <p className="text-sm text-gray-500">
+                          Adapt content based on individual learning patterns
+                        </p>
+                      </div>
+                      <Button
+                        variant={
+                          aiConfig.personalizedLearning ? "default" : "outline"
+                        }
+                        size="sm"
+                        onClick={() =>
+                          setAIConfig({
+                            ...aiConfig,
+                            personalizedLearning:
+                              !aiConfig.personalizedLearning,
+                          })
+                        }
+                      >
+                        {aiConfig.personalizedLearning ? "Enabled" : "Disabled"}
+                      </Button>
+                    </div>
+                    <div className="pt-4">
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => setIsAIConfigOpen(true)}
+                      >
+                        <Cog className="w-4 h-4 mr-2" />
+                        Advanced AI Settings
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>System Configuration</CardTitle>
+                    <CardDescription>
+                      Advanced system settings and preferences
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">Email Notifications</p>
+                        <p className="text-sm text-gray-500">
+                          Receive system alerts and reports via email
+                        </p>
+                      </div>
+                      <Button variant="outline" size="sm">
+                        Configure
+                      </Button>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">Data Backup</p>
+                        <p className="text-sm text-gray-500">
+                          Automatic daily backups of all system data
+                        </p>
+                      </div>
+                      <Button variant="outline" size="sm">
+                        Setup
+                      </Button>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">Security Settings</p>
+                        <p className="text-sm text-gray-500">
+                          Configure access controls and security policies
+                        </p>
+                      </div>
+                      <Button variant="outline" size="sm">
+                        Manage
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Database className="w-5 h-5 text-indigo-600" />
+                      Data & Privacy
+                    </CardTitle>
+                    <CardDescription>
+                      Manage data retention and privacy settings
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Data Retention Period</Label>
+                      <Select defaultValue="90">
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="30">30 days</SelectItem>
+                          <SelectItem value="90">90 days</SelectItem>
+                          <SelectItem value="180">180 days</SelectItem>
+                          <SelectItem value="365">1 year</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Privacy Level</Label>
+                      <Select defaultValue="balanced">
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="strict">Strict</SelectItem>
+                          <SelectItem value="balanced">Balanced</SelectItem>
+                          <SelectItem value="permissive">Permissive</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button variant="outline" className="w-full">
+                      <Shield className="w-4 h-4 mr-2" />
+                      Privacy Policy Settings
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+          </Tabs>
+
+          {/* Add User Dialog */}
+          <Dialog open={isAddUserOpen} onOpenChange={setIsAddUserOpen}>
+            <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <UserPlus className="w-5 h-5" />
+                  Add New User
+                </DialogTitle>
+                <DialogDescription>
+                  Create a new student or teacher account. AI Twin integration
+                  is automatically provided for students.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="role">User Role *</Label>
+                  <Select
+                    value={newUser.role}
+                    onValueChange={(value) =>
+                      setNewUser({
+                        ...newUser,
+                        role: value as "student" | "teacher",
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="student">
+                        <div className="flex items-center gap-2">
+                          <GraduationCap className="w-4 h-4" />
+                          Student
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="teacher">
+                        <div className="flex items-center gap-2">
+                          <Users className="w-4 h-4" />
+                          Teacher
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="name">Full Name *</Label>
+                  <Input
+                    id="name"
+                    value={newUser.name}
+                    onChange={(e) =>
+                      setNewUser({ ...newUser, name: e.target.value })
+                    }
+                    placeholder="Enter full name"
+                  />
+                </div>
+
+                {newUser.role === "student" && (
+                  <>
+                    <div>
+                      <Label htmlFor="regNo">Registration Number *</Label>
+                      <Input
+                        id="regNo"
+                        value={newUser.regNo}
+                        onChange={(e) =>
+                          setNewUser({
+                            ...newUser,
+                            regNo: e.target.value,
+                          })
+                        }
+                        placeholder="e.g., ST2024001"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="grade">Grade *</Label>
+                      <Select
+                        value={newUser.grade}
+                        onValueChange={(value) =>
+                          setNewUser({ ...newUser, grade: value })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select grade" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="9th">9th Grade</SelectItem>
+                          <SelectItem value="10th">10th Grade</SelectItem>
+                          <SelectItem value="11th">11th Grade</SelectItem>
+                          <SelectItem value="12th">12th Grade</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="studentEmail">Email (Optional)</Label>
+                      <Input
+                        id="studentEmail"
+                        type="email"
+                        value={newUser.email}
+                        onChange={(e) =>
+                          setNewUser({
+                            ...newUser,
+                            email: e.target.value,
+                          })
+                        }
+                        placeholder="student@example.com (optional)"
+                      />
+                    </div>
+                  </>
+                )}
+
+                {newUser.role === "teacher" && (
+                  <>
+                    <div>
+                      <Label htmlFor="email">Email *</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        value={newUser.email}
+                        onChange={(e) =>
+                          setNewUser({
+                            ...newUser,
+                            email: e.target.value,
+                          })
+                        }
+                        placeholder="teacher@school.edu"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="phone">Phone Number *</Label>
+                      <Input
+                        id="phone"
+                        value={newUser.phone}
+                        onChange={(e) =>
+                          setNewUser({
+                            ...newUser,
+                            phone: e.target.value,
+                          })
+                        }
+                        placeholder="+1-555-0123"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="subject">Subject *</Label>
+                      <Select
+                        value={newUser.subject}
+                        onValueChange={(value) =>
+                          setNewUser({ ...newUser, subject: value })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select subject" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {uniqueSubjects.map((subject) => (
+                            <SelectItem key={subject} value={subject}>
+                              {subject}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="experience">Experience (Optional)</Label>
+                      <Input
+                        id="experience"
+                        value={newUser.experience}
+                        onChange={(e) =>
+                          setNewUser({
+                            ...newUser,
+                            experience: e.target.value,
+                          })
+                        }
+                        placeholder="e.g., 5 years"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="bio">Bio (Optional)</Label>
+                      <Textarea
+                        id="bio"
+                        value={newUser.bio}
+                        onChange={(e) =>
+                          setNewUser({
+                            ...newUser,
+                            bio: e.target.value,
+                          })
+                        }
+                        placeholder="Brief description about the teacher..."
+                        rows={3}
+                      />
+                    </div>
+                  </>
+                )}
+
+                {newUser.role === "student" && (
+                  <Alert>
+                    <Brain className="h-4 w-4" />
+                    <AlertTitle>AI Twin Integration</AlertTitle>
+                    <AlertDescription>
+                      An AI Twin will be automatically created for this student
+                      to provide personalized learning assistance and behavior
+                      monitoring.
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsAddUserOpen(false)}
+                  disabled={createUserLoading}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={handleAddUser} disabled={createUserLoading}>
+                  {createUserLoading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="w-4 h-4 mr-2" />
+                      Create User
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Add Subject Dialog */}
+          <Dialog open={isAddSubjectOpen} onOpenChange={setIsAddSubjectOpen}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <BookOpen className="w-5 h-5" />
+                  Add New Subject
+                </DialogTitle>
+                <DialogDescription>
+                  Create a new subject with AI-powered content generation
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="subjectName">Subject Name *</Label>
+                  <Input
+                    id="subjectName"
+                    value={newSubject.name}
+                    onChange={(e) =>
+                      setNewSubject({ ...newSubject, name: e.target.value })
+                    }
+                    placeholder="e.g., Advanced Mathematics"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="subjectDescription">Description *</Label>
+                  <Textarea
+                    id="subjectDescription"
+                    value={newSubject.description}
+                    onChange={(e) =>
+                      setNewSubject({
+                        ...newSubject,
+                        description: e.target.value,
+                      })
+                    }
+                    placeholder="Brief description of the subject..."
+                    rows={3}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="subjectCategory">Category (Optional)</Label>
+                  <Select
+                    value={newSubject.category}
+                    onValueChange={(value) =>
+                      setNewSubject({ ...newSubject, category: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="science">Science</SelectItem>
+                      <SelectItem value="mathematics">Mathematics</SelectItem>
+                      <SelectItem value="languages">Languages</SelectItem>
+                      <SelectItem value="social-studies">
+                        Social Studies
+                      </SelectItem>
+                      <SelectItem value="arts">Arts</SelectItem>
+                      <SelectItem value="physical-education">
+                        Physical Education
+                      </SelectItem>
+                      <SelectItem value="technology">Technology</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Alert>
+                  <Brain className="h-4 w-4" />
+                  <AlertTitle>AI Enhancement</AlertTitle>
+                  <AlertDescription>
+                    AI will automatically generate personalized content,
+                    assessments, and learning paths for this subject.
+                  </AlertDescription>
+                </Alert>
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsAddSubjectOpen(false)}
+                  disabled={createSubjectLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleAddSubject}
+                  disabled={createSubjectLoading}
+                >
+                  {createSubjectLoading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <PlusCircle className="w-4 h-4 mr-2" />
+                      Create Subject
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* User Details Dialog */}
+          <Dialog open={isUserDetailsOpen} onOpenChange={setIsUserDetailsOpen}>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Users className="w-5 h-5" />
+                  User Details
+                </DialogTitle>
+                <DialogDescription>
+                  View detailed information about the user and their AI Twin
+                </DialogDescription>
+              </DialogHeader>
+              {selectedUser && (
+                <div className="space-y-6">
+                  <div className="flex items-center gap-4">
+                    <Avatar className="w-16 h-16">
+                      <AvatarImage src={selectedUser.avatar} />
+                      <AvatarFallback className="text-lg">
+                        {(selectedUser.name || "")
                           .split(" ")
                           .map((n) => n[0])
                           .join("")}
                       </AvatarFallback>
                     </Avatar>
-                    <div className="hidden sm:block text-left">
-                      <p className="text-sm font-medium text-secondary-800">
-                        {adminInfo.name}
-                      </p>
-                      <p className="text-xs text-secondary-500">
-                        {adminInfo.role}
-                      </p>
-                    </div>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuLabel>Administrator</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleSettings}>
-                    <Settings className="w-4 h-4 mr-2" />
-                    Settings
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleSchedule}>
-                    <Calendar className="w-4 h-4 mr-2" />
-                    Schedule
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => setIsPasswordChangeOpen(true)}
-                  >
-                    <Key className="w-4 h-4 mr-2" />
-                    Change Password
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleLogout}>
-                    <LogOut className="w-4 h-4 mr-2" />
-                    Logout
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-3xl font-bold text-secondary-800 mb-2">
-                School Administration Center
-              </h2>
-              <p className="text-secondary-600 flex items-center gap-2">
-                <School className="w-4 h-4" />
-                Welcome back, {adminInfo.name} • {adminInfo.school}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-sm text-secondary-600">Last login</p>
-              <p className="font-medium text-secondary-800">
-                {adminInfo.lastLogin}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <Tabs value={selectedTab} onValueChange={setSelectedTab}>
-          <TabsList className="grid w-full grid-cols-8 lg:w-auto lg:grid-cols-8 mb-8">
-            <TabsTrigger value="overview" className="flex items-center gap-2">
-              <BarChart3 className="w-4 h-4" />
-              Overview
-            </TabsTrigger>
-            <TabsTrigger value="users" className="flex items-center gap-2">
-              <Users className="w-4 h-4" />
-              Users
-            </TabsTrigger>
-            <TabsTrigger value="content" className="flex items-center gap-2">
-              <BookOpen className="w-4 h-4" />
-              Content
-            </TabsTrigger>
-            <TabsTrigger
-              value="assignments"
-              className="flex items-center gap-2"
-            >
-              <FileText className="w-4 h-4" />
-              Assignments
-            </TabsTrigger>
-            <TabsTrigger value="behavior" className="flex items-center gap-2">
-              <Activity className="w-4 h-4" />
-              Behavior
-            </TabsTrigger>
-            <TabsTrigger value="privacy" className="flex items-center gap-2">
-              <Shield className="w-4 h-4" />
-              Privacy
-            </TabsTrigger>
-            <TabsTrigger value="alerts" className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4" />
-              Alerts
-              {highPriorityAlerts > 0 && (
-                <span className="ml-1 px-2 py-0.5 text-xs bg-destructive-500 text-white rounded-full">
-                  {highPriorityAlerts}
-                </span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="audit" className="flex items-center gap-2">
-              <Database className="w-4 h-4" />
-              Audit
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="overview" className="space-y-6">
-            {/* School Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-              <Card className="card-elevated">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-secondary-600">
-                        Total Students
-                      </p>
-                      <p className="text-2xl font-bold text-secondary-800">
-                        {schoolStats.totalStudents.toLocaleString()}
-                      </p>
-                      <p className="text-xs text-accent-600 flex items-center gap-1">
-                        <TrendingUp className="w-3 h-3" />
-                        +12% this month
-                      </p>
-                    </div>
-                    <div className="p-3 bg-primary-100 rounded-lg">
-                      <GraduationCap className="w-6 h-6 text-primary-600" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="card-elevated">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-secondary-600">
-                        Total Teachers
-                      </p>
-                      <p className="text-2xl font-bold text-secondary-800">
-                        {schoolStats.totalTeachers}
-                      </p>
-                      <p className="text-xs text-accent-600 flex items-center gap-1">
-                        <TrendingUp className="w-3 h-3" />
-                        +3 new this week
-                      </p>
-                    </div>
-                    <div className="p-3 bg-accent-100 rounded-lg">
-                      <Users className="w-6 h-6 text-accent-600" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="card-elevated">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-secondary-600">Active Users</p>
-                      <p className="text-2xl font-bold text-secondary-800">
-                        {schoolStats.activeUsers}
-                      </p>
-                      <p className="text-xs text-accent-600 flex items-center gap-1">
-                        <Activity className="w-3 h-3" />
-                        94% online rate
-                      </p>
-                    </div>
-                    <div className="p-3 bg-warning-100 rounded-lg">
-                      <Activity className="w-6 h-6 text-warning-600" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="card-elevated">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-secondary-600">
-                        System Uptime
-                      </p>
-                      <p className="text-2xl font-bold text-secondary-800">
-                        {schoolStats.systemUptime}%
-                      </p>
-                      <p className="text-xs text-accent-600 flex items-center gap-1">
-                        <Zap className="w-3 h-3" />
-                        Excellent performance
-                      </p>
-                    </div>
-                    <div className="p-3 bg-accent-100 rounded-lg">
-                      <Zap className="w-6 h-6 text-accent-600" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="grid lg:grid-cols-3 gap-6">
-              {/* System Alerts */}
-              <div className="lg:col-span-2">
-                <Card className="card-elevated">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle className="flex items-center gap-2">
-                          <AlertTriangle className="w-5 h-5 text-warning-600" />
-                          System Alerts
-                          {highPriorityAlerts > 0 && (
-                            <Badge className="bg-destructive-100 text-destructive-700 ml-2">
-                              {highPriorityAlerts} High Priority
-                            </Badge>
-                          )}
-                        </CardTitle>
-                        <CardDescription>
-                          Critical system notifications requiring attention
-                        </CardDescription>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleReviewPatterns}
+                      <h3 className="text-xl font-semibold">
+                        {selectedUser.name}
+                      </h3>
+                      <p className="text-gray-600">{selectedUser.email}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge className={getRoleBadgeClass(selectedUser.role)}>
+                          {selectedUser.role}
+                        </Badge>
+                        <Badge
+                          className={getStatusBadgeClass(selectedUser.status)}
                         >
-                          Review Patterns
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleScheduleUpdates}
-                        >
-                          Schedule Updates
-                        </Button>
+                          {selectedUser.status}
+                        </Badge>
+                        {selectedUser.role === "student" && (
+                          <Badge className="bg-purple-100 text-purple-700">
+                            <Brain className="w-3 h-3 mr-1" />
+                            AI Twin Active
+                          </Badge>
+                        )}
                       </div>
                     </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {systemAlerts.map((alert) => (
-                      <div
-                        key={alert.id}
-                        className="p-4 bg-secondary-50 rounded-lg border border-secondary-100 hover:shadow-sm transition-shadow"
-                      >
-                        <div className="flex items-start gap-3">
-                          {getAlertIcon(alert.type)}
-                          <div className="flex-1">
-                            <div className="flex items-start justify-between mb-2">
-                              <h4 className="font-medium text-secondary-800">
-                                {alert.title}
-                              </h4>
-                              <div className="flex items-center gap-2">
-                                <Badge
-                                  className={getPriorityColor(alert.priority)}
-                                >
-                                  {alert.priority}
-                                </Badge>
-                                {alert.actionRequired && (
-                                  <Badge className="bg-destructive-100 text-destructive-700">
-                                    Action Required
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
-                            <p className="text-sm text-secondary-600 mb-3">
-                              {alert.message}
-                            </p>
-                            <div className="flex items-center justify-between">
-                              <p className="text-xs text-secondary-500">
-                                {alert.time}
-                              </p>
-                              <div className="flex gap-2">
-                                <Button size="sm" variant="outline">
-                                  View Details
-                                </Button>
-                                {alert.actionRequired && (
-                                  <Button size="sm" className="btn-primary">
-                                    Take Action
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
-                          </div>
+                  </div>
+
+                  <Separator />
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-sm font-medium text-gray-500">
+                        User ID
+                      </Label>
+                      <p className="mt-1">{selectedUser.id}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-gray-500">
+                        Phone
+                      </Label>
+                      <p className="mt-1">
+                        {selectedUser.phone || "Not provided"}
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-gray-500">
+                        Last Active
+                      </Label>
+                      <p className="mt-1">{selectedUser.lastActive}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-gray-500">
+                        Account Status
+                      </Label>
+                      <p className="mt-1 capitalize">{selectedUser.status}</p>
+                    </div>
+                  </div>
+
+                  {selectedUser.role === "student" && (
+                    <div className="bg-purple-50 p-4 rounded-lg">
+                      <h4 className="font-medium text-purple-800 mb-2 flex items-center gap-2">
+                        <Brain className="w-4 h-4" />
+                        AI Twin Status
+                      </h4>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span>Status:</span>
+                          <span className="text-green-600 font-medium">
+                            Active
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Accuracy:</span>
+                          <span className="font-medium">94.2%</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Interactions:</span>
+                          <span className="font-medium">1,247</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Last Interaction:</span>
+                          <span className="font-medium">2 hours ago</span>
                         </div>
                       </div>
-                    ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsUserDetailsOpen(false)}
+                >
+                  Close
+                </Button>
+                {selectedUser && (
+                  <>
+                    {selectedUser.role === "student" && (
+                      <Button variant="outline">
+                        <Brain className="w-4 h-4 mr-2" />
+                        View AI Twin
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      onClick={() => handleEditUser(selectedUser)}
+                    >
+                      <Edit className="w-4 h-4 mr-2" />
+                      Edit User
+                    </Button>
+                  </>
+                )}
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* AI Monitor Dialog */}
+          <Dialog open={isAIMonitorOpen} onOpenChange={setIsAIMonitorOpen}>
+            <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Brain className="w-5 h-5 text-purple-600" />
+                  AI System Monitor
+                </DialogTitle>
+                <DialogDescription>
+                  Real-time monitoring of AI Twin systems and behavior analytics
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-6">
+                {/* AI System Status */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-gray-600">AI Twins</p>
+                          <p className="text-2xl font-bold text-purple-600">
+                            {aiSystemStats.activeAITwins}
+                          </p>
+                        </div>
+                        <Brain className="w-8 h-8 text-purple-600" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-gray-600">Accuracy</p>
+                          <p className="text-2xl font-bold text-green-600">
+                            {aiSystemStats.avgAccuracy}%
+                          </p>
+                        </div>
+                        <Target className="w-8 h-8 text-green-600" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-gray-600">Interactions</p>
+                          <p className="text-2xl font-bold text-blue-600">
+                            {Math.floor(aiSystemStats.totalInteractions / 1000)}
+                            K
+                          </p>
+                        </div>
+                        <MessageSquare className="w-8 h-8 text-blue-600" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Live AI Chat Monitor */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <MessageSquare className="w-5 h-5" />
+                      Live AI Interactions
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Suspense
+                      fallback={
+                        <div className="flex items-center justify-center p-8">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                          <span className="ml-2">Loading AI monitor...</span>
+                        </div>
+                      }
+                    >
+                      <LazyAITwinChat
+                        studentId="admin-monitor"
+                        currentLessonId={undefined}
+                        emotionalState="neutral"
+                        className="h-96"
+                      />
+                    </Suspense>
                   </CardContent>
                 </Card>
               </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsAIMonitorOpen(false)}
+                >
+                  Close Monitor
+                </Button>
+                <Button onClick={() => setIsAIConfigOpen(true)}>
+                  <Cog className="w-4 h-4 mr-2" />
+                  AI Settings
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
-              {/* Quick Actions */}
-              <Card className="card-elevated">
-                <CardHeader>
-                  <CardTitle>Quick Actions</CardTitle>
-                  <CardDescription>Common administrative tasks</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <Dialog open={isAddUserOpen} onOpenChange={setIsAddUserOpen}>
-                    <DialogTrigger asChild>
-                      <Button className="btn-primary w-full">
-                        <UserPlus className="w-4 h-4 mr-2" />
-                        Add User
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-md">
-                      <DialogHeader>
-                        <DialogTitle>Add New User</DialogTitle>
-                        <DialogDescription>
-                          Create a new student or teacher account
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-4">
-                        <div>
-                          <Label htmlFor="role">User Role</Label>
-                          <Select
-                            value={newUser.role}
-                            onValueChange={(value) =>
-                              setNewUser({
-                                ...newUser,
-                                role: value as "student" | "teacher",
-                              })
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="student">Student</SelectItem>
-                              <SelectItem value="teacher">Teacher</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div>
-                          <Label htmlFor="name">Full Name</Label>
-                          <Input
-                            id="name"
-                            value={newUser.name}
-                            onChange={(e) =>
-                              setNewUser({ ...newUser, name: e.target.value })
-                            }
-                            placeholder="Enter full name"
-                          />
-                        </div>
-
-                        {newUser.role === "student" && (
-                          <>
-                            <div>
-                              <Label htmlFor="regNo">Registration Number</Label>
-                              <Input
-                                id="regNo"
-                                value={newUser.regNo}
-                                onChange={(e) =>
-                                  setNewUser({
-                                    ...newUser,
-                                    regNo: e.target.value,
-                                  })
-                                }
-                                placeholder="e.g., ST2024001"
-                              />
-                            </div>
-                            <div>
-                              <Label htmlFor="grade">Grade</Label>
-                              <Select
-                                value={newUser.grade}
-                                onValueChange={(value) =>
-                                  setNewUser({ ...newUser, grade: value })
-                                }
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select grade" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="9th">9th Grade</SelectItem>
-                                  <SelectItem value="10th">
-                                    10th Grade
-                                  </SelectItem>
-                                  <SelectItem value="11th">
-                                    11th Grade
-                                  </SelectItem>
-                                  <SelectItem value="12th">
-                                    12th Grade
-                                  </SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          </>
-                        )}
-
-                        {newUser.role === "teacher" && (
-                          <>
-                            <div>
-                              <Label htmlFor="email">Email</Label>
-                              <Input
-                                id="email"
-                                type="email"
-                                value={newUser.email}
-                                onChange={(e) =>
-                                  setNewUser({
-                                    ...newUser,
-                                    email: e.target.value,
-                                  })
-                                }
-                                placeholder="teacher@school.edu"
-                              />
-                            </div>
-                            <div>
-                              <Label htmlFor="phone">Phone Number</Label>
-                              <Input
-                                id="phone"
-                                value={newUser.phone}
-                                onChange={(e) =>
-                                  setNewUser({
-                                    ...newUser,
-                                    phone: e.target.value,
-                                  })
-                                }
-                                placeholder="+1-555-0123"
-                              />
-                            </div>
-                            <div>
-                              <Label htmlFor="subject">Subject</Label>
-                              <Input
-                                id="subject"
-                                value={newUser.subject}
-                                onChange={(e) =>
-                                  setNewUser({
-                                    ...newUser,
-                                    subject: e.target.value,
-                                  })
-                                }
-                                placeholder="e.g., Mathematics"
-                              />
-                            </div>
-                          </>
-                        )}
-                      </div>
-                      <DialogFooter>
-                        <Button
-                          variant="outline"
-                          onClick={() => setIsAddUserOpen(false)}
-                        >
-                          Cancel
-                        </Button>
-                        <Button onClick={handleAddUser}>Create User</Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    onClick={handleExportReport}
-                  >
-                    <Download className="w-4 h-4 mr-2" />
-                    Export Report
-                  </Button>
-
-                  <Button variant="outline" className="w-full">
-                    <Monitor className="w-4 h-4 mr-2" />
-                    System Status
-                  </Button>
-
-                  <Button variant="outline" className="w-full">
-                    <Database className="w-4 h-4 mr-2" />
-                    Backup Data
-                  </Button>
-
-                  <Button variant="outline" className="w-full">
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                    Sync Systems
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Performance Overview */}
-            <div className="grid lg:grid-cols-2 gap-6">
-              <Card className="card-elevated">
-                <CardHeader>
-                  <CardTitle>Performance Metrics</CardTitle>
-                  <CardDescription>
-                    Key performance indicators for your school
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div>
-                    <div className="flex justify-between text-sm mb-2">
-                      <span className="font-medium">
-                        Average Student Performance
-                      </span>
-                      <span className="font-bold">
-                        {schoolStats.avgPerformance}%
+          {/* Behavior Report Dialog */}
+          <Dialog
+            open={isBehaviorReportOpen}
+            onOpenChange={setIsBehaviorReportOpen}
+          >
+            <DialogContent className="max-w-6xl max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Activity className="w-5 h-5 text-orange-600" />
+                  Comprehensive Behavior Report
+                </DialogTitle>
+                <DialogDescription>
+                  Real-time behavior analytics and insights across all students
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-6">
+                <Suspense
+                  fallback={
+                    <div className="flex items-center justify-center p-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                      <span className="ml-2">
+                        Loading behavior analytics...
                       </span>
                     </div>
-                    <Progress
-                      value={schoolStats.avgPerformance}
-                      className="h-2"
-                    />
-                  </div>
-
-                  <div>
-                    <div className="flex justify-between text-sm mb-2">
-                      <span className="font-medium">AI Accuracy Rate</span>
-                      <span className="font-bold">
-                        {schoolStats.aiAccuracy}%
-                      </span>
-                    </div>
-                    <Progress value={schoolStats.aiAccuracy} className="h-2" />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4 pt-4">
-                    <div className="text-center p-4 bg-primary-50 rounded-lg">
-                      <div className="text-2xl font-bold text-primary-600">
-                        {schoolStats.coursesCreated}
-                      </div>
-                      <p className="text-xs text-secondary-600">
-                        Courses Created
-                      </p>
-                    </div>
-                    <div className="text-center p-4 bg-accent-50 rounded-lg">
-                      <div className="text-2xl font-bold text-accent-600">
-                        {schoolStats.assignmentsCompleted.toLocaleString()}
-                      </div>
-                      <p className="text-xs text-secondary-600">
-                        Assignments Completed
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="card-elevated">
-                <CardHeader>
-                  <CardTitle>Recent Activity</CardTitle>
-                  <CardDescription>
-                    Latest school activities and updates
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center gap-3 p-3 bg-secondary-50 rounded-lg">
-                    <div className="p-2 bg-accent-100 rounded-lg">
-                      <Users className="w-4 h-4 text-accent-600" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-medium text-sm">
-                        New Teacher Registration
-                      </p>
-                      <p className="text-xs text-secondary-600">
-                        Dr. Jennifer Lee joined Mathematics department
-                      </p>
-                      <p className="text-xs text-secondary-500">2 hours ago</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 p-3 bg-secondary-50 rounded-lg">
-                    <div className="p-2 bg-primary-100 rounded-lg">
-                      <BookOpen className="w-4 h-4 text-primary-600" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-medium text-sm">Course Update</p>
-                      <p className="text-xs text-secondary-600">
-                        Advanced Physics curriculum updated with new modules
-                      </p>
-                      <p className="text-xs text-secondary-500">5 hours ago</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 p-3 bg-secondary-50 rounded-lg">
-                    <div className="p-2 bg-warning-100 rounded-lg">
-                      <Award className="w-4 h-4 text-warning-600" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-medium text-sm">
-                        Achievement Milestone
-                      </p>
-                      <p className="text-xs text-secondary-600">
-                        School reached 95% student engagement rate
-                      </p>
-                      <p className="text-xs text-secondary-500">1 day ago</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="users" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-xl font-semibold text-secondary-800">
-                  User Management
-                </h3>
-                <p className="text-sm text-secondary-600">
-                  Manage students and teachers • {filteredUsers.length} of{" "}
-                  {users.length} users
-                </p>
+                  }
+                >
+                  <LazyBehaviorAnalytics
+                    studentId="system-wide"
+                    currentMood="neutral"
+                    riskScore={0.15}
+                    showSystemOverview={true}
+                  />
+                </Suspense>
               </div>
-              <Button
-                className="btn-primary"
-                onClick={() => setIsAddUserOpen(true)}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add User
-              </Button>
-            </div>
-
-            {/* Search and Filters */}
-            <Card className="card-elevated">
-              <CardContent className="p-6">
-                <div className="grid md:grid-cols-4 gap-4">
-                  <div className="md:col-span-2">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-secondary-400" />
-                      <Input
-                        placeholder="Search users by name, email, or registration number..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-10"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <Select value={filterRole} onValueChange={setFilterRole}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Filter by role" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Roles</SelectItem>
-                        <SelectItem value="student">Students</SelectItem>
-                        <SelectItem value="teacher">Teachers</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Select
-                      value={filterStatus}
-                      onValueChange={setFilterStatus}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Filter by status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Status</SelectItem>
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="inactive">Inactive</SelectItem>
-                        <SelectItem value="pending">Pending</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Users Table */}
-            <Card className="card-elevated">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>User</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Contact</TableHead>
-                    <TableHead>Performance</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Last Login</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredUsers.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar className="w-8 h-8">
-                            <AvatarFallback className="bg-primary-100 text-primary-700">
-                              {user.name
-                                .split(" ")
-                                .map((n) => n[0])
-                                .join("")}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <p className="font-medium text-secondary-800">
-                              {user.name}
-                            </p>
-                            <p className="text-xs text-secondary-500">
-                              {user.regNo || user.subject} • Joined{" "}
-                              {user.joinDate}
-                            </p>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <Badge
-                            className={
-                              user.role === "teacher"
-                                ? "bg-accent-100 text-accent-700"
-                                : "bg-primary-100 text-primary-700"
-                            }
-                          >
-                            {user.role}
-                          </Badge>
-                          {user.grade && (
-                            <p className="text-xs text-secondary-500 mt-1">
-                              {user.grade}
-                            </p>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="space-y-1">
-                          {user.email && (
-                            <div className="flex items-center gap-1 text-xs text-secondary-600">
-                              <Mail className="w-3 h-3" />
-                              {user.email}
-                            </div>
-                          )}
-                          {user.phone && (
-                            <div className="flex items-center gap-1 text-xs text-secondary-600">
-                              <Phone className="w-3 h-3" />
-                              {user.phone}
-                            </div>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {user.performance ? (
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium">
-                                {user.performance}%
-                              </span>
-                              <div className="w-12 h-2 bg-secondary-200 rounded">
-                                <div
-                                  className="h-full bg-accent-500 rounded"
-                                  style={{ width: `${user.performance}%` }}
-                                ></div>
-                              </div>
-                            </div>
-                            <p className="text-xs text-secondary-500">
-                              {user.courses} courses
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="text-xs text-secondary-500">
-                            {user.courses || 0} courses
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={getStatusColor(user.status)}>
-                          {user.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-sm">{user.lastLogin}</span>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            title="View Profile"
-                            onClick={() => handleViewUser(user.id)}
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            title="Edit User"
-                            onClick={() => handleEditUser(user.id)}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-destructive-600 hover:text-destructive-700 hover:bg-destructive-50"
-                            title="Delete User"
-                            onClick={() => handleDeleteUser(user.id, user.name)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="ai-oversight" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-xl font-semibold text-secondary-800">
-                  AI Oversight & Configuration
-                </h3>
-                <p className="text-sm text-secondary-600">
-                  Monitor and configure AI systems across your school
-                </p>
-              </div>
-              <Button
-                className="btn-primary"
-                onClick={() => setIsAIConfigOpen(true)}
-              >
-                <Brain className="w-4 h-4 mr-2" />
-                Configure AI
-              </Button>
-            </div>
-
-            <div className="grid lg:grid-cols-2 gap-6">
-              {/* AI Performance */}
-              <Card className="card-elevated">
-                <CardHeader>
-                  <CardTitle>AI Performance Metrics</CardTitle>
-                  <CardDescription>
-                    Real-time AI system performance indicators
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div>
-                    <div className="flex justify-between text-sm mb-2">
-                      <span className="font-medium">Response Accuracy</span>
-                      <span className="font-bold">
-                        {aiConfig.responseAccuracy[0]}%
-                      </span>
-                    </div>
-                    <Progress
-                      value={aiConfig.responseAccuracy[0]}
-                      className="h-2"
-                    />
-                  </div>
-
-                  <div>
-                    <div className="flex justify-between text-sm mb-2">
-                      <span className="font-medium">Student Satisfaction</span>
-                      <span className="font-bold">92%</span>
-                    </div>
-                    <Progress value={92} className="h-2" />
-                  </div>
-
-                  <div>
-                    <div className="flex justify-between text-sm mb-2">
-                      <span className="font-medium">System Efficiency</span>
-                      <span className="font-bold">88%</span>
-                    </div>
-                    <Progress value={88} className="h-2" />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4 pt-4">
-                    <div className="text-center p-4 bg-primary-50 rounded-lg">
-                      <div className="text-2xl font-bold text-primary-600">
-                        24.7K
-                      </div>
-                      <p className="text-xs text-secondary-600">
-                        AI Interactions Today
-                      </p>
-                    </div>
-                    <div className="text-center p-4 bg-accent-50 rounded-lg">
-                      <div className="text-2xl font-bold text-accent-600">
-                        99.2%
-                      </div>
-                      <p className="text-xs text-secondary-600">
-                        Uptime This Month
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* AI Configuration Preview */}
-              <Card className="card-elevated">
-                <CardHeader>
-                  <CardTitle>AI System Status</CardTitle>
-                  <CardDescription>
-                    Current AI configuration and status
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between p-3 bg-secondary-50 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-accent-100 rounded-lg">
-                        <Brain className="w-4 h-4 text-accent-600" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-sm">Core AI Engine</p>
-                        <p className="text-xs text-secondary-600">
-                          Latest model deployed
-                        </p>
-                      </div>
-                    </div>
-                    <Badge className="bg-accent-100 text-accent-700">
-                      Active
-                    </Badge>
-                  </div>
-
-                  <div className="flex items-center justify-between p-3 bg-secondary-50 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-primary-100 rounded-lg">
-                        <Shield className="w-4 h-4 text-primary-600" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-sm">Safety Filters</p>
-                        <p className="text-xs text-secondary-600">
-                          Content moderation enabled
-                        </p>
-                      </div>
-                    </div>
-                    <Badge className="bg-accent-100 text-accent-700">
-                      Active
-                    </Badge>
-                  </div>
-
-                  <div className="flex items-center justify-between p-3 bg-secondary-50 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-warning-100 rounded-lg">
-                        <Database className="w-4 h-4 text-warning-600" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-sm">
-                          Learning Analytics
-                        </p>
-                        <p className="text-xs text-secondary-600">
-                          Real-time insights
-                        </p>
-                      </div>
-                    </div>
-                    <Badge className="bg-accent-100 text-accent-700">
-                      Active
-                    </Badge>
-                  </div>
-
-                  <div className="flex items-center justify-between p-3 bg-secondary-50 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-blue-100 rounded-lg">
-                        <Globe className="w-4 h-4 text-blue-600" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-sm">Language Models</p>
-                        <p className="text-xs text-secondary-600">
-                          Multi-language support
-                        </p>
-                      </div>
-                    </div>
-                    <Badge className="bg-accent-100 text-accent-700">
-                      Active
-                    </Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* AI Usage Analytics */}
-            <Card className="card-elevated">
-              <CardHeader>
-                <CardTitle>AI Usage Analytics</CardTitle>
-                <CardDescription>
-                  Detailed insights into AI system usage patterns
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid md:grid-cols-3 gap-6">
-                  <div className="space-y-4">
-                    <h4 className="font-medium text-secondary-800">
-                      Subject Distribution
-                    </h4>
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm">Mathematics</span>
-                        <div className="flex items-center gap-2">
-                          <div className="w-16 h-2 bg-secondary-200 rounded">
-                            <div className="w-12 h-2 bg-primary-500 rounded"></div>
-                          </div>
-                          <span className="text-xs">35%</span>
-                        </div>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm">Science</span>
-                        <div className="flex items-center gap-2">
-                          <div className="w-16 h-2 bg-secondary-200 rounded">
-                            <div className="w-10 h-2 bg-accent-500 rounded"></div>
-                          </div>
-                          <span className="text-xs">28%</span>
-                        </div>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm">English</span>
-                        <div className="flex items-center gap-2">
-                          <div className="w-16 h-2 bg-secondary-200 rounded">
-                            <div className="w-8 h-2 bg-warning-500 rounded"></div>
-                          </div>
-                          <span className="text-xs">22%</span>
-                        </div>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm">History</span>
-                        <div className="flex items-center gap-2">
-                          <div className="w-16 h-2 bg-secondary-200 rounded">
-                            <div className="w-4 h-2 bg-blue-500 rounded"></div>
-                          </div>
-                          <span className="text-xs">15%</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <h4 className="font-medium text-secondary-800">
-                      Peak Usage Hours
-                    </h4>
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm">9:00 - 11:00 AM</span>
-                        <div className="flex items-center gap-2">
-                          <div className="w-16 h-2 bg-secondary-200 rounded">
-                            <div className="w-full h-2 bg-primary-500 rounded"></div>
-                          </div>
-                          <span className="text-xs">100%</span>
-                        </div>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm">1:00 - 3:00 PM</span>
-                        <div className="flex items-center gap-2">
-                          <div className="w-16 h-2 bg-secondary-200 rounded">
-                            <div className="w-14 h-2 bg-accent-500 rounded"></div>
-                          </div>
-                          <span className="text-xs">85%</span>
-                        </div>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm">7:00 - 9:00 PM</span>
-                        <div className="flex items-center gap-2">
-                          <div className="w-16 h-2 bg-secondary-200 rounded">
-                            <div className="w-10 h-2 bg-warning-500 rounded"></div>
-                          </div>
-                          <span className="text-xs">65%</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <h4 className="font-medium text-secondary-800">
-                      Question Types
-                    </h4>
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm">Problem Solving</span>
-                        <div className="flex items-center gap-2">
-                          <div className="w-16 h-2 bg-secondary-200 rounded">
-                            <div className="w-12 h-2 bg-primary-500 rounded"></div>
-                          </div>
-                          <span className="text-xs">42%</span>
-                        </div>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm">Concept Explanation</span>
-                        <div className="flex items-center gap-2">
-                          <div className="w-16 h-2 bg-secondary-200 rounded">
-                            <div className="w-10 h-2 bg-accent-500 rounded"></div>
-                          </div>
-                          <span className="text-xs">33%</span>
-                        </div>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm">Homework Help</span>
-                        <div className="flex items-center gap-2">
-                          <div className="w-16 h-2 bg-secondary-200 rounded">
-                            <div className="w-6 h-2 bg-warning-500 rounded"></div>
-                          </div>
-                          <span className="text-xs">25%</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* AI Configuration Dialog */}
-            <Dialog open={isAIConfigOpen} onOpenChange={setIsAIConfigOpen}>
-              <DialogContent className="max-w-2xl">
-                <DialogHeader>
-                  <DialogTitle>AI System Configuration</DialogTitle>
-                  <DialogDescription>
-                    Configure AI behavior and performance parameters for your
-                    school
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-6">
-                  <div className="space-y-4">
-                    <div>
-                      <Label>
-                        Response Accuracy Level: {aiConfig.responseAccuracy[0]}%
-                      </Label>
-                      <Slider
-                        value={aiConfig.responseAccuracy}
-                        onValueChange={(value) =>
-                          setAIConfig({ ...aiConfig, responseAccuracy: value })
-                        }
-                        max={100}
-                        min={50}
-                        step={5}
-                        className="mt-2"
-                      />
-                      <p className="text-xs text-secondary-600 mt-1">
-                        Higher values provide more accurate but potentially
-                        slower responses
-                      </p>
-                    </div>
-
-                    <div>
-                      <Label>
-                        Personality Level: {aiConfig.personalityLevel[0]}%
-                      </Label>
-                      <Slider
-                        value={aiConfig.personalityLevel}
-                        onValueChange={(value) =>
-                          setAIConfig({ ...aiConfig, personalityLevel: value })
-                        }
-                        max={100}
-                        min={0}
-                        step={10}
-                        className="mt-2"
-                      />
-                      <p className="text-xs text-secondary-600 mt-1">
-                        Controls how personable and engaging the AI responses
-                        are
-                      </p>
-                    </div>
-
-                    <div>
-                      <Label>
-                        Helpfulness Level: {aiConfig.helpfulnessLevel[0]}%
-                      </Label>
-                      <Slider
-                        value={aiConfig.helpfulnessLevel}
-                        onValueChange={(value) =>
-                          setAIConfig({ ...aiConfig, helpfulnessLevel: value })
-                        }
-                        max={100}
-                        min={0}
-                        step={10}
-                        className="mt-2"
-                      />
-                      <p className="text-xs text-secondary-600 mt-1">
-                        Determines how much assistance the AI provides
-                      </p>
-                    </div>
-
-                    <div>
-                      <Label>
-                        Creativity Level: {aiConfig.creativityLevel[0]}%
-                      </Label>
-                      <Slider
-                        value={aiConfig.creativityLevel}
-                        onValueChange={(value) =>
-                          setAIConfig({ ...aiConfig, creativityLevel: value })
-                        }
-                        max={100}
-                        min={0}
-                        step={10}
-                        className="mt-2"
-                      />
-                      <p className="text-xs text-secondary-600 mt-1">
-                        Controls creative problem-solving approaches
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div>
-                      <Label htmlFor="dataRetention">
-                        Data Retention Period (days)
-                      </Label>
-                      <Input
-                        id="dataRetention"
-                        type="number"
-                        value={aiConfig.dataRetentionDays}
-                        onChange={(e) =>
-                          setAIConfig({
-                            ...aiConfig,
-                            dataRetentionDays: parseInt(e.target.value),
-                          })
-                        }
-                        min={30}
-                        max={365}
-                        className="mt-1"
-                      />
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        id="advancedFeatures"
-                        checked={aiConfig.enableAdvancedFeatures}
-                        onChange={(e) =>
-                          setAIConfig({
-                            ...aiConfig,
-                            enableAdvancedFeatures: e.target.checked,
-                          })
-                        }
-                        className="rounded"
-                      />
-                      <Label htmlFor="advancedFeatures" className="text-sm">
-                        Enable Advanced AI Features
-                      </Label>
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        id="autoUpdate"
-                        checked={aiConfig.autoUpdateModels}
-                        onChange={(e) =>
-                          setAIConfig({
-                            ...aiConfig,
-                            autoUpdateModels: e.target.checked,
-                          })
-                        }
-                        className="rounded"
-                      />
-                      <Label htmlFor="autoUpdate" className="text-sm">
-                        Automatically Update AI Models
-                      </Label>
-                    </div>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsAIConfigOpen(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button onClick={handleConfigureAI}>
-                    Save Configuration
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </TabsContent>
-
-          <TabsContent value="analytics" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-xl font-semibold text-secondary-800">
-                  School Analytics
-                </h3>
-                <p className="text-sm text-secondary-600">
-                  Comprehensive insights and performance analytics
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={handleExportReport}>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsBehaviorReportOpen(false)}
+                >
+                  Close Report
+                </Button>
+                <Button onClick={handleExportReport}>
                   <Download className="w-4 h-4 mr-2" />
                   Export Report
                 </Button>
-                <Button variant="outline" onClick={handleScheduleReports}>
-                  <Calendar className="w-4 h-4 mr-2" />
-                  Schedule Reports
-                </Button>
-              </div>
-            </div>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
-            <div className="grid lg:grid-cols-2 gap-6">
-              {/* Performance Trends */}
-              <Card className="card-elevated">
-                <CardHeader>
-                  <CardTitle>Performance Trends</CardTitle>
-                  <CardDescription>
-                    Academic performance over time
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium">This Month</span>
-                      <div className="flex items-center gap-2">
-                        <TrendingUp className="w-4 h-4 text-accent-600" />
-                        <span className="text-sm font-bold">+15.2%</span>
-                      </div>
-                    </div>
-                    <Progress value={85} className="h-2" />
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium">Last Month</span>
-                      <div className="flex items-center gap-2">
-                        <TrendingUp className="w-4 h-4 text-primary-600" />
-                        <span className="text-sm font-bold">+8.7%</span>
-                      </div>
-                    </div>
-                    <Progress value={72} className="h-2" />
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium">
-                        Quarter Average
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <TrendingUp className="w-4 h-4 text-warning-600" />
-                        <span className="text-sm font-bold">+12.1%</span>
-                      </div>
-                    </div>
-                    <Progress value={78} className="h-2" />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4 pt-4">
-                    <div className="text-center p-4 bg-accent-50 rounded-lg">
-                      <div className="text-2xl font-bold text-accent-600">
-                        A+
-                      </div>
-                      <p className="text-xs text-secondary-600">
-                        Average Grade
-                      </p>
-                    </div>
-                    <div className="text-center p-4 bg-primary-50 rounded-lg">
-                      <div className="text-2xl font-bold text-primary-600">
-                        94%
-                      </div>
-                      <p className="text-xs text-secondary-600">
-                        Completion Rate
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Subject Performance */}
-              <Card className="card-elevated">
-                <CardHeader>
-                  <CardTitle>Subject Performance</CardTitle>
-                  <CardDescription>
-                    Performance breakdown by subject area
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-4">
-                    <div>
-                      <div className="flex justify-between text-sm mb-2">
-                        <span className="font-medium">Mathematics</span>
-                        <span className="font-bold">89%</span>
-                      </div>
-                      <Progress value={89} className="h-2" />
-                      <p className="text-xs text-secondary-600 mt-1">
-                        125 students • 15% improvement
-                      </p>
-                    </div>
-
-                    <div>
-                      <div className="flex justify-between text-sm mb-2">
-                        <span className="font-medium">Science</span>
-                        <span className="font-bold">85%</span>
-                      </div>
-                      <Progress value={85} className="h-2" />
-                      <p className="text-xs text-secondary-600 mt-1">
-                        118 students • 8% improvement
-                      </p>
-                    </div>
-
-                    <div>
-                      <div className="flex justify-between text-sm mb-2">
-                        <span className="font-medium">English Literature</span>
-                        <span className="font-bold">82%</span>
-                      </div>
-                      <Progress value={82} className="h-2" />
-                      <p className="text-xs text-secondary-600 mt-1">
-                        142 students • 12% improvement
-                      </p>
-                    </div>
-
-                    <div>
-                      <div className="flex justify-between text-sm mb-2">
-                        <span className="font-medium">History</span>
-                        <span className="font-bold">78%</span>
-                      </div>
-                      <Progress value={78} className="h-2" />
-                      <p className="text-xs text-secondary-600 mt-1">
-                        98 students • 5% improvement
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Detailed Analytics */}
-            <div className="grid lg:grid-cols-3 gap-6">
-              <Card className="card-elevated">
-                <CardHeader>
-                  <CardTitle>Student Engagement</CardTitle>
-                  <CardDescription>Daily activity metrics</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-primary-600 mb-1">
-                      94.2%
-                    </div>
-                    <p className="text-sm text-secondary-600">
-                      Average Daily Engagement
+          {/* Notifications Dialog */}
+          <Dialog
+            open={isNotificationOpen}
+            onOpenChange={setIsNotificationOpen}
+          >
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Bell className="w-5 h-5" />
+                  Notifications
+                </DialogTitle>
+                <DialogDescription>
+                  {unreadNotifications > 0
+                    ? `You have ${unreadNotifications} unread notifications`
+                    : "You're all caught up!"}
+                </DialogDescription>
+              </DialogHeader>
+              <ScrollArea className="max-h-96">
+                <div className="space-y-4">
+                  {notifications.length === 0 ? (
+                    <p className="text-center text-gray-500 py-4">
+                      No notifications available
                     </p>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="flex justify-between">
-                      <span className="text-sm">Active Sessions</span>
-                      <span className="text-sm font-medium">1,247</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm">Avg. Session Duration</span>
-                      <span className="text-sm font-medium">45 min</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm">Questions Asked</span>
-                      <span className="text-sm font-medium">3,420</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm">Assignments Completed</span>
-                      <span className="text-sm font-medium">2,856</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="card-elevated">
-                <CardHeader>
-                  <CardTitle>Teacher Activity</CardTitle>
-                  <CardDescription>Faculty engagement metrics</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-accent-600 mb-1">
-                      87
-                    </div>
-                    <p className="text-sm text-secondary-600">
-                      Active Teachers
-                    </p>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="flex justify-between">
-                      <span className="text-sm">Courses Created</span>
-                      <span className="text-sm font-medium">156</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm">Assignments Posted</span>
-                      <span className="text-sm font-medium">428</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm">Feedback Given</span>
-                      <span className="text-sm font-medium">2,145</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm">AI Interactions</span>
-                      <span className="text-sm font-medium">892</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="card-elevated">
-                <CardHeader>
-                  <CardTitle>System Usage</CardTitle>
-                  <CardDescription>Platform utilization stats</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-warning-600 mb-1">
-                      99.7%
-                    </div>
-                    <p className="text-sm text-secondary-600">System Uptime</p>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="flex justify-between">
-                      <span className="text-sm">Peak Concurrent Users</span>
-                      <span className="text-sm font-medium">952</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm">Data Storage Used</span>
-                      <span className="text-sm font-medium">78.5%</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm">API Requests Today</span>
-                      <span className="text-sm font-medium">45.2K</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm">Avg. Response Time</span>
-                      <span className="text-sm font-medium">1.2s</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="settings" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-xl font-semibold text-secondary-800">
-                  Advanced Settings
-                </h3>
-                <p className="text-sm text-secondary-600">
-                  Configure system settings and administrative preferences
-                </p>
-              </div>
-              <Button onClick={handleSettings}>
-                <Settings className="w-4 h-4 mr-2" />
-                Advanced Configuration
-              </Button>
-            </div>
-
-            <div className="grid lg:grid-cols-2 gap-6">
-              {/* Account Settings */}
-              <Card className="card-elevated">
-                <CardHeader>
-                  <CardTitle>Account Management</CardTitle>
-                  <CardDescription>
-                    Personal account and security settings
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between p-4 bg-secondary-50 rounded-lg">
-                    <div>
-                      <p className="font-medium text-secondary-800">
-                        Change Password
-                      </p>
-                      <p className="text-sm text-secondary-600">
-                        Update your account password
-                      </p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      onClick={() => setIsPasswordChangeOpen(true)}
-                    >
-                      <Key className="w-4 h-4 mr-2" />
-                      Change
-                    </Button>
-                  </div>
-
-                  <div className="flex items-center justify-between p-4 bg-secondary-50 rounded-lg">
-                    <div>
-                      <p className="font-medium text-secondary-800">
-                        Two-Factor Authentication
-                      </p>
-                      <p className="text-sm text-secondary-600">
-                        Enhanced account security
-                      </p>
-                    </div>
-                    <Button variant="outline">
-                      <Shield className="w-4 h-4 mr-2" />
-                      Enable
-                    </Button>
-                  </div>
-
-                  <div className="flex items-center justify-between p-4 bg-secondary-50 rounded-lg">
-                    <div>
-                      <p className="font-medium text-secondary-800">
-                        Session Management
-                      </p>
-                      <p className="text-sm text-secondary-600">
-                        View and manage active sessions
-                      </p>
-                    </div>
-                    <Button variant="outline">
-                      <Monitor className="w-4 h-4 mr-2" />
-                      Manage
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* System Configuration */}
-              <Card className="card-elevated">
-                <CardHeader>
-                  <CardTitle>System Configuration</CardTitle>
-                  <CardDescription>
-                    Platform-wide settings and preferences
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between p-4 bg-secondary-50 rounded-lg">
-                    <div>
-                      <p className="font-medium text-secondary-800">
-                        Backup Settings
-                      </p>
-                      <p className="text-sm text-secondary-600">
-                        Configure automatic backups
-                      </p>
-                    </div>
-                    <Button variant="outline">
-                      <Database className="w-4 h-4 mr-2" />
-                      Configure
-                    </Button>
-                  </div>
-
-                  <div className="flex items-center justify-between p-4 bg-secondary-50 rounded-lg">
-                    <div>
-                      <p className="font-medium text-secondary-800">
-                        Email Notifications
-                      </p>
-                      <p className="text-sm text-secondary-600">
-                        System alert preferences
-                      </p>
-                    </div>
-                    <Button variant="outline">
-                      <Mail className="w-4 h-4 mr-2" />
-                      Update
-                    </Button>
-                  </div>
-
-                  <div className="flex items-center justify-between p-4 bg-secondary-50 rounded-lg">
-                    <div>
-                      <p className="font-medium text-secondary-800">
-                        Integration Settings
-                      </p>
-                      <p className="text-sm text-secondary-600">
-                        Third-party service connections
-                      </p>
-                    </div>
-                    <Button variant="outline">
-                      <Globe className="w-4 h-4 mr-2" />
-                      Manage
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Data Management */}
-            <Card className="card-elevated">
-              <CardHeader>
-                <CardTitle>Data Management</CardTitle>
-                <CardDescription>
-                  Control data retention, export, and privacy settings
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <h4 className="font-medium text-secondary-800">
-                      Data Retention
-                    </h4>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Student Records</span>
-                        <Button variant="outline" size="sm">
-                          7 Years
-                        </Button>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Academic Data</span>
-                        <Button variant="outline" size="sm">
-                          5 Years
-                        </Button>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">System Logs</span>
-                        <Button variant="outline" size="sm">
-                          1 Year
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <h4 className="font-medium text-secondary-800">
-                      Privacy Controls
-                    </h4>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Data Anonymization</span>
-                        <Badge className="bg-accent-100 text-accent-700">
-                          Enabled
-                        </Badge>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">External Sharing</span>
-                        <Badge className="bg-destructive-100 text-destructive-700">
-                          Disabled
-                        </Badge>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Analytics Tracking</span>
-                        <Badge className="bg-accent-100 text-accent-700">
-                          Enabled
-                        </Badge>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Content Management Tab */}
-          <TabsContent value="content" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">
-                  Content Management
-                </h2>
-                <p className="text-gray-600">
-                  Manage lessons, subjects, and educational content
-                </p>
-              </div>
-              <Button onClick={() => setIsAddUserOpen(true)}>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Subject
-              </Button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <BookOpen className="w-5 h-5" />
-                    Subjects ({dashboardData?.subjects?.length || 0})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    {dashboardData?.subjects?.slice(0, 3).map((subject) => (
+                  ) : (
+                    notifications.slice(0, 10).map((notification) => (
                       <div
-                        key={subject.subjectId}
-                        className="flex items-center justify-between p-2 bg-gray-50 rounded"
+                        key={notification.id}
+                        className={`p-3 rounded-lg border ${
+                          notification.read
+                            ? "bg-gray-50"
+                            : "bg-blue-50 border-blue-200"
+                        }`}
                       >
-                        <div>
-                          <span className="font-medium">
-                            {subject.subjectName}
-                          </span>
-                          <p className="text-xs text-gray-500">
-                            {subject.totalLessons} lessons
-                          </p>
-                        </div>
-                        <Badge
-                          variant={subject.isActive ? "default" : "secondary"}
-                        >
-                          {subject.isActive ? "Active" : "Inactive"}
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="w-5 h-5" />
-                    Lessons ({dashboardData?.lessons?.length || 0})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    {dashboardData?.lessons?.slice(0, 3).map((lesson) => (
-                      <div
-                        key={lesson.lessonId}
-                        className="flex items-center justify-between p-2 bg-gray-50 rounded"
-                      >
-                        <div>
-                          <span className="font-medium">{lesson.title}</span>
-                          <p className="text-xs text-gray-500">
-                            Level {lesson.difficultyLevel}
-                          </p>
-                        </div>
-                        <Badge
-                          variant={
-                            lesson.approvalStatus === "Approved"
-                              ? "default"
-                              : lesson.approvalStatus === "Pending"
-                                ? "secondary"
-                                : "destructive"
-                          }
-                        >
-                          {lesson.approvalStatus}
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <CheckCircle className="w-5 h-5" />
-                    Pending Reviews (
-                    {dashboardData?.contentReviews?.filter(
-                      (r) => r.reviewStatus === "Pending",
-                    ).length || 0}
-                    )
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    {dashboardData?.contentReviews
-                      ?.filter((r) => r.reviewStatus === "Pending")
-                      .slice(0, 3)
-                      .map((review) => (
-                        <div
-                          key={review.reviewId}
-                          className="flex items-center justify-between p-2 bg-gray-50 rounded"
-                        >
-                          <div>
-                            <span className="font-medium">
-                              {review.contentType}
-                            </span>
-                            <p className="text-xs text-gray-500">
-                              Priority: {review.priority}
+                        <div className="flex items-start gap-3">
+                          {getNotificationIcon(notification.type)}
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between">
+                              <h4 className="font-medium text-sm">
+                                {notification.title}
+                              </h4>
+                              <Badge
+                                variant="outline"
+                                className={`text-xs ${getPriorityBadgeClass(
+                                  notification.priority,
+                                )}`}
+                              >
+                                {notification.priority}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-gray-600 mt-1">
+                              {notification.message}
+                            </p>
+                            <p className="text-xs text-gray-400 mt-1">
+                              {notification.time}
                             </p>
                           </div>
-                          <Button size="sm" variant="outline">
-                            Review
-                          </Button>
                         </div>
-                      ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          {/* Assignments Tab */}
-          <TabsContent value="assignments" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">
-                  Assignment Management
-                </h2>
-                <p className="text-gray-600">
-                  Monitor assignments and submissions across all classes
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">Total Assignments</p>
-                      <p className="text-2xl font-bold">
-                        {dashboardData?.assignments?.length || 0}
-                      </p>
-                    </div>
-                    <FileText className="w-8 h-8 text-blue-500" />
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">Pending Approval</p>
-                      <p className="text-2xl font-bold">
-                        {dashboardData?.assignments?.filter(
-                          (a) => a.approvalStatus === "Pending",
-                        ).length || 0}
-                      </p>
-                    </div>
-                    <Clock className="w-8 h-8 text-yellow-500" />
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">Submissions</p>
-                      <p className="text-2xl font-bold">
-                        {dashboardData?.submissions?.length || 0}
-                      </p>
-                    </div>
-                    <Upload className="w-8 h-8 text-green-500" />
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">Avg Grade</p>
-                      <p className="text-2xl font-bold">
-                        {dashboardData?.submissions?.reduce(
-                          (sum, s) => sum + (s.finalGrade || 0),
-                          0,
-                        ) / (dashboardData?.submissions?.length || 1) || 0}
-                        %
-                      </p>
-                    </div>
-                    <Award className="w-8 h-8 text-purple-500" />
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Assignments</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Assignment</TableHead>
-                      <TableHead>Lesson</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Submissions</TableHead>
-                      <TableHead>Deadline</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {dashboardData?.assignments
-                      ?.slice(0, 10)
-                      .map((assignment) => (
-                        <TableRow key={assignment.assignmentId}>
-                          <TableCell className="font-medium">
-                            {assignment.title}
-                          </TableCell>
-                          <TableCell>{assignment.lessonTitle}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline">
-                              {assignment.questionType}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={
-                                assignment.approvalStatus === "Approved"
-                                  ? "default"
-                                  : assignment.approvalStatus === "Pending"
-                                    ? "secondary"
-                                    : "destructive"
-                              }
-                            >
-                              {assignment.approvalStatus}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {assignment.totalSubmissions}/
-                            {assignment.gradedSubmissions}
-                          </TableCell>
-                          <TableCell>
-                            {assignment.deadline
-                              ? new Date(
-                                  assignment.deadline,
-                                ).toLocaleDateString()
-                              : "No deadline"}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex gap-2">
-                              <Button size="sm" variant="outline">
-                                <Eye className="w-3 w-3" />
-                              </Button>
-                              <Button size="sm" variant="outline">
-                                <Edit className="w-3 w-3" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Behavior Monitoring Tab */}
-          <TabsContent value="behavior" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">
-                  Behavior Monitoring
-                </h2>
-                <p className="text-gray-600">
-                  Track student behavior patterns and risk indicators
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <AlertTriangle className="w-5 h-5 text-red-500" />
-                    High Risk Students
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-red-600">
-                    {dashboardData?.behaviorLogs?.filter(
-                      (log) => log.riskScore > 0.7,
-                    ).length || 0}
-                  </div>
-                  <p className="text-sm text-gray-600">
-                    Require immediate attention
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Activity className="w-5 h-5 text-blue-500" />
-                    Total Interactions
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-blue-600">
-                    {dashboardData?.behaviorLogs?.length || 0}
-                  </div>
-                  <p className="text-sm text-gray-600">This week</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <CheckCircle className="w-5 h-5 text-green-500" />
-                    Flagged Behaviors
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-green-600">
-                    {dashboardData?.behaviorLogs?.filter((log) => log.flagged)
-                      .length || 0}
-                  </div>
-                  <p className="text-sm text-gray-600">Need review</p>
-                </CardContent>
-              </Card>
-            </div>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Behavior Logs</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Student</TableHead>
-                      <TableHead>Lesson</TableHead>
-                      <TableHead>Action</TableHead>
-                      <TableHead>Risk Score</TableHead>
-                      <TableHead>Flagged</TableHead>
-                      <TableHead>Time</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {dashboardData?.behaviorLogs?.slice(0, 10).map((log) => (
-                      <TableRow key={log.behaviorLogId}>
-                        <TableCell className="font-medium">
-                          {log.studentName}
-                        </TableCell>
-                        <TableCell>{log.lessonTitle}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{log.actionType}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <div
-                              className={`w-2 h-2 rounded-full ${
-                                log.riskScore > 0.7
-                                  ? "bg-red-500"
-                                  : log.riskScore > 0.4
-                                    ? "bg-yellow-500"
-                                    : "bg-green-500"
-                              }`}
-                            />
-                            {(log.riskScore * 100).toFixed(0)}%
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {log.flagged ? (
-                            <Badge variant="destructive">Flagged</Badge>
-                          ) : (
-                            <Badge variant="secondary">Normal</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {new Date(log.createdAt).toLocaleString()}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Privacy Management Tab */}
-          <TabsContent value="privacy" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">
-                  Privacy Management
-                </h2>
-                <p className="text-gray-600">
-                  Monitor and manage student privacy settings and data sharing
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">
-                        AI Analysis Enabled
-                      </p>
-                      <p className="text-2xl font-bold">
-                        {dashboardData?.privacySettings?.filter(
-                          (p) => p.allowAiPersonalityAnalysis,
-                        ).length || 0}
-                      </p>
-                    </div>
-                    <Brain className="w-8 h-8 text-blue-500" />
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">Behavior Tracking</p>
-                      <p className="text-2xl font-bold">
-                        {dashboardData?.privacySettings?.filter(
-                          (p) => p.allowBehaviorTracking,
-                        ).length || 0}
-                      </p>
-                    </div>
-                    <Activity className="w-8 h-8 text-green-500" />
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">Recording Allowed</p>
-                      <p className="text-2xl font-bold">
-                        {dashboardData?.privacySettings?.filter(
-                          (p) => p.allowInteractionRecording,
-                        ).length || 0}
-                      </p>
-                    </div>
-                    <Monitor className="w-8 h-8 text-purple-500" />
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">
-                        Parent Notifications
-                      </p>
-                      <p className="text-2xl font-bold">
-                        {dashboardData?.privacySettings?.filter(
-                          (p) => p.parentNotificationEnabled,
-                        ).length || 0}
-                      </p>
-                    </div>
-                    <Bell className="w-8 h-8 text-orange-500" />
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Privacy Settings Overview</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Student</TableHead>
-                      <TableHead>AI Analysis</TableHead>
-                      <TableHead>Behavior Tracking</TableHead>
-                      <TableHead>Recording</TableHead>
-                      <TableHead>Data Sharing</TableHead>
-                      <TableHead>Parent Notifications</TableHead>
-                      <TableHead>Last Updated</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {dashboardData?.privacySettings
-                      ?.slice(0, 10)
-                      .map((setting) => (
-                        <TableRow key={setting.settingId}>
-                          <TableCell className="font-medium">
-                            {setting.userName}
-                          </TableCell>
-                          <TableCell>
-                            {setting.allowAiPersonalityAnalysis ? (
-                              <CheckCircle className="w-4 h-4 text-green-500" />
-                            ) : (
-                              <X className="w-4 h-4 text-red-500" />
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {setting.allowBehaviorTracking ? (
-                              <CheckCircle className="w-4 h-4 text-green-500" />
-                            ) : (
-                              <X className="w-4 h-4 text-red-500" />
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {setting.allowInteractionRecording ? (
-                              <CheckCircle className="w-4 h-4 text-green-500" />
-                            ) : (
-                              <X className="w-4 h-4 text-red-500" />
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline">
-                              {setting.dataSharingLevel}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {setting.parentNotificationEnabled ? (
-                              <CheckCircle className="w-4 h-4 text-green-500" />
-                            ) : (
-                              <X className="w-4 h-4 text-red-500" />
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {new Date(setting.updatedAt).toLocaleDateString()}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* System Alerts Tab */}
-          <TabsContent value="alerts" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">
-                  System Alerts
-                </h2>
-                <p className="text-gray-600">
-                  Monitor system health and security alerts
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              {systemAlerts.map((alert) => (
-                <Card
-                  key={alert.id}
-                  className={`border-l-4 ${
-                    alert.severity === "critical"
-                      ? "border-red-500"
-                      : alert.severity === "high"
-                        ? "border-orange-500"
-                        : alert.severity === "medium"
-                          ? "border-yellow-500"
-                          : "border-blue-500"
-                  }`}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsNotificationOpen(false)}
                 >
-                  <CardContent className="p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <AlertTriangle
-                            className={`w-5 h-5 ${
-                              alert.severity === "critical"
-                                ? "text-red-500"
-                                : alert.severity === "high"
-                                  ? "text-orange-500"
-                                  : alert.severity === "medium"
-                                    ? "text-yellow-500"
-                                    : "text-blue-500"
-                            }`}
-                          />
-                          <h3 className="font-semibold text-lg">
-                            {alert.title}
-                          </h3>
-                          <Badge
-                            variant={
-                              alert.severity === "critical"
-                                ? "destructive"
-                                : alert.severity === "high"
-                                  ? "destructive"
-                                  : alert.severity === "medium"
-                                    ? "secondary"
-                                    : "outline"
-                            }
-                          >
-                            {alert.severity.toUpperCase()}
-                          </Badge>
-                        </div>
-                        <p className="text-gray-600 mb-2">{alert.message}</p>
-                        <p className="text-sm text-gray-500">
-                          {alert.timestamp}
-                        </p>
-                      </div>
-                      <div className="flex gap-2">
-                        {!alert.resolved && (
-                          <Button size="sm" variant="outline">
-                            Resolve
-                          </Button>
-                        )}
-                        <Button size="sm" variant="outline">
-                          View Details
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </TabsContent>
+                  Close
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
-          {/* Audit Logs Tab */}
-          <TabsContent value="audit" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">Audit Logs</h2>
-                <p className="text-gray-600">
-                  Track all system changes and user actions
-                </p>
-              </div>
-            </div>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Activity</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>User</TableHead>
-                      <TableHead>Action</TableHead>
-                      <TableHead>Entity</TableHead>
-                      <TableHead>Target</TableHead>
-                      <TableHead>IP Address</TableHead>
-                      <TableHead>Timestamp</TableHead>
-                      <TableHead>Details</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {dashboardData?.auditLogs?.slice(0, 20).map((log) => (
-                      <TableRow key={log.auditLogId}>
-                        <TableCell className="font-medium">
-                          {log.userFullName}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{log.actionType}</Badge>
-                        </TableCell>
-                        <TableCell>{log.entityName}</TableCell>
-                        <TableCell>{log.targetUserId || "N/A"}</TableCell>
-                        <TableCell className="font-mono text-sm">
-                          {log.ipAddress}
-                        </TableCell>
-                        <TableCell>
-                          {new Date(log.timestamp).toLocaleString()}
-                        </TableCell>
-                        <TableCell>
-                          <Button size="sm" variant="outline">
-                            <Eye className="w-3 h-3" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-
-        {/* Password Change Dialog */}
-        <Dialog
-          open={isPasswordChangeOpen}
-          onOpenChange={setIsPasswordChangeOpen}
-        >
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Change Password</DialogTitle>
-              <DialogDescription>
-                Update your account password for enhanced security
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="currentPassword">Current Password</Label>
-                <div className="relative">
-                  <Input
-                    id="currentPassword"
-                    type={showPasswords.current ? "text" : "password"}
-                    value={passwordData.currentPassword}
-                    onChange={(e) =>
-                      setPasswordData({
-                        ...passwordData,
-                        currentPassword: e.target.value,
-                      })
-                    }
-                    placeholder="Enter current password"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2"
-                    onClick={() =>
-                      setShowPasswords({
-                        ...showPasswords,
-                        current: !showPasswords.current,
-                      })
-                    }
-                  >
-                    {showPasswords.current ? (
-                      <EyeOff className="w-4 h-4" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
-                  </Button>
+          {/* Password Change Dialog */}
+          <Dialog
+            open={isPasswordChangeOpen}
+            onOpenChange={setIsPasswordChangeOpen}
+          >
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Key className="w-5 h-5" />
+                  Change Password
+                </DialogTitle>
+                <DialogDescription>
+                  Update your account password for enhanced security
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="currentPassword">Current Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="currentPassword"
+                      type={showPasswords.current ? "text" : "password"}
+                      value={passwordData.currentPassword}
+                      onChange={(e) =>
+                        setPasswordData({
+                          ...passwordData,
+                          currentPassword: e.target.value,
+                        })
+                      }
+                      placeholder="Enter current password"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-2 top-1/2 transform -translate-y-1/2"
+                      onClick={() =>
+                        setShowPasswords({
+                          ...showPasswords,
+                          current: !showPasswords.current,
+                        })
+                      }
+                    >
+                      {showPasswords.current ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="newPassword">New Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="newPassword"
+                      type={showPasswords.new ? "text" : "password"}
+                      value={passwordData.newPassword}
+                      onChange={(e) =>
+                        setPasswordData({
+                          ...passwordData,
+                          newPassword: e.target.value,
+                        })
+                      }
+                      placeholder="Enter new password"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-2 top-1/2 transform -translate-y-1/2"
+                      onClick={() =>
+                        setShowPasswords({
+                          ...showPasswords,
+                          new: !showPasswords.new,
+                        })
+                      }
+                    >
+                      {showPasswords.new ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="confirmPassword"
+                      type={showPasswords.confirm ? "text" : "password"}
+                      value={passwordData.confirmPassword}
+                      onChange={(e) =>
+                        setPasswordData({
+                          ...passwordData,
+                          confirmPassword: e.target.value,
+                        })
+                      }
+                      placeholder="Confirm new password"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-2 top-1/2 transform -translate-y-1/2"
+                      onClick={() =>
+                        setShowPasswords({
+                          ...showPasswords,
+                          confirm: !showPasswords.confirm,
+                        })
+                      }
+                    >
+                      {showPasswords.confirm ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </div>
-              <div>
-                <Label htmlFor="newPassword">New Password</Label>
-                <div className="relative">
-                  <Input
-                    id="newPassword"
-                    type={showPasswords.new ? "text" : "password"}
-                    value={passwordData.newPassword}
-                    onChange={(e) =>
-                      setPasswordData({
-                        ...passwordData,
-                        newPassword: e.target.value,
-                      })
-                    }
-                    placeholder="Enter new password"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2"
-                    onClick={() =>
-                      setShowPasswords({
-                        ...showPasswords,
-                        new: !showPasswords.new,
-                      })
-                    }
-                  >
-                    {showPasswords.new ? (
-                      <EyeOff className="w-4 h-4" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
-                  </Button>
-                </div>
-              </div>
-              <div>
-                <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                <div className="relative">
-                  <Input
-                    id="confirmPassword"
-                    type={showPasswords.confirm ? "text" : "password"}
-                    value={passwordData.confirmPassword}
-                    onChange={(e) =>
-                      setPasswordData({
-                        ...passwordData,
-                        confirmPassword: e.target.value,
-                      })
-                    }
-                    placeholder="Confirm new password"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2"
-                    onClick={() =>
-                      setShowPasswords({
-                        ...showPasswords,
-                        confirm: !showPasswords.confirm,
-                      })
-                    }
-                  >
-                    {showPasswords.confirm ? (
-                      <EyeOff className="w-4 h-4" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setIsPasswordChangeOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button onClick={handlePasswordChange}>Change Password</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </main>
-    </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsPasswordChangeOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={handlePasswordChange}>
+                  <Key className="w-4 h-4 mr-2" />
+                  Change Password
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Message Modal */}
+          <MessageModal
+            isOpen={isMessageModalOpen}
+            onClose={closeMessageModal}
+            message={currentMessage}
+          />
+        </main>
+      </div>
+    </TooltipProvider>
   );
 };
 
