@@ -214,6 +214,9 @@ const AdminDashboard = () => {
   const [filterRole, setFilterRole] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [subjectSearchQuery, setSubjectSearchQuery] = useState("");
+  const [usersPage, setUsersPage] = useState(1);
+  const [usersPerPage] = useState(10);
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
 
   // Message modal state
   const [currentMessage, setCurrentMessage] = useState<SystemMessage | null>(
@@ -230,6 +233,65 @@ const AdminDashboard = () => {
   const closeMessageModal = () => {
     setIsMessageModalOpen(false);
     setCurrentMessage(null);
+  };
+
+  const handleSelectUser = (userId: string) => {
+    setSelectedUsers((prev) =>
+      prev.includes(userId)
+        ? prev.filter((id) => id !== userId)
+        : [...prev, userId],
+    );
+  };
+
+  const handleSelectAllUsers = () => {
+    const currentPageUsers = filteredUsers.slice(
+      (usersPage - 1) * usersPerPage,
+      usersPage * usersPerPage,
+    );
+    const allSelected = currentPageUsers.every((user) =>
+      selectedUsers.includes(user.id),
+    );
+
+    if (allSelected) {
+      setSelectedUsers((prev) =>
+        prev.filter((id) => !currentPageUsers.map((u) => u.id).includes(id)),
+      );
+    } else {
+      setSelectedUsers((prev) => [
+        ...new Set([...prev, ...currentPageUsers.map((u) => u.id)]),
+      ]);
+    }
+  };
+
+  const handleBulkAction = (action: string) => {
+    const count = selectedUsers.length;
+    let actionText = "";
+
+    switch (action) {
+      case "activate":
+        actionText = "activated";
+        break;
+      case "deactivate":
+        actionText = "deactivated";
+        break;
+      case "delete":
+        actionText = "deleted";
+        break;
+      case "export":
+        actionText = "exported";
+        break;
+    }
+
+    showMessage({
+      id: Date.now().toString(),
+      type: action === "delete" ? "warning" : "success",
+      priority: "medium",
+      title: `Bulk ${action.charAt(0).toUpperCase() + action.slice(1)}`,
+      message: `${count} user${count > 1 ? "s" : ""} ${actionText} successfully.`,
+      timestamp: new Date().toISOString(),
+    });
+
+    setSelectedUsers([]);
   };
 
   const [newUser, setNewUser] = useState({
@@ -648,10 +710,10 @@ const AdminDashboard = () => {
 
   const handleEditUser = (user: UserData) => {
     setNewUser({
-      name: user.name,
+      name: user.fullName,
       email: user.email,
-      phone: user.phone || "",
-      role: user.role.toLowerCase() as "student" | "teacher",
+      phone: user.phoneNumber || "",
+      role: (user.role?.toLowerCase() || "student") as "student" | "teacher",
       regNo: "",
       grade: "",
       subject: "",
@@ -667,7 +729,7 @@ const AdminDashboard = () => {
       type: "warning",
       priority: "high",
       title: "Confirm Deletion",
-      message: `Are you sure you want to delete ${user.name}? This action cannot be undone.`,
+      message: `Are you sure you want to delete ${user.fullName}? This action cannot be undone.`,
       details:
         "This will also remove all associated AI Twin data and learning progress.",
       timestamp: new Date().toISOString(),
@@ -683,7 +745,7 @@ const AdminDashboard = () => {
               type: "success",
               priority: "medium",
               title: "User Deleted",
-              message: `${user.name} has been removed from the system.`,
+              message: `${user.fullName} has been removed from the system.`,
               timestamp: new Date().toISOString(),
             });
           },
@@ -692,14 +754,47 @@ const AdminDashboard = () => {
     });
   };
 
+  const handleViewAITwin = (user: UserData) => {
+    showMessage({
+      id: Date.now().toString(),
+      type: "info",
+      priority: "medium",
+      title: `${user.fullName}'s AI Twin`,
+      message: "AI Twin Analytics & Personalization Data",
+      details: `• Learning Style: Visual/Kinesthetic\n• Engagement Level: High (${Math.floor(Math.random() * 20) + 80}%)\n• Preferred Learning Time: Morning\n��� Strengths: Mathematics, Science\n• Areas for Improvement: Essay Writing\n• AI Interactions Today: ${Math.floor(Math.random() * 50) + 20}\n• Mood Analysis: Focused & Motivated\n• Personalized Recommendations: ${Math.floor(Math.random() * 10) + 5} pending`,
+      timestamp: new Date().toISOString(),
+      requiresResponse: false,
+    });
+  };
+
+  const handleToggleUserStatus = (user: UserData) => {
+    const newStatus = user.isActive ? "inactive" : "active";
+    showMessage({
+      id: Date.now().toString(),
+      type: "success",
+      priority: "medium",
+      title: "User Status Updated",
+      message: `${user.fullName} has been ${newStatus === "active" ? "activated" : "deactivated"}.`,
+      details:
+        newStatus === "active"
+          ? "User can now access the system and AI Twin services."
+          : "User access has been temporarily suspended.",
+      timestamp: new Date().toISOString(),
+    });
+  };
+
   // Filter users based on search and filters
   const filteredUsers = users.filter((user) => {
     const matchesSearch =
-      (user.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (user.email || "").toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesRole = filterRole === "all" || user.role === filterRole;
-    const matchesStatus =
-      filterStatus === "all" || user.status === filterStatus;
+      (user.fullName || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (user.email || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (user.id || "").toLowerCase().includes(searchQuery.toLowerCase());
+
+    const userRole = user.role ? user.role.toLowerCase() : "";
+    const matchesRole = filterRole === "all" || userRole === filterRole;
+
+    const userStatus = user.isActive ? "active" : "inactive";
+    const matchesStatus = filterStatus === "all" || userStatus === filterStatus;
 
     return matchesSearch && matchesRole && matchesStatus;
   });
@@ -1411,10 +1506,19 @@ const AdminDashboard = () => {
                     Twins active
                   </p>
                 </div>
-                <Button onClick={() => setIsAddUserOpen(true)}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add User
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => handleBulkAction("export")}
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Export All
+                  </Button>
+                  <Button onClick={() => setIsAddUserOpen(true)}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add User
+                  </Button>
+                </div>
               </div>
 
               {/* Search and Filters */}
@@ -1466,10 +1570,70 @@ const AdminDashboard = () => {
 
               {/* Enhanced Users Table */}
               <Card>
+                {selectedUsers.length > 0 && (
+                  <div className="p-4 border-b bg-blue-50">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <CheckSquare className="w-4 h-4 text-blue-600" />
+                        <span className="text-sm font-medium text-blue-800">
+                          {selectedUsers.length} user
+                          {selectedUsers.length > 1 ? "s" : ""} selected
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleBulkAction("activate")}
+                        >
+                          <UserCheck className="w-4 h-4 mr-1" />
+                          Activate
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleBulkAction("deactivate")}
+                        >
+                          <UserX className="w-4 h-4 mr-1" />
+                          Deactivate
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleBulkAction("export")}
+                        >
+                          <Download className="w-4 h-4 mr-1" />
+                          Export
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleBulkAction("delete")}
+                        >
+                          <Trash2 className="w-4 h-4 mr-1" />
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <CardContent className="p-0">
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-12">
+                          <input
+                            type="checkbox"
+                            checked={filteredUsers
+                              .slice(
+                                (usersPage - 1) * usersPerPage,
+                                usersPage * usersPerPage,
+                              )
+                              .every((user) => selectedUsers.includes(user.id))}
+                            onChange={handleSelectAllUsers}
+                            className="rounded border-gray-300"
+                          />
+                        </TableHead>
                         <TableHead>User</TableHead>
                         <TableHead>Role</TableHead>
                         <TableHead>Status</TableHead>
@@ -1481,7 +1645,7 @@ const AdminDashboard = () => {
                     <TableBody>
                       {filteredUsers.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={6} className="text-center py-8">
+                          <TableCell colSpan={7} className="text-center py-8">
                             <div className="flex flex-col items-center gap-2">
                               <Users className="w-8 h-8 text-gray-400" />
                               <p className="text-gray-500">
@@ -1495,96 +1659,208 @@ const AdminDashboard = () => {
                           </TableCell>
                         </TableRow>
                       ) : (
-                        filteredUsers.slice(0, 10).map((user) => (
-                          <TableRow key={user.id}>
-                            <TableCell>
-                              <div className="flex items-center gap-3">
-                                <Avatar className="w-8 h-8">
-                                  <AvatarImage src={user.avatar} />
-                                  <AvatarFallback>
-                                    {(user.name || "")
-                                      .split(" ")
-                                      .map((n) => n[0])
-                                      .join("")}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <div>
-                                  <p className="font-medium">{user.name}</p>
-                                  <p className="text-sm text-gray-500">
-                                    {user.email}
-                                  </p>
+                        filteredUsers
+                          .slice(
+                            (usersPage - 1) * usersPerPage,
+                            usersPage * usersPerPage,
+                          )
+                          .map((user) => (
+                            <TableRow key={user.id}>
+                              <TableCell>
+                                <input
+                                  type="checkbox"
+                                  checked={selectedUsers.includes(user.id)}
+                                  onChange={() => handleSelectUser(user.id)}
+                                  className="rounded border-gray-300"
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-3">
+                                  <Avatar className="w-8 h-8">
+                                    <AvatarImage src={user.photoUrl} />
+                                    <AvatarFallback>
+                                      {(user.fullName || "")
+                                        .split(" ")
+                                        .map((n) => n[0])
+                                        .join("")}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <div>
+                                    <p className="font-medium">
+                                      {user.fullName}
+                                    </p>
+                                    <p className="text-sm text-gray-500">
+                                      {user.email}
+                                    </p>
+                                  </div>
                                 </div>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Badge className={getRoleBadgeClass(user.role)}>
-                                {user.role}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <Badge
-                                className={getStatusBadgeClass(user.status)}
-                              >
-                                {user.status}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              {user.role === "student" ? (
-                                <div className="flex items-center gap-2">
-                                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                                  <span className="text-sm text-gray-600">
-                                    Active
-                                  </span>
-                                </div>
-                              ) : (
-                                <span className="text-sm text-gray-400">
-                                  N/A
-                                </span>
-                              )}
-                            </TableCell>
-                            <TableCell>{user.lastActive}</TableCell>
-                            <TableCell>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="sm">
-                                    <MoreHorizontal className="w-4 h-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem
-                                    onClick={() => handleViewUser(user)}
-                                  >
-                                    <Eye className="w-4 h-4 mr-2" />
-                                    View Profile
-                                  </DropdownMenuItem>
-                                  {user.role === "student" && (
-                                    <DropdownMenuItem>
-                                      <Brain className="w-4 h-4 mr-2" />
-                                      View AI Twin
-                                    </DropdownMenuItem>
+                              </TableCell>
+                              <TableCell>
+                                <Badge
+                                  className={getRoleBadgeClass(
+                                    user.role?.toLowerCase() || "",
                                   )}
-                                  <DropdownMenuItem
-                                    onClick={() => handleEditUser(user)}
-                                  >
-                                    <Edit className="w-4 h-4 mr-2" />
-                                    Edit User
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem
-                                    className="text-red-600"
-                                    onClick={() => handleDeleteUser(user)}
-                                  >
-                                    <Trash2 className="w-4 h-4 mr-2" />
-                                    Delete User
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </TableCell>
-                          </TableRow>
-                        ))
+                                >
+                                  {user.role?.toLowerCase() || "unknown"}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <Badge
+                                  className={getStatusBadgeClass(
+                                    user.isActive ? "active" : "inactive",
+                                  )}
+                                >
+                                  {user.isActive ? "active" : "inactive"}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                {user.role?.toLowerCase() === "student" ? (
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                    <span className="text-sm text-gray-600">
+                                      Active
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span className="text-sm text-gray-400">
+                                    N/A
+                                  </span>
+                                )}
+                              </TableCell>
+                              <TableCell>{user.lastLogin}</TableCell>
+                              <TableCell>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="sm">
+                                      <MoreHorizontal className="w-4 h-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem
+                                      onClick={() => handleViewUser(user)}
+                                    >
+                                      <Eye className="w-4 h-4 mr-2" />
+                                      View Profile
+                                    </DropdownMenuItem>
+                                    {user.role?.toLowerCase() === "student" && (
+                                      <DropdownMenuItem
+                                        onClick={() => handleViewAITwin(user)}
+                                      >
+                                        <Brain className="w-4 h-4 mr-2" />
+                                        View AI Twin
+                                      </DropdownMenuItem>
+                                    )}
+                                    <DropdownMenuItem
+                                      onClick={() => handleEditUser(user)}
+                                    >
+                                      <Edit className="w-4 h-4 mr-2" />
+                                      Edit User
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={() =>
+                                        handleToggleUserStatus(user)
+                                      }
+                                    >
+                                      {user.isActive ? (
+                                        <>
+                                          <UserX className="w-4 h-4 mr-2" />
+                                          Deactivate
+                                        </>
+                                      ) : (
+                                        <>
+                                          <UserCheck className="w-4 h-4 mr-2" />
+                                          Activate
+                                        </>
+                                      )}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      className="text-red-600"
+                                      onClick={() => handleDeleteUser(user)}
+                                    >
+                                      <Trash2 className="w-4 h-4 mr-2" />
+                                      Delete User
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </TableCell>
+                            </TableRow>
+                          ))
                       )}
                     </TableBody>
                   </Table>
+                  {filteredUsers.length > usersPerPage && (
+                    <div className="flex items-center justify-between p-4 border-t">
+                      <div className="text-sm text-gray-600">
+                        Showing {(usersPage - 1) * usersPerPage + 1} to{" "}
+                        {Math.min(
+                          usersPage * usersPerPage,
+                          filteredUsers.length,
+                        )}{" "}
+                        of {filteredUsers.length} users
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            setUsersPage((prev) => Math.max(1, prev - 1))
+                          }
+                          disabled={usersPage === 1}
+                        >
+                          Previous
+                        </Button>
+                        <div className="flex items-center gap-1">
+                          {Array.from(
+                            {
+                              length: Math.ceil(
+                                filteredUsers.length / usersPerPage,
+                              ),
+                            },
+                            (_, i) => i + 1,
+                          )
+                            .slice(
+                              Math.max(0, usersPage - 3),
+                              Math.min(
+                                Math.ceil(filteredUsers.length / usersPerPage),
+                                usersPage + 2,
+                              ),
+                            )
+                            .map((page) => (
+                              <Button
+                                key={page}
+                                variant={
+                                  page === usersPage ? "default" : "outline"
+                                }
+                                size="sm"
+                                onClick={() => setUsersPage(page)}
+                                className="w-8 h-8 p-0"
+                              >
+                                {page}
+                              </Button>
+                            ))}
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            setUsersPage((prev) =>
+                              Math.min(
+                                Math.ceil(filteredUsers.length / usersPerPage),
+                                prev + 1,
+                              ),
+                            )
+                          }
+                          disabled={
+                            usersPage >=
+                            Math.ceil(filteredUsers.length / usersPerPage)
+                          }
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -2801,7 +3077,10 @@ const AdminDashboard = () => {
                 {selectedUser && (
                   <>
                     {selectedUser.role === "student" && (
-                      <Button variant="outline">
+                      <Button
+                        variant="outline"
+                        onClick={() => handleViewAITwin(selectedUser)}
+                      >
                         <Brain className="w-4 h-4 mr-2" />
                         View AI Twin
                       </Button>
