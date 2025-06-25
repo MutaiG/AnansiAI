@@ -519,15 +519,6 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
 
   // Note: Breadcrumbs functionality removed - not implemented in this project
 
-  // Update time every minute
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 60000);
-
-    return () => clearInterval(timer);
-  }, []);
-
   // API data hooks
   const { logout } = useAuth();
   const {
@@ -556,6 +547,36 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
     loading: notificationsLoading,
     error: notificationsError,
   } = useNotifications();
+
+  // Update time every minute and auto-refresh data
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000);
+
+    // Auto-refresh system stats every 5 minutes
+    const refreshTimer = setInterval(
+      () => {
+        // Only auto-refresh if user is on overview tab and data is not loading
+        if (selectedTab === "overview" && !statsLoading) {
+          showMessage({
+            id: Date.now().toString(),
+            type: "info",
+            priority: "low",
+            title: "Data Refreshed",
+            message: "System statistics have been automatically updated.",
+            timestamp: new Date().toISOString(),
+          });
+        }
+      },
+      5 * 60 * 1000,
+    ); // 5 minutes
+
+    return () => {
+      clearInterval(timer);
+      clearInterval(refreshTimer);
+    };
+  }, [selectedTab, statsLoading]);
 
   // Fallback data handling
   const schoolsData = schools || [
@@ -880,13 +901,14 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
         });
       }
     } catch (error) {
-      console.error("Error registering school:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error occurred";
       showMessage({
         id: Date.now().toString(),
         type: "error",
         priority: "high",
-        title: "System Error",
-        message: "An error occurred while registering the school.",
+        title: "Registration Failed",
+        message: `Failed to register school: ${errorMessage}`,
         timestamp: new Date().toISOString(),
       });
     }
@@ -1816,75 +1838,89 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
           >
             {/* Enhanced Navigation */}
             <div className="bg-white/70 backdrop-blur-sm rounded-xl p-2 border border-gray-200">
-              <TabsList className="grid w-full grid-cols-10 gap-1">
+              <TabsList
+                className="grid w-full grid-cols-10 gap-1"
+                role="tablist"
+                aria-label="Dashboard navigation"
+              >
                 <TabsTrigger
                   value="overview"
                   className="flex items-center gap-2 px-4 py-2"
+                  aria-label="Overview dashboard section"
                 >
-                  <Home className="w-4 h-4" />
+                  <Home className="w-4 h-4" aria-hidden="true" />
                   <span className="hidden sm:inline">Overview</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="schools"
-                  className="flex items-center gap-2 px-4 py-2"
+                  className="flex items-center gap-2 px-2 sm:px-4 py-2"
+                  aria-label="Schools management section"
                 >
-                  <Building className="w-4 h-4" />
+                  <Building className="w-4 h-4" aria-hidden="true" />
                   <span className="hidden sm:inline">Schools</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="users"
-                  className="flex items-center gap-2 px-4 py-2"
+                  className="flex items-center gap-2 px-2 sm:px-4 py-2"
+                  aria-label="Users management section"
                 >
-                  <Users className="w-4 h-4" />
+                  <Users className="w-4 h-4" aria-hidden="true" />
                   <span className="hidden sm:inline">Users</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="academics"
-                  className="flex items-center gap-2 px-4 py-2"
+                  className="flex items-center gap-2 px-2 sm:px-4 py-2"
+                  aria-label="Academic management section"
                 >
-                  <BookOpen className="w-4 h-4" />
+                  <BookOpen className="w-4 h-4" aria-hidden="true" />
                   <span className="hidden sm:inline">Academics</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="ai-insights"
-                  className="flex items-center gap-2 px-4 py-2"
+                  className="flex items-center gap-2 px-2 sm:px-4 py-2"
+                  aria-label="AI insights and analytics section"
                 >
-                  <Brain className="w-4 h-4" />
+                  <Brain className="w-4 h-4" aria-hidden="true" />
                   <span className="hidden sm:inline">AI Insights</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="performance"
-                  className="flex items-center gap-2 px-4 py-2"
+                  className="flex items-center gap-2 px-2 sm:px-4 py-2"
+                  aria-label="Performance metrics section"
                 >
-                  <TrendingUp className="w-4 h-4" />
+                  <TrendingUp className="w-4 h-4" aria-hidden="true" />
                   <span className="hidden sm:inline">Performance</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="analytics"
-                  className="flex items-center gap-2 px-4 py-2"
+                  className="flex items-center gap-2 px-2 sm:px-4 py-2"
+                  aria-label="Data analytics section"
                 >
-                  <BarChart3 className="w-4 h-4" />
+                  <BarChart3 className="w-4 h-4" aria-hidden="true" />
                   <span className="hidden sm:inline">Analytics</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="infrastructure"
-                  className="flex items-center gap-2 px-4 py-2"
+                  className="flex items-center gap-2 px-2 sm:px-4 py-2"
+                  aria-label="System infrastructure section"
                 >
-                  <Monitor className="w-4 h-4" />
+                  <Monitor className="w-4 h-4" aria-hidden="true" />
                   <span className="hidden sm:inline">Infrastructure</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="reports"
-                  className="flex items-center gap-2 px-4 py-2"
+                  className="flex items-center gap-2 px-2 sm:px-4 py-2"
+                  aria-label="Reports and documentation section"
                 >
-                  <FileText className="w-4 h-4" />
+                  <FileText className="w-4 h-4" aria-hidden="true" />
                   <span className="hidden sm:inline">Reports</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="settings"
-                  className="flex items-center gap-2 px-4 py-2"
+                  className="flex items-center gap-2 px-2 sm:px-4 py-2"
+                  aria-label="System settings section"
                 >
-                  <Settings className="w-4 h-4" />
+                  <Settings className="w-4 h-4" aria-hidden="true" />
                   <span className="hidden sm:inline">Settings</span>
                 </TabsTrigger>
               </TabsList>
@@ -1903,6 +1939,34 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
                   </p>
                 </div>
                 <div className="text-right">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setCurrentTime(new Date());
+                            showMessage({
+                              id: Date.now().toString(),
+                              type: "success",
+                              priority: "low",
+                              title: "Data Refreshed",
+                              message: "All dashboard data has been refreshed.",
+                              timestamp: new Date().toISOString(),
+                            });
+                          }}
+                          className="h-8 w-8 p-0"
+                          aria-label="Refresh dashboard data"
+                        >
+                          <RefreshCw className="w-4 h-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Refresh dashboard data</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <p className="text-sm text-gray-600">
                     Last updated: {currentTime.toLocaleString()}
                   </p>
@@ -1922,9 +1986,13 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-blue-100">Total Schools</p>
-                        <p className="text-3xl font-bold">
-                          {systemStatsData.totalSchools.toLocaleString()}
-                        </p>
+                        {statsLoading ? (
+                          <div className="h-9 w-16 bg-blue-400/50 rounded animate-pulse" />
+                        ) : (
+                          <p className="text-3xl font-bold">
+                            {systemStatsData.totalSchools.toLocaleString()}
+                          </p>
+                        )}
                         <p className="text-blue-100 flex items-center mt-2">
                           <TrendingUp className="w-4 h-4 mr-1" />
                           +12 this month
@@ -1940,9 +2008,13 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-green-100">Total Students</p>
-                        <p className="text-3xl font-bold">
-                          {systemStatsData.totalStudents.toLocaleString()}
-                        </p>
+                        {statsLoading ? (
+                          <div className="h-9 w-20 bg-green-400/50 rounded animate-pulse" />
+                        ) : (
+                          <p className="text-3xl font-bold">
+                            {systemStatsData.totalStudents.toLocaleString()}
+                          </p>
+                        )}
                         <p className="text-green-100 flex items-center mt-2">
                           <TrendingUp className="w-4 h-4 mr-1" />
                           +2.3% growth
@@ -1958,9 +2030,13 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-purple-100">Total Teachers</p>
-                        <p className="text-3xl font-bold">
-                          {systemStatsData.totalTeachers.toLocaleString()}
-                        </p>
+                        {statsLoading ? (
+                          <div className="h-9 w-16 bg-purple-400/50 rounded animate-pulse" />
+                        ) : (
+                          <p className="text-3xl font-bold">
+                            {systemStatsData.totalTeachers.toLocaleString()}
+                          </p>
+                        )}
                         <p className="text-purple-100 flex items-center mt-2">
                           <Award className="w-4 h-4 mr-1" />
                           Professional
@@ -1976,9 +2052,13 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-orange-100">System Performance</p>
-                        <p className="text-3xl font-bold">
-                          {systemStatsData.avgPerformance}%
-                        </p>
+                        {statsLoading ? (
+                          <div className="h-9 w-12 bg-orange-400/50 rounded animate-pulse" />
+                        ) : (
+                          <p className="text-3xl font-bold">
+                            {systemStatsData.avgPerformance}%
+                          </p>
+                        )}
                         <p className="text-orange-100 flex items-center mt-2">
                           <CheckCircle className="w-4 h-4 mr-1" />
                           Excellent
@@ -2301,6 +2381,20 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
               {/* Schools Data Table */}
               <Card className="bg-white/70 backdrop-blur-sm">
                 <CardContent className="p-0">
+                  {schoolsError && (
+                    <div className="p-6">
+                      <Alert className="border-red-200 bg-red-50">
+                        <AlertTriangle className="h-4 w-4 text-red-600" />
+                        <AlertTitle className="text-red-800">
+                          Data Loading Error
+                        </AlertTitle>
+                        <AlertDescription className="text-red-700">
+                          Failed to load schools data. Using cached information.
+                          Please try refreshing the page.
+                        </AlertDescription>
+                      </Alert>
+                    </div>
+                  )}
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -2314,8 +2408,20 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredSchools.map((school) => (
-                        <TableRow key={school.id} className="hover:bg-gray-50">
+                      {filteredSchools.map((school, index) => (
+                        <TableRow
+                          key={school.id}
+                          className="hover:bg-gray-50 focus-within:bg-gray-50"
+                          tabIndex={0}
+                          role="row"
+                          aria-rowindex={index + 1}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              handleViewSchoolPerformance(school.name);
+                            }
+                          }}
+                        >
                           <TableCell>
                             <div className="flex items-center gap-3">
                               <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">

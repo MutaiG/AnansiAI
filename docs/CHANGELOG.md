@@ -187,7 +187,7 @@ interface School {
 
 ### For School Users:
 
-1. SchoolSelector → Select School �� SchoolLogin → School Dashboard
+1. SchoolSelector → Select School → SchoolLogin → School Dashboard
 
 ### For Super Admins:
 

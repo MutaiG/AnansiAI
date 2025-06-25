@@ -45,7 +45,7 @@ npm install -D nodemon @types/node typescript ts-node
 ```
 anansi-api/
 ├── src/
-│   ├── controllers/
+│   ├─�� controllers/
 │   │   ├── authController.js
 │   │   ├── schoolController.js
 │   │   ├── userController.js
@@ -61,7 +61,7 @@ anansi-api/
 │   │   ├── auth.js
 │   │   ├── schools.js
 │   │   ├── users.js
-│   │   ��── analytics.js
+│   │   └── analytics.js
 │   ├── database/
 │   │   └── connection.js
 │   └── app.js

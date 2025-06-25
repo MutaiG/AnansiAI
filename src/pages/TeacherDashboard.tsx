@@ -41,6 +41,7 @@ import {
   Lightbulb,
   Copy,
   Archive,
+  UserPlus,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -2257,23 +2258,21 @@ AI Recommendations:
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-3">
-                <Brain className="h-8 w-8 text-primary" />
+                <img
+                  src="https://cdn.builder.io/api/v1/assets/2d09da496e544a1eab05e596d02031d8/twinternet-logo-b18833?format=webp&width=800"
+                  alt="AnansiAI Logo"
+                  className="w-10 h-10 object-contain"
+                />
                 <div>
-                  <nav className="flex items-center space-x-2 text-sm text-gray-500 mb-1">
-                    <button
-                      onClick={() => navigate("/")}
-                      className="hover:text-gray-700 transition-colors"
-                    >
-                      Anansi AI
-                    </button>
-                    <ChevronRight className="h-3 w-3" />
-                    <span className="text-gray-900 font-medium">
-                      Teacher Dashboard
-                    </span>
-                  </nav>
-                  <h1 className="text-2xl font-bold text-gray-900">
-                    Teacher Dashboard
-                  </h1>
+                  <div className="flex items-center gap-2">
+                    <h1 className="font-bold text-xl text-gray-800">
+                      AnansiAI
+                    </h1>
+                    <p className="text-xs text-gray-500 flex items-center gap-1">
+                      <Brain className="w-3 h-3" />
+                      Teacher Portal
+                    </p>
+                  </div>
                   <p className="text-sm text-gray-600">
                     Welcome back,{" "}
                     {dashboardData?.teacherProfile?.name || "Teacher"}
@@ -2699,21 +2698,10 @@ AI Recommendations:
                       )}
                     </div>
                   </ScrollArea>
-
-                  <div className="mt-4 pt-3 border-t">
-                    <Button
-                      variant="outline"
-                      className="w-full"
-                      onClick={() => setActiveTab("students")}
-                    >
-                      <Users className="mr-2 h-4 w-4" />
-                      View Detailed AI Twin Analytics
-                    </Button>
-                  </div>
                 </CardContent>
               </Card>
 
-              {/* Quick Actions */}
+              {/* Quick Actions Card */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-2">
@@ -2724,18 +2712,31 @@ AI Recommendations:
                 <CardContent className="space-y-3">
                   <Button
                     className="w-full justify-start"
-                    onClick={() => setShowCreateClass(true)}
+                    onClick={() => setShowCreateContent(true)}
                   >
                     <Plus className="mr-2 h-4 w-4" />
-                    Create New Class
+                    Create Content
                   </Button>
                   <Button
                     variant="outline"
                     className="w-full justify-start"
-                    onClick={() => setShowCreateContent(true)}
+                    onClick={() => setShowCreateClass(true)}
                   >
-                    <BookOpen className="mr-2 h-4 w-4" />
-                    Create Lesson Content
+                    <UserPlus className="mr-2 h-4 w-4" />
+                    Add Class
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100"
+                    onClick={() => {
+                      setLastAction({
+                        type: "info",
+                        message: "Opening milestone creation dialog",
+                      });
+                    }}
+                  >
+                    <Target className="mr-2 h-4 w-4" />
+                    Set Student Milestones
                   </Button>
                   <Button
                     variant="outline"
@@ -2756,6 +2757,134 @@ AI Recommendations:
                 </CardContent>
               </Card>
             </div>
+
+            {/* Student Dashboard Preview - Responsive */}
+            <Card className="bg-gradient-to-br from-blue-50 to-purple-50 border-blue-200">
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2 text-base sm:text-lg">
+                  <GraduationCap className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600 flex-shrink-0" />
+                  <span className="truncate">Student Dashboard Preview</span>
+                </CardTitle>
+                <div className="text-sm text-gray-600 mt-2">
+                  Live preview of content your students see in their dashboards
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3 sm:space-y-4">
+                {/* Active Assignments */}
+                <div className="bg-white/80 rounded-lg p-3 sm:p-4 border border-blue-200">
+                  <h4 className="font-medium text-gray-900 mb-2 sm:mb-3 flex items-center gap-2 text-sm sm:text-base">
+                    <Clock className="w-3 h-3 sm:w-4 sm:h-4 text-orange-500 flex-shrink-0" />
+                    <span className="truncate">
+                      Active Assignments (Student View)
+                    </span>
+                  </h4>
+                  <div className="space-y-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-2 bg-orange-50 rounded border border-orange-200 space-y-1 sm:space-y-0">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <BookOpen className="w-3 h-3 sm:w-4 sm:h-4 text-orange-600 flex-shrink-0" />
+                        <span className="text-xs sm:text-sm font-medium truncate">
+                          Mathematics Quiz - Algebra
+                        </span>
+                      </div>
+                      <Badge
+                        variant="outline"
+                        className="text-orange-700 border-orange-300 text-xs self-start sm:self-center"
+                      >
+                        Due: 2 days
+                      </Badge>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-2 bg-blue-50 rounded border border-blue-200 space-y-1 sm:space-y-0">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileText className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600 flex-shrink-0" />
+                        <span className="text-xs sm:text-sm font-medium truncate">
+                          Science Project Submission
+                        </span>
+                      </div>
+                      <Badge
+                        variant="outline"
+                        className="text-blue-700 border-blue-300 text-xs self-start sm:self-center"
+                      >
+                        Due: 1 week
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Student Milestones */}
+                <div className="bg-white/80 rounded-lg p-3 sm:p-4 border border-purple-200">
+                  <h4 className="font-medium text-gray-900 mb-2 sm:mb-3 flex items-center gap-2 text-sm sm:text-base">
+                    <Target className="w-3 h-3 sm:w-4 sm:h-4 text-purple-500 flex-shrink-0" />
+                    <span className="truncate">
+                      Learning Milestones (Student View)
+                    </span>
+                  </h4>
+                  <div className="space-y-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-2 bg-purple-50 rounded border border-purple-200 space-y-2 sm:space-y-0">
+                      <span className="text-xs sm:text-sm font-medium">
+                        Complete Chapter 3 - Linear Equations
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 sm:w-12 bg-gray-200 rounded-full h-1.5">
+                          <div
+                            className="bg-purple-600 h-1.5 rounded-full"
+                            style={{ width: "75%" }}
+                          ></div>
+                        </div>
+                        <span className="text-xs text-purple-600">75%</span>
+                      </div>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-2 bg-green-50 rounded border border-green-200 space-y-1 sm:space-y-0">
+                      <span className="text-xs sm:text-sm font-medium">
+                        AI Twin Practice Sessions
+                      </span>
+                      <Badge
+                        variant="secondary"
+                        className="bg-green-100 text-green-700 text-xs self-start sm:self-center"
+                      >
+                        2/5 completed
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-2 pt-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1 text-xs sm:text-sm"
+                    onClick={() => {
+                      setLastAction({
+                        type: "info",
+                        message: "Opening full student dashboard preview",
+                      });
+                      // Simulate opening student view
+                    }}
+                  >
+                    <Eye className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                    <span className="hidden sm:inline">
+                      Preview Full Student View
+                    </span>
+                    <span className="sm:hidden">Preview Student View</span>
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1 text-xs sm:text-sm"
+                    onClick={() => {
+                      setLastAction({
+                        type: "info",
+                        message: "Opening milestone management interface",
+                      });
+                      // Simulate milestone management
+                    }}
+                  >
+                    <Target className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                    <span className="hidden sm:inline">Manage Milestones</span>
+                    <span className="sm:hidden">Milestones</span>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
 
             {/* Recent Activity */}
             <Card>

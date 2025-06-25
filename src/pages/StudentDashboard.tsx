@@ -54,6 +54,8 @@ import {
   Filter,
   Search,
   RefreshCw,
+  Plus,
+  Eye,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import apiWithFallback from "@/services/apiWithFallback";
@@ -339,7 +341,7 @@ const StudentDashboard = () => {
                 feedbackFrequency: "immediate",
               },
               emotionalState: {
-                currentMood: "Focused",
+                currentMood: Mood.Focused,
                 stressLevel: 0.3,
                 confidenceLevel: 0.75,
                 motivationLevel: 0.8,
@@ -552,6 +554,58 @@ const StudentDashboard = () => {
   const handleContinueLearning = (course: any) => {
     setLastAction(`Continuing ${course.title}`);
     console.log("Navigating to course:", course.title);
+  };
+
+  // Helper function for assignment interaction
+  const handleAssignmentStart = (assignment: any, course: any) => {
+    setLastAction(`Starting ${assignment.title} for ${course.title}`);
+    navigate("/lesson-content", {
+      state: {
+        type: "assignment",
+        title: assignment.title,
+        course: course.title,
+        subject: course.subject.name,
+        dueDate: assignment.dueDate,
+        priority: assignment.priority,
+      },
+    });
+  };
+
+  // Helper function for quiz interaction
+  const handleQuizStart = (
+    title: string,
+    subject: string,
+    isRetake = false,
+  ) => {
+    setLastAction(`${isRetake ? "Retaking" : "Starting"} ${title}`);
+    navigate("/lesson-content", {
+      state: {
+        type: "quiz",
+        title,
+        subject,
+        isRetake,
+      },
+    });
+  };
+
+  // Helper function for milestone creation
+  const handleCreateMilestone = () => {
+    setLastAction("Creating new learning milestone...");
+    // Simulate milestone creation process
+    setTimeout(() => {
+      setLastAction(
+        "New milestone: 'Complete Physics Chapter 4' added successfully!",
+      );
+    }, 1500);
+  };
+
+  // Helper function for filter actions
+  const handleFilterAssignments = () => {
+    setLastAction("Applying assignment filters...");
+    // Simulate filter logic
+    setTimeout(() => {
+      setLastAction("Showing high priority assignments only");
+    }, 800);
 
     // Navigate to lesson content with course data
     navigate("/lesson-content", {
@@ -878,7 +932,7 @@ const StudentDashboard = () => {
         return "😐";
       case Mood.Focused:
         return "🎯";
-      case Mood.Stressed:
+      case Mood.Anxious:
         return "😰";
       case Mood.Tired:
         return "😴";
@@ -959,9 +1013,19 @@ const StudentDashboard = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <GraduationCap className="w-8 h-8 text-blue-600" />
-                <h1 className="text-xl font-bold text-gray-900">AnansiAI</h1>
+              <div className="flex items-center gap-3">
+                <img
+                  src="https://cdn.builder.io/api/v1/assets/2d09da496e544a1eab05e596d02031d8/twinternet-logo-b18833?format=webp&width=800"
+                  alt="AnansiAI Logo"
+                  className="w-10 h-10 object-contain"
+                />
+                <div>
+                  <h1 className="font-bold text-xl text-gray-800">AnansiAI</h1>
+                  <p className="text-xs text-gray-500 flex items-center gap-1">
+                    <GraduationCap className="w-3 h-3" />
+                    Student Portal
+                  </p>
+                </div>
               </div>
               <div className="hidden md:flex flex-col">
                 <div className="text-sm text-gray-600">
@@ -1136,11 +1200,42 @@ const StudentDashboard = () => {
               onValueChange={setSelectedTab}
               className="space-y-6"
             >
-              <TabsList className="grid w-full grid-cols-4">
-                <TabsTrigger value="overview">Overview</TabsTrigger>
-                <TabsTrigger value="courses">Courses</TabsTrigger>
-                <TabsTrigger value="analytics">Analytics</TabsTrigger>
-                <TabsTrigger value="achievements">Achievements</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-5 h-auto">
+                <TabsTrigger
+                  value="overview"
+                  className="text-xs sm:text-sm px-2 sm:px-4 py-2 sm:py-2.5"
+                >
+                  <span className="hidden sm:inline">Overview</span>
+                  <span className="sm:hidden">Home</span>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="courses"
+                  className="text-xs sm:text-sm px-2 sm:px-4 py-2 sm:py-2.5"
+                >
+                  <span className="hidden sm:inline">Courses</span>
+                  <span className="sm:hidden">Learn</span>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="assignments"
+                  className="text-xs sm:text-sm px-2 sm:px-4 py-2 sm:py-2.5"
+                >
+                  <span className="hidden sm:inline">Assignments</span>
+                  <span className="sm:hidden">Tasks</span>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="analytics"
+                  className="text-xs sm:text-sm px-2 sm:px-4 py-2 sm:py-2.5"
+                >
+                  <span className="hidden sm:inline">Analytics</span>
+                  <span className="sm:hidden">Stats</span>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="achievements"
+                  className="text-xs sm:text-sm px-2 sm:px-4 py-2 sm:py-2.5"
+                >
+                  <span className="hidden sm:inline">Achievements</span>
+                  <span className="sm:hidden">Awards</span>
+                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="overview" className="space-y-6">
@@ -1219,6 +1314,314 @@ const StudentDashboard = () => {
                   </Card>
                 </div>
 
+                {/* Learning Milestones - Responsive */}
+                <Card className="bg-gradient-to-br from-purple-50 to-blue-50 border-purple-200">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                      <Target className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600" />
+                      Learning Milestones
+                    </CardTitle>
+                    <CardDescription className="text-sm">
+                      Your learning goals and achievements
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3 sm:space-y-4">
+                    {/* Current Milestones - Mobile First */}
+                    <div className="space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 bg-white/80 rounded-lg border border-purple-200 space-y-2 sm:space-y-0">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0">
+                            <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-medium text-gray-900 text-sm sm:text-base truncate">
+                              Complete Mathematics Chapter 3
+                            </p>
+                            <p className="text-xs sm:text-sm text-gray-600">
+                              Due: Tomorrow
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 ml-11 sm:ml-0">
+                          <div className="w-12 sm:w-16 bg-gray-200 rounded-full h-2">
+                            <div
+                              className="bg-purple-600 h-2 rounded-full"
+                              style={{ width: "75%" }}
+                            ></div>
+                          </div>
+                          <span className="text-xs sm:text-sm font-medium text-purple-600 whitespace-nowrap">
+                            75%
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 bg-white/80 rounded-lg border border-green-200 space-y-2 sm:space-y-0">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+                            <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-medium text-gray-900 text-sm sm:text-base truncate">
+                              Submit Science Project
+                            </p>
+                            <p className="text-xs sm:text-sm text-gray-600">
+                              Completed
+                            </p>
+                          </div>
+                        </div>
+                        <div className="ml-11 sm:ml-0">
+                          <Badge
+                            variant="secondary"
+                            className="bg-green-100 text-green-700 text-xs"
+                          >
+                            <CheckCircle className="w-3 h-3 mr-1" />
+                            Done
+                          </Badge>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 bg-white/80 rounded-lg border border-blue-200 space-y-2 sm:space-y-0">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                            <Brain className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-medium text-gray-900 text-sm sm:text-base truncate">
+                              Practice AI Twin Conversations
+                            </p>
+                            <p className="text-xs sm:text-sm text-gray-600">
+                              Weekly goal: 5 sessions
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 ml-11 sm:ml-0">
+                          <div className="w-12 sm:w-16 bg-gray-200 rounded-full h-2">
+                            <div
+                              className="bg-blue-600 h-2 rounded-full"
+                              style={{ width: "40%" }}
+                            ></div>
+                          </div>
+                          <span className="text-xs sm:text-sm font-medium text-blue-600 whitespace-nowrap">
+                            2/5
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Milestone Actions - Responsive */}
+                    <div className="flex flex-col sm:flex-row gap-2 pt-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1 text-xs sm:text-sm"
+                        onClick={() => {
+                          setLastAction("Opening milestone creation dialog");
+                          // Simulate milestone creation
+                          setTimeout(() => {
+                            setLastAction(
+                              "New learning goal set successfully!",
+                            );
+                          }, 1000);
+                        }}
+                      >
+                        <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                        <span className="hidden sm:inline">Set New Goal</span>
+                        <span className="sm:hidden">New Goal</span>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1 text-xs sm:text-sm"
+                        onClick={() => {
+                          setSelectedTab("achievements");
+                          setLastAction(
+                            "Viewing all milestones and achievements",
+                          );
+                        }}
+                      >
+                        <Eye className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                        <span className="hidden sm:inline">View All</span>
+                        <span className="sm:hidden">View All</span>
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Quick Actions - Responsive */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                  {/* Pending Assignments */}
+                  <Card className="bg-gradient-to-br from-orange-50 to-red-50 border-orange-200">
+                    <CardHeader className="pb-3 sm:pb-6">
+                      <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                        <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-orange-600 flex-shrink-0" />
+                        <span className="truncate">Pending Assignments</span>
+                      </CardTitle>
+                      <CardDescription className="text-sm">
+                        Complete your upcoming tasks
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2 sm:space-y-3">
+                        {enrolledCourses
+                          .flatMap((course) =>
+                            course.upcomingAssignments.map((assignment) => ({
+                              ...assignment,
+                              courseName: course.title,
+                              subject: course.subject.name,
+                            })),
+                          )
+                          .slice(0, 3)
+                          .map((assignment: any, index: number) => (
+                            <div
+                              key={index}
+                              className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-2 sm:p-3 bg-white/80 rounded-lg border border-orange-200 space-y-2 sm:space-y-0"
+                            >
+                              <div className="min-w-0">
+                                <p className="font-medium text-sm text-gray-900 truncate">
+                                  {assignment.title}
+                                </p>
+                                <p className="text-xs text-gray-600 truncate">
+                                  {assignment.subject}
+                                </p>
+                                <p className="text-xs text-orange-600">
+                                  Due: {assignment.dueDate.toLocaleDateString()}
+                                </p>
+                              </div>
+                              <div className="flex justify-end sm:justify-start">
+                                <Badge
+                                  variant={
+                                    assignment.priority === "high"
+                                      ? "destructive"
+                                      : "secondary"
+                                  }
+                                  className="text-xs"
+                                >
+                                  {assignment.priority}
+                                </Badge>
+                              </div>
+                            </div>
+                          ))}
+                        {enrolledCourses.every(
+                          (course) => course.upcomingAssignments.length === 0,
+                        ) && (
+                          <div className="text-center py-4 text-gray-500">
+                            <CheckCircle className="w-6 h-6 sm:w-8 sm:h-8 mx-auto mb-2 opacity-50" />
+                            <p className="text-sm">All caught up!</p>
+                          </div>
+                        )}
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full mt-3 sm:mt-4 text-xs sm:text-sm"
+                        onClick={() => {
+                          setSelectedTab("assignments");
+                          setLastAction("Navigated to assignments section");
+                        }}
+                      >
+                        <Eye className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                        View All Assignments
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  {/* Quick Quiz Access */}
+                  <Card className="bg-gradient-to-br from-purple-50 to-blue-50 border-purple-200">
+                    <CardHeader className="pb-3 sm:pb-6">
+                      <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                        <Brain className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 flex-shrink-0" />
+                        <span className="truncate">Available Quizzes</span>
+                      </CardTitle>
+                      <CardDescription className="text-sm">
+                        Test your knowledge
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2 sm:space-y-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-2 sm:p-3 bg-white/80 rounded-lg border border-purple-200 space-y-2 sm:space-y-0">
+                          <div className="min-w-0">
+                            <p className="font-medium text-sm text-gray-900 truncate">
+                              Mathematics Quiz
+                            </p>
+                            <p className="text-xs text-gray-600 truncate">
+                              Linear Equations
+                            </p>
+                            <p className="text-xs text-purple-600">
+                              Available now
+                            </p>
+                          </div>
+                          <div className="flex justify-end sm:justify-start">
+                            <Button
+                              size="sm"
+                              className="bg-purple-600 hover:bg-purple-700 text-xs px-2 sm:px-3"
+                              onClick={() => {
+                                setLastAction("Starting Mathematics Quiz...");
+                                navigate("/lesson-content", {
+                                  state: {
+                                    type: "quiz",
+                                    title:
+                                      "Mathematics Quiz - Linear Equations",
+                                    subject: "Mathematics",
+                                  },
+                                });
+                              }}
+                            >
+                              <Play className="w-3 h-3 mr-1" />
+                              Start
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-2 sm:p-3 bg-white/80 rounded-lg border border-green-200 space-y-2 sm:space-y-0">
+                          <div className="min-w-0">
+                            <p className="font-medium text-sm text-gray-900 truncate">
+                              Biology Quiz
+                            </p>
+                            <p className="text-xs text-gray-600 truncate">
+                              Cell Structure
+                            </p>
+                            <p className="text-xs text-green-600">
+                              Retake available
+                            </p>
+                          </div>
+                          <div className="flex justify-end sm:justify-start">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-xs px-2 sm:px-3"
+                              onClick={() => {
+                                setLastAction("Retaking Biology Quiz...");
+                                navigate("/lesson-content", {
+                                  state: {
+                                    type: "quiz",
+                                    title: "Biology Quiz - Cell Structure",
+                                    subject: "Biology",
+                                    isRetake: true,
+                                  },
+                                });
+                              }}
+                            >
+                              <RefreshCw className="w-3 h-3 mr-1" />
+                              Retake
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full mt-3 sm:mt-4 text-xs sm:text-sm"
+                        onClick={() => {
+                          setSelectedTab("assignments");
+                          setLastAction("Viewing all available quizzes");
+                        }}
+                      >
+                        <Brain className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                        View All Quizzes
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
+
                 {/* Recent Courses */}
                 <Card>
                   <CardHeader>
@@ -1242,15 +1645,6 @@ const StudentDashboard = () => {
                               {course.title}
                             </h3>
                             <div className="flex gap-1">
-                              {course.teacherCreated && (
-                                <Badge
-                                  variant="secondary"
-                                  className="text-xs bg-blue-100 text-blue-800"
-                                >
-                                  <GraduationCap className="w-3 h-3 mr-1" />
-                                  Teacher Created
-                                </Badge>
-                              )}
                               <Badge
                                 variant={
                                   course.aiRecommended ? "default" : "outline"
@@ -1408,12 +1802,10 @@ const StudentDashboard = () => {
                             </CardTitle>
                             <div className="space-y-1 text-sm text-muted-foreground">
                               <div>{course.instructor}</div>
-                              {course.teacherCreated && course.schedule && (
-                                <div className="flex items-center gap-1 text-xs text-blue-600">
-                                  <Calendar className="w-3 h-3" />
-                                  {course.schedule}
-                                </div>
-                              )}
+                              <div className="flex items-center gap-1 text-xs text-gray-500">
+                                <Calendar className="w-3 h-3" />
+                                Schedule: Mon, Wed, Fri
+                              </div>
                             </div>
                           </div>
                           <div className="text-right">
@@ -1488,10 +1880,379 @@ const StudentDashboard = () => {
                 </div>
               </TabsContent>
 
+              {/* Assignments & Quizzes Tab - Responsive */}
+              <TabsContent
+                value="assignments"
+                className="space-y-4 sm:space-y-6"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
+                  <div>
+                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
+                      Assignments & Quizzes
+                    </h2>
+                    <p className="text-sm sm:text-base text-gray-600">
+                      Track your pending assignments and upcoming assessments
+                    </p>
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs sm:text-sm"
+                      onClick={() => {
+                        setLastAction("Assignment filters applied");
+                        // Simulate filter functionality
+                      }}
+                    >
+                      <Filter className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                      <span className="hidden sm:inline">Filter</span>
+                      <span className="sm:hidden">Filter</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs sm:text-sm"
+                      onClick={() => {
+                        setLastAction("Switched to calendar view");
+                        // Simulate calendar view
+                      }}
+                    >
+                      <Calendar className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                      <span className="hidden sm:inline">Calendar View</span>
+                      <span className="sm:hidden">Calendar</span>
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Summary Cards - Responsive Grid */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                  <Card className="bg-gradient-to-br from-red-50 to-orange-50 border-red-200">
+                    <CardContent className="p-3 sm:p-4 lg:p-6">
+                      <div className="flex items-center">
+                        <div className="p-1.5 sm:p-2 bg-red-100 rounded-lg flex-shrink-0">
+                          <Clock className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-red-600" />
+                        </div>
+                        <div className="ml-2 sm:ml-3 lg:ml-4 min-w-0">
+                          <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">
+                            {enrolledCourses.reduce(
+                              (total, course) =>
+                                total + course.upcomingAssignments.length,
+                              0,
+                            )}
+                          </p>
+                          <p className="text-xs sm:text-sm text-gray-600">
+                            Due Soon
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="bg-gradient-to-br from-blue-50 to-cyan-50 border-blue-200">
+                    <CardContent className="p-3 sm:p-4 lg:p-6">
+                      <div className="flex items-center">
+                        <div className="p-1.5 sm:p-2 bg-blue-100 rounded-lg flex-shrink-0">
+                          <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-blue-600" />
+                        </div>
+                        <div className="ml-2 sm:ml-3 lg:ml-4 min-w-0">
+                          <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">
+                            3
+                          </p>
+                          <p className="text-xs sm:text-sm text-gray-600">
+                            Quizzes
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
+                    <CardContent className="p-3 sm:p-4 lg:p-6">
+                      <div className="flex items-center">
+                        <div className="p-1.5 sm:p-2 bg-green-100 rounded-lg flex-shrink-0">
+                          <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-green-600" />
+                        </div>
+                        <div className="ml-2 sm:ml-3 lg:ml-4 min-w-0">
+                          <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">
+                            12
+                          </p>
+                          <p className="text-xs sm:text-sm text-gray-600">
+                            Completed
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="bg-gradient-to-br from-purple-50 to-violet-50 border-purple-200">
+                    <CardContent className="p-3 sm:p-4 lg:p-6">
+                      <div className="flex items-center">
+                        <div className="p-1.5 sm:p-2 bg-purple-100 rounded-lg flex-shrink-0">
+                          <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-purple-600" />
+                        </div>
+                        <div className="ml-2 sm:ml-3 lg:ml-4 min-w-0">
+                          <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">
+                            88%
+                          </p>
+                          <p className="text-xs sm:text-sm text-gray-600">
+                            Avg Score
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Upcoming Assignments - Responsive */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                      <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-orange-600" />
+                      Upcoming Assignments
+                    </CardTitle>
+                    <CardDescription className="text-sm">
+                      Assignments due in the next 7 days
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3 sm:space-y-4">
+                      {enrolledCourses.map((course) =>
+                        course.upcomingAssignments.map(
+                          (assignment: any, index: number) => (
+                            <div
+                              key={`${course.id}-${index}`}
+                              className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 border rounded-lg hover:bg-gray-50 transition-colors space-y-3 sm:space-y-0"
+                            >
+                              <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                                  <BookOpen className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <h3 className="font-semibold text-sm sm:text-base text-gray-900 truncate">
+                                    {assignment.title}
+                                  </h3>
+                                  <p className="text-xs sm:text-sm text-gray-600 truncate">
+                                    {course.subject.name} • {course.title}
+                                  </p>
+                                  <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 mt-1">
+                                    <span className="text-xs text-gray-500">
+                                      Due:{" "}
+                                      {assignment.dueDate.toLocaleDateString()}
+                                    </span>
+                                    <Badge
+                                      variant={
+                                        assignment.priority === "high"
+                                          ? "destructive"
+                                          : "default"
+                                      }
+                                      className="text-xs w-fit"
+                                    >
+                                      {assignment.priority} priority
+                                    </Badge>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 justify-end sm:justify-start flex-shrink-0">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-xs"
+                                  onClick={() => {
+                                    setLastAction(
+                                      `Viewing assignment: ${assignment.title}`,
+                                    );
+                                    // Simulate viewing assignment details
+                                  }}
+                                >
+                                  <Eye className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                                  <span className="hidden sm:inline">View</span>
+                                  <span className="sm:hidden">View</span>
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  className="text-xs"
+                                  onClick={() => {
+                                    setLastAction(
+                                      `Starting assignment: ${assignment.title}`,
+                                    );
+                                    navigate("/lesson-content", {
+                                      state: {
+                                        type: "assignment",
+                                        title: assignment.title,
+                                        course: course.title,
+                                        dueDate: assignment.dueDate,
+                                      },
+                                    });
+                                  }}
+                                >
+                                  <Play className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                                  <span className="hidden sm:inline">
+                                    Start
+                                  </span>
+                                  <span className="sm:hidden">Start</span>
+                                </Button>
+                              </div>
+                            </div>
+                          ),
+                        ),
+                      )}
+                      {enrolledCourses.every(
+                        (course) => course.upcomingAssignments.length === 0,
+                      ) && (
+                        <div className="text-center py-6 sm:py-8 text-gray-500">
+                          <BookOpen className="w-8 h-8 sm:w-12 sm:h-12 mx-auto mb-3 sm:mb-4 opacity-50" />
+                          <p className="text-base sm:text-lg font-medium">
+                            No upcoming assignments
+                          </p>
+                          <p className="text-sm">
+                            You're all caught up! Great work!
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Recent Quizzes */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Brain className="w-5 h-5 text-purple-600" />
+                      Recent Quizzes & Assessments
+                    </CardTitle>
+                    <CardDescription>
+                      Your recent quiz results and upcoming assessments
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {/* Recent Quiz Results */}
+                      <div className="grid gap-4">
+                        <div className="flex items-center justify-between p-4 border rounded-lg bg-green-50 border-green-200">
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                              <CheckCircle className="w-6 h-6 text-green-600" />
+                            </div>
+                            <div>
+                              <h3 className="font-semibold text-gray-900">
+                                Biology Quiz - Chapter 5
+                              </h3>
+                              <p className="text-sm text-gray-600">
+                                Cellular Structure and Function
+                              </p>
+                              <span className="text-xs text-gray-500">
+                                Completed 2 days ago
+                              </span>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-2xl font-bold text-green-600">
+                              94%
+                            </div>
+                            <div className="text-xs text-gray-500">A Grade</div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between p-4 border rounded-lg bg-blue-50 border-blue-200">
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                              <Clock className="w-6 h-6 text-blue-600" />
+                            </div>
+                            <div>
+                              <h3 className="font-semibold text-gray-900">
+                                Mathematics Quiz - Algebra
+                              </h3>
+                              <p className="text-sm text-gray-600">
+                                Linear Equations and Inequalities
+                              </p>
+                              <span className="text-xs text-gray-500">
+                                Available now • Due in 3 days
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setLastAction("Previewing Mathematics Quiz");
+                              }}
+                            >
+                              <Eye className="w-4 h-4 mr-2" />
+                              Preview
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                setLastAction(
+                                  "Taking Mathematics Quiz - Algebra",
+                                );
+                                navigate("/lesson-content", {
+                                  state: {
+                                    type: "quiz",
+                                    title: "Mathematics Quiz - Algebra",
+                                    subject: "Mathematics",
+                                  },
+                                });
+                              }}
+                            >
+                              <Play className="w-4 h-4 mr-2" />
+                              Take Quiz
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between p-4 border rounded-lg bg-yellow-50 border-yellow-200">
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                              <AlertTriangle className="w-6 h-6 text-yellow-600" />
+                            </div>
+                            <div>
+                              <h3 className="font-semibold text-gray-900">
+                                History Quiz - World Wars
+                              </h3>
+                              <p className="text-sm text-gray-600">
+                                20th Century Global Conflicts
+                              </p>
+                              <span className="text-xs text-gray-500">
+                                Previous attempt: 76% • Retake available
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setLastAction(
+                                  "Retaking History Quiz - World Wars",
+                                );
+                                navigate("/lesson-content", {
+                                  state: {
+                                    type: "quiz",
+                                    title: "History Quiz - World Wars",
+                                    subject: "History",
+                                    isRetake: true,
+                                    previousScore: 76,
+                                  },
+                                });
+                              }}
+                            >
+                              <RefreshCw className="w-4 h-4 mr-2" />
+                              Retake
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
               <TabsContent value="analytics" className="space-y-6">
                 <BehaviorAnalytics
                   studentId={dashboardData.profile.id}
-                  currentMood={dashboardData.behaviorSummary.currentMood}
+                  currentMood={behaviorSummary.currentMood as Mood}
                   riskScore={
                     dashboardData.behaviorSummary.riskLevel === "low"
                       ? 0.2
@@ -1524,36 +2285,36 @@ const StudentDashboard = () => {
                       "visual learning",
                       "analytical thinking",
                     ],
-                    improvementAreas: [
-                      "time management",
-                      "note-taking",
-                      "verbal communication",
-                    ],
-                    recommendedActions: [
+                    achievements: [
                       {
-                        type: "practice",
-                        title: "Complete Calculus Practice Set",
+                        id: "ach_001",
+                        title: "Math Whiz",
                         description:
-                          "Focus on integration techniques based on your recent performance",
-                        priority: "high",
-                        estimatedTime: 30,
-                        dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000),
+                          "Completed 10 consecutive math assignments with 90%+ scores",
+                        type: "academic" as const,
+                        badgeUrl: "🎯",
+                        unlockedAt: new Date("2024-01-10"),
+                        points: 100,
                       },
                       {
-                        type: "review",
-                        title: "Review Biology Cell Structure",
+                        id: "ach_002",
+                        title: "Science Explorer",
                         description:
-                          "Strengthen understanding of cellular components",
-                        priority: "medium",
-                        estimatedTime: 20,
+                          "Conducted 5 virtual experiments with detailed observations",
+                        type: "academic" as const,
+                        badgeUrl: "🔬",
+                        unlockedAt: new Date("2024-01-08"),
+                        points: 75,
                       },
                       {
-                        type: "break",
-                        title: "Take a Short Break",
+                        id: "ach_003",
+                        title: "Biology Master",
                         description:
-                          "You've been focused for a while. A 10-minute break will help",
-                        priority: "medium",
-                        estimatedTime: 10,
+                          "Scored above 90% on 5 consecutive biology quizzes",
+                        type: "academic" as const,
+                        badgeUrl: "🧬",
+                        unlockedAt: new Date("2024-01-05"),
+                        points: 85,
                       },
                     ],
                     riskFactors: [],
@@ -1791,7 +2552,9 @@ const StudentDashboard = () => {
                 >
                   <LazyAITwinChat
                     studentId={dashboardData.profile.id}
-                    emotionalState={dashboardData.behaviorSummary.currentMood}
+                    currentMood={
+                      dashboardData.behaviorSummary.currentMood as Mood
+                    }
                     currentLessonId={undefined}
                     onInteractionLogged={(interaction) => {
                       console.log("AI interaction logged:", interaction);
