@@ -1041,6 +1041,7 @@ export function SchoolSecurityManager({
                             securityConfig?.passwordPolicy.requireUppercase
                           }
                           className="rounded"
+                          aria-label="Require uppercase letters"
                         />
                         <span className="text-sm">
                           Require uppercase letters
@@ -1053,6 +1054,7 @@ export function SchoolSecurityManager({
                             securityConfig?.passwordPolicy.requireNumbers
                           }
                           className="rounded"
+                          aria-label="Require numbers"
                         />
                         <span className="text-sm">Require numbers</span>
                       </div>
@@ -1062,6 +1064,7 @@ export function SchoolSecurityManager({
                           checked={
                             securityConfig?.passwordPolicy.requireSpecialChars
                           }
+                          aria-label="Require special characters"
                           className="rounded"
                         />
                         <span className="text-sm">

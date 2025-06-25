@@ -96,8 +96,8 @@ const StudentProfileManager: React.FC<StudentProfileManagerProps> = ({
 
   // Create default profile structure with all required nested objects
   const defaultProfile: StudentProfile = {
-    id: profile?.id || "default_student",
-    appUserId: profile?.appUserId || "default_user",
+    profileId: 1,
+    studentId: profile?.id || "default_student",
     personalityTraits: {
       openness: 0.75,
       conscientiousness: 0.82,
@@ -112,17 +112,13 @@ const StudentProfileManager: React.FC<StudentProfileManagerProps> = ({
       ...profile?.personalityTraits,
     },
     learningPreferences: {
-      preferredStyle: LearningStyle.Visual,
-      preferredModalities: [
-        LearningModality.Interactive,
-        LearningModality.Visual,
-      ],
-      difficultyPreference: "adaptive",
-      pacePreference: "moderate",
-      feedbackFrequency: "immediate",
       preferredPace: "medium",
       preferredDifficulty: "medium",
-      preferredTimeOfDay: "morning",
+      preferredModalities: [
+        LearningModality.Interactive,
+        LearningModality.Video,
+      ],
+      preferredTimeOfDay: "afternoon",
       attentionSpan: 45,
       breakPreference: 10,
       feedbackStyle: "immediate",
@@ -131,35 +127,34 @@ const StudentProfileManager: React.FC<StudentProfileManagerProps> = ({
     },
     emotionalState: {
       currentMood: Mood.Neutral,
-      stressLevel: 0.3,
-      confidenceLevel: 0.75,
-      motivationLevel: 0.8,
+      stressLevel: 30,
+      confidenceLevel: 75,
+      motivationLevel: 80,
+      engagementLevel: 85,
+      frustrationLevel: 15,
       lastUpdated: new Date(),
+      moodHistory: [],
       ...profile?.emotionalState,
-    },
-    aiPersonalityAnalysis: {
-      dominantTraits: ["analytical", "creative"],
-      learningArchetype: "The Explorer",
-      strengthAreas: ["problem-solving", "visual learning"],
-      growthAreas: ["time management"],
-      recommendedApproaches: ["Visual learning materials"],
-      ...profile?.aiPersonalityAnalysis,
     },
     parentContactInfo: {
       primaryParent: {
-        name: profile?.parentContactInfo?.primaryParentName || "Parent Name",
+        name: profile?.parentContactInfo?.primaryParent?.name || "Parent Name",
         email:
-          profile?.parentContactInfo?.primaryParentEmail || "parent@email.com",
-        phone: profile?.parentContactInfo?.primaryParentPhone || "+1-555-0000",
+          profile?.parentContactInfo?.primaryParent?.email ||
+          "parent@email.com",
+        phone:
+          profile?.parentContactInfo?.primaryParent?.phone || "+1-555-0000",
         relationship: "guardian",
         preferredContact: "email",
       },
       emergencyContact: {
         name:
-          profile?.parentContactInfo?.emergencyContactName ||
+          profile?.parentContactInfo?.emergencyContact?.name ||
           "Emergency Contact",
         phone:
-          profile?.parentContactInfo?.emergencyContactPhone || "+1-555-0001",
+          profile?.parentContactInfo?.emergencyContact?.phone || "+1-555-0001",
+        relationship: "other",
+        email: "emergency@email.com",
       },
       communicationPreferences: {
         method: "email",
@@ -169,29 +164,30 @@ const StudentProfileManager: React.FC<StudentProfileManagerProps> = ({
       },
       ...profile?.parentContactInfo,
     },
-    privacySettings: {
-      dataSharing: "educational_only" as any,
-      parentalAccess: true,
-      behaviorTracking: true,
-      aiPersonalization: true,
-      thirdPartyIntegrations: false,
-      ...profile?.privacySettings,
-    },
-    lastUpdated: profile?.lastUpdated || new Date(),
-    createdAt: profile?.createdAt || new Date(),
+    isMinor: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    student: {} as AppUser,
   };
 
   const defaultPrivacy: PrivacySetting = {
-    dataSharing: "educational_only" as any,
-    parentalAccess: true,
-    behaviorTracking: true,
-    aiPersonalization: true,
-    thirdPartyIntegrations: false,
+    settingId: 1,
+    userId: "default_user",
+    allowAiPersonalityAnalysis: true,
+    allowBehaviorTracking: true,
+    allowInteractionRecording: true,
+    dataSharingLevel: DataSharingLevel.Standard,
+    parentNotificationEnabled: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    user: {} as AppUser,
     ...privacySettings,
   };
 
-  const [localProfile, setLocalProfile] = useState(defaultProfile);
-  const [localPrivacy, setLocalPrivacy] = useState(defaultPrivacy);
+  const [localProfile, setLocalProfile] =
+    useState<Partial<StudentProfile>>(defaultProfile);
+  const [localPrivacy, setLocalPrivacy] =
+    useState<Partial<PrivacySetting>>(defaultPrivacy);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   // Personality Analysis Simulation

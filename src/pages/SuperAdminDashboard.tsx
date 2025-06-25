@@ -176,7 +176,6 @@ import {
   HardDriveIcon,
   CpuIcon,
   NetworkIcon,
-  SecurityIcon,
   CloudIcon,
   ServerIcon,
 } from "lucide-react";
@@ -1654,7 +1653,9 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
                       <Plus className="w-4 h-4 mr-2" />
                       Register School
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleGenerateReport}>
+                    <DropdownMenuItem
+                      onClick={() => handleGenerateReport("System Report")}
+                    >
                       <FileText className="w-4 h-4 mr-2" />
                       Generate Report
                     </DropdownMenuItem>
@@ -2290,7 +2291,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
                           filteredSchools
                             .map(
                               (school) =>
-                                `${school.name},${school.code},${school.county},${school.subcounty},${school.type},${school.studentCount},${school.teacherCount},${school.performance}%,${school.status},${school.adminName},${school.adminEmail}`,
+                                `${school.name},${school.code},${school.county},${school.subcounty},${school.type},${school.students},${school.teachers},${school.performance}%,${school.status},${school.adminName},${school.adminEmail}`,
                             )
                             .join("\n");
 
@@ -2450,7 +2451,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
                             <div className="flex items-center gap-1">
                               <GraduationCap className="w-4 h-4 text-blue-600" />
                               <span className="font-medium">
-                                {school.studentCount}
+                                {school.students}
                               </span>
                             </div>
                           </TableCell>
@@ -2458,18 +2459,16 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
                             <div className="flex items-center gap-1">
                               <Users className="w-4 h-4 text-green-600" />
                               <span className="font-medium">
-                                {school.teacherCount}
+                                {school.teachers}
                               </span>
                             </div>
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
-                              <div className="w-16 bg-gray-200 rounded-full h-2">
-                                <div
-                                  className="bg-blue-600 h-2 rounded-full"
-                                  style={{ width: `${school.performance}%` }}
-                                ></div>
-                              </div>
+                              <Progress
+                                value={school.performance}
+                                className="w-16 h-2"
+                              />
                               <span className="text-sm font-medium">
                                 {school.performance}%
                               </span>

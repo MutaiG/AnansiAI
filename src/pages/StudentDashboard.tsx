@@ -60,6 +60,14 @@ import {
 import { useNavigate } from "react-router-dom";
 import apiWithFallback from "@/services/apiWithFallback";
 import { autoApiService } from "@/services/cloudApiService";
+import {
+  LearningStyle,
+  MotivationType,
+  DataSharingLevel,
+  AppUser,
+  Mood,
+  MoodEntry,
+} from "@/types/education";
 
 // Import AI components directly
 import { Suspense, lazy } from "react";
@@ -141,8 +149,6 @@ import {
   Assignment,
   Submission,
   BehaviorLog,
-  Mood,
-  LearningStyle,
   LearningModality,
 } from "@/types/education";
 
@@ -171,20 +177,31 @@ interface StudentDashboardData {
       extraversion: number;
       agreeableness: number;
       neuroticism: number;
+      learningStyle: LearningStyle;
+      motivation: MotivationType[];
+      strengths: string[];
+      growthAreas: string[];
+      lastAnalyzed: Date;
     };
     learningPreferences: {
-      preferredStyle: string;
-      preferredModalities: string[];
-      difficultyPreference: string;
-      pacePreference: string;
-      feedbackFrequency: string;
+      preferredPace: "slow" | "medium" | "fast";
+      preferredDifficulty: "easy" | "medium" | "challenging";
+      preferredModalities: LearningModality[];
+      preferredTimeOfDay: "morning" | "afternoon" | "evening";
+      attentionSpan: number;
+      breakPreference: number;
+      feedbackStyle: "immediate" | "delayed" | "summary";
+      collaborationPreference: "solo" | "pairs" | "groups";
     };
     emotionalState: {
-      currentMood: string;
+      currentMood: Mood;
       stressLevel: number;
-      confidenceLevel: number;
       motivationLevel: number;
-      lastUpdated: string;
+      confidenceLevel: number;
+      engagementLevel: number;
+      frustrationLevel: number;
+      lastUpdated: Date;
+      moodHistory: MoodEntry[];
     };
     aiPersonalityAnalysis: {
       dominantTraits: string[];
@@ -196,11 +213,16 @@ interface StudentDashboardData {
       lastAnalysis: string;
     };
     privacySettings: {
-      shareLearningData: boolean;
-      shareBehaviorAnalytics: boolean;
-      allowPersonalization: boolean;
-      showInLeaderboards: boolean;
-      dataRetentionPreference: string;
+      settingId: number;
+      userId: string;
+      allowAiPersonalityAnalysis: boolean;
+      allowBehaviorTracking: boolean;
+      allowInteractionRecording: boolean;
+      dataSharingLevel: DataSharingLevel;
+      parentNotificationEnabled: boolean;
+      createdAt: Date;
+      updatedAt: Date;
+      user: AppUser;
     };
   };
   enrolledCourses: Array<{
@@ -332,20 +354,51 @@ const StudentDashboard = () => {
                 extraversion: 0.65,
                 agreeableness: 0.78,
                 neuroticism: 0.35,
+                learningStyle: "Visual" as LearningStyle,
+                motivation: ["Achievement", "Knowledge"] as MotivationType[],
+                strengths: [
+                  "problem-solving",
+                  "visual learning",
+                  "analytical thinking",
+                ],
+                growthAreas: ["time management", "verbal communication"],
+                lastAnalyzed: new Date(),
               },
               learningPreferences: {
-                preferredStyle: "Visual",
-                preferredModalities: ["Interactive", "Visual"],
-                difficultyPreference: "adaptive",
-                pacePreference: "moderate",
-                feedbackFrequency: "immediate",
+                preferredPace: "medium",
+                preferredDifficulty: "medium",
+                preferredModalities: [
+                  "Interactive",
+                  "Visual",
+                ] as LearningModality[],
+                preferredTimeOfDay: "afternoon",
+                attentionSpan: 45,
+                breakPreference: 10,
+                feedbackStyle: "immediate",
+                collaborationPreference: "pairs",
               },
               emotionalState: {
                 currentMood: Mood.Focused,
-                stressLevel: 0.3,
-                confidenceLevel: 0.75,
-                motivationLevel: 0.8,
-                lastUpdated: new Date().toISOString(),
+                stressLevel: 30,
+                motivationLevel: 80,
+                confidenceLevel: 75,
+                engagementLevel: 85,
+                frustrationLevel: 15,
+                lastUpdated: new Date(),
+                moodHistory: [
+                  {
+                    mood: Mood.Focused,
+                    timestamp: new Date(),
+                    context: "Starting mathematics lesson",
+                    triggers: ["new topic", "visual materials"],
+                  },
+                  {
+                    mood: Mood.Happy,
+                    timestamp: new Date(Date.now() - 3600000), // 1 hour ago
+                    context: "Completed assignment successfully",
+                    triggers: ["achievement", "positive feedback"],
+                  },
+                ] as MoodEntry[],
               },
               aiPersonalityAnalysis: {
                 dominantTraits: ["analytical", "creative", "collaborative"],
@@ -366,11 +419,16 @@ const StudentDashboard = () => {
                 lastAnalysis: new Date().toISOString(),
               },
               privacySettings: {
-                shareLearningData: true,
-                shareBehaviorAnalytics: false,
-                allowPersonalization: true,
-                showInLeaderboards: true,
-                dataRetentionPreference: "standard",
+                settingId: 1,
+                userId: "user_001",
+                allowAiPersonalityAnalysis: true,
+                allowBehaviorTracking: false,
+                allowInteractionRecording: true,
+                dataSharingLevel: "Standard" as DataSharingLevel,
+                parentNotificationEnabled: false,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+                user: {} as AppUser, // Will be populated by the real API
               },
             },
             enrolledCourses: [
@@ -606,14 +664,6 @@ const StudentDashboard = () => {
     setTimeout(() => {
       setLastAction("Showing high priority assignments only");
     }, 800);
-
-    // Navigate to lesson content with course data
-    navigate("/lesson-content", {
-      state: {
-        course: course,
-        lessonId: `${course.id}_lesson_${course.completedLessons + 1}`,
-      },
-    });
   };
 
   const handleCourseAnalytics = (course: any) => {
@@ -1043,7 +1093,7 @@ const StudentDashboard = () => {
               {/* Mood Indicator */}
               <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-full">
                 <span className="text-lg">
-                  {getMoodEmoji(behaviorSummary.currentMood)}
+                  {getMoodEmoji(behaviorSummary.currentMood as Mood)}
                 </span>
                 <span className="text-sm font-medium text-gray-700 capitalize">
                   {behaviorSummary.currentMood}
@@ -1344,10 +1394,7 @@ const StudentDashboard = () => {
                         </div>
                         <div className="flex items-center gap-2 ml-11 sm:ml-0">
                           <div className="w-12 sm:w-16 bg-gray-200 rounded-full h-2">
-                            <div
-                              className="bg-purple-600 h-2 rounded-full"
-                              style={{ width: "75%" }}
-                            ></div>
+                            <div className="bg-purple-600 h-2 rounded-full w-3/4"></div>
                           </div>
                           <span className="text-xs sm:text-sm font-medium text-purple-600 whitespace-nowrap">
                             75%
@@ -1396,10 +1443,7 @@ const StudentDashboard = () => {
                         </div>
                         <div className="flex items-center gap-2 ml-11 sm:ml-0">
                           <div className="w-12 sm:w-16 bg-gray-200 rounded-full h-2">
-                            <div
-                              className="bg-blue-600 h-2 rounded-full"
-                              style={{ width: "40%" }}
-                            ></div>
+                            <div className="bg-blue-600 h-2 rounded-full w-2/5"></div>
                           </div>
                           <span className="text-xs sm:text-sm font-medium text-blue-600 whitespace-nowrap">
                             2/5
@@ -1686,8 +1730,11 @@ const StudentDashboard = () => {
                             </h4>
                             <p className="text-sm text-gray-600 mt-1">
                               Based on your learning style (
-                              {profile.learningPreferences.preferredStyle}), I
-                              recommend focusing on visual aids for your
+                              {
+                                profile.learningPreferences
+                                  .preferredModalities[0]
+                              }
+                              ), I recommend focusing on visual aids for your
                               upcoming calculus topics. Your recent performance
                               shows 15% improvement with visual materials.
                             </p>
@@ -2318,7 +2365,6 @@ const StudentDashboard = () => {
                       },
                     ],
                     riskFactors: [],
-                    achievements: achievements,
                     lastUpdated: new Date(),
                   }}
                   onRiskDetected={(risk) => {
@@ -2442,7 +2488,9 @@ const StudentDashboard = () => {
                   <div className="flex items-center justify-between">
                     <span className="text-sm">Risk Level</span>
                     <Badge
-                      className={getRiskLevelColor(behaviorSummary.riskLevel)}
+                      className={getRiskLevelColor(
+                        behaviorSummary.riskLevel as "high" | "low" | "medium",
+                      )}
                     >
                       {behaviorSummary.riskLevel.toUpperCase()}
                     </Badge>
@@ -2552,9 +2600,6 @@ const StudentDashboard = () => {
                 >
                   <LazyAITwinChat
                     studentId={dashboardData.profile.id}
-                    currentMood={
-                      dashboardData.behaviorSummary.currentMood as Mood
-                    }
                     currentLessonId={undefined}
                     onInteractionLogged={(interaction) => {
                       console.log("AI interaction logged:", interaction);
@@ -2643,6 +2688,7 @@ const StudentDashboard = () => {
                   })
                 }
                 className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                aria-label="Filter by progress status"
               >
                 <option value="all">All Courses</option>
                 <option value="not-started">Not Started</option>
@@ -2664,6 +2710,7 @@ const StudentDashboard = () => {
                   })
                 }
                 className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                aria-label="Filter by subject"
               >
                 <option value="all">All Subjects</option>
                 <option value="math">Mathematics</option>
@@ -2686,6 +2733,7 @@ const StudentDashboard = () => {
                   })
                 }
                 className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                aria-label="Filter by difficulty level"
               >
                 <option value="all">All Levels</option>
                 <option value="beginner">Beginner</option>
