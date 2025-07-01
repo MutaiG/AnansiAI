@@ -158,6 +158,7 @@ import type {
 } from "@/hooks/useAdminApi";
 import { MessageModal, type SystemMessage } from "@/components/MessageModal";
 import usePageTitle from "@/hooks/usePageTitle";
+import { Mood } from "@/types/education";
 
 // Lazy load AI components for better performance
 const LazyBehaviorAnalytics = lazy(() =>
@@ -345,16 +346,27 @@ const AdminDashboard = () => {
 
   // Extract data with fallbacks - memoized to prevent recreation
   const adminInfo = useMemo(() => {
-    return (
-      dashboardData?.adminInfo || {
-        name: "Dr. Sarah Johnson",
-        school: "Westfield High School",
-        lastLogin: "Today, 9:30 AM",
-        role: "Principal",
-        department: "Administration",
-      }
-    );
-  }, [dashboardData?.adminInfo]);
+    if (dashboardData?.adminProfile) {
+      return {
+        name: dashboardData.adminProfile.fullName,
+        school: dashboardData.adminProfile.schoolName,
+        lastLogin: dashboardData.adminProfile.lastLogin,
+        role: dashboardData.adminProfile.role,
+        department: "Administration", // Default value since not in interface
+        email: dashboardData.adminProfile.email,
+        phoneNumber: dashboardData.adminProfile.phoneNumber,
+      };
+    }
+    return {
+      name: "Dr. Sarah Johnson",
+      school: "Westfield High School",
+      lastLogin: "Today, 9:30 AM",
+      role: "Principal",
+      department: "Administration",
+      email: "admin@school.edu",
+      phoneNumber: "+1-555-0123",
+    };
+  }, [dashboardData?.adminProfile]);
 
   // Authentication check
   useEffect(() => {
@@ -392,20 +404,19 @@ const AdminDashboard = () => {
   const schoolStats = {
     totalStudents: dashboardData?.schoolStats?.totalStudents ?? 1247,
     totalTeachers: dashboardData?.schoolStats?.totalTeachers ?? 89,
-    totalClasses: dashboardData?.schoolStats?.totalClasses ?? 34,
+    totalClasses: 34, // Not in interface, using fallback
     totalSubjects: dashboardData?.schoolStats?.totalSubjects ?? 12,
     avgPerformance: dashboardData?.schoolStats?.avgPerformance ?? 87,
     systemUptime: dashboardData?.schoolStats?.systemUptime ?? 99.8,
     dataStorage: dashboardData?.schoolStats?.dataStorage ?? 45.2,
     activeUsers: dashboardData?.schoolStats?.activeUsers ?? 234,
     dailyLogins: dashboardData?.schoolStats?.dailyLogins ?? 456,
-    coursesCreated: dashboardData?.schoolStats?.coursesCreated ?? 28,
-    assignmentsCompleted:
-      dashboardData?.schoolStats?.assignmentsCompleted ?? 1847,
-    aiInteractions: dashboardData?.schoolStats?.aiInteractions ?? 892,
-    behaviorAlerts: dashboardData?.schoolStats?.behaviorAlerts ?? 15,
-    avgEngagement: dashboardData?.schoolStats?.avgEngagement ?? 78,
-    achievementsEarned: dashboardData?.schoolStats?.achievementsEarned ?? 156,
+    coursesCreated: 28, // Not in interface, using fallback
+    assignmentsCompleted: 1847, // Not in interface, using fallback
+    aiInteractions: 892, // Not in interface, using fallback
+    behaviorAlerts: 15, // Not in interface, using fallback
+    avgEngagement: 78, // Not in interface, using fallback
+    achievementsEarned: 156, // Not in interface, using fallback
   };
 
   const systemAlerts = dashboardData?.systemAlerts || [];
@@ -2095,9 +2106,8 @@ const AdminDashboard = () => {
                   >
                     <LazyBehaviorAnalytics
                       studentId="system-overview"
-                      currentMood="neutral"
+                      currentMood={Mood.Neutral}
                       riskScore={0.15}
-                      showSystemOverview={true}
                     />
                   </Suspense>
                 </CardContent>
@@ -2980,9 +2990,9 @@ const AdminDashboard = () => {
                 <div className="space-y-6">
                   <div className="flex items-center gap-4">
                     <Avatar className="w-16 h-16">
-                      <AvatarImage src={selectedUser.avatar} />
+                      <AvatarImage src={selectedUser.photoUrl} />
                       <AvatarFallback className="text-lg">
-                        {(selectedUser.name || "")
+                        {(selectedUser.fullName || "")
                           .split(" ")
                           .map((n) => n[0])
                           .join("")}
@@ -2990,7 +3000,7 @@ const AdminDashboard = () => {
                     </Avatar>
                     <div>
                       <h3 className="text-xl font-semibold">
-                        {selectedUser.name}
+                        {selectedUser.fullName}
                       </h3>
                       <p className="text-gray-600">{selectedUser.email}</p>
                       <div className="flex items-center gap-2 mt-1">
@@ -2998,11 +3008,13 @@ const AdminDashboard = () => {
                           {selectedUser.role}
                         </Badge>
                         <Badge
-                          className={getStatusBadgeClass(selectedUser.status)}
+                          className={getStatusBadgeClass(
+                            selectedUser.isActive ? "active" : "inactive",
+                          )}
                         >
-                          {selectedUser.status}
+                          {selectedUser.isActive ? "Active" : "Inactive"}
                         </Badge>
-                        {selectedUser.role === "student" && (
+                        {selectedUser.role === "STUDENT" && (
                           <Badge className="bg-purple-100 text-purple-700">
                             <Brain className="w-3 h-3 mr-1" />
                             AI Twin Active
@@ -3026,24 +3038,26 @@ const AdminDashboard = () => {
                         Phone
                       </Label>
                       <p className="mt-1">
-                        {selectedUser.phone || "Not provided"}
+                        {selectedUser.phoneNumber || "Not provided"}
                       </p>
                     </div>
                     <div>
                       <Label className="text-sm font-medium text-gray-500">
                         Last Active
                       </Label>
-                      <p className="mt-1">{selectedUser.lastActive}</p>
+                      <p className="mt-1">{selectedUser.lastLogin}</p>
                     </div>
                     <div>
                       <Label className="text-sm font-medium text-gray-500">
                         Account Status
                       </Label>
-                      <p className="mt-1 capitalize">{selectedUser.status}</p>
+                      <p className="mt-1 capitalize">
+                        {selectedUser.isActive ? "Active" : "Inactive"}
+                      </p>
                     </div>
                   </div>
 
-                  {selectedUser.role === "student" && (
+                  {selectedUser.role === "STUDENT" && (
                     <div className="bg-purple-50 p-4 rounded-lg">
                       <h4 className="font-medium text-purple-800 mb-2 flex items-center gap-2">
                         <Brain className="w-4 h-4" />
@@ -3082,7 +3096,7 @@ const AdminDashboard = () => {
                 </Button>
                 {selectedUser && (
                   <>
-                    {selectedUser.role === "student" && (
+                    {selectedUser.role === "STUDENT" && (
                       <Button
                         variant="outline"
                         onClick={() => handleViewAITwin(selectedUser)}
@@ -3181,7 +3195,7 @@ const AdminDashboard = () => {
                       <LazyAITwinChat
                         studentId="admin-monitor"
                         currentLessonId={undefined}
-                        emotionalState="neutral"
+                        emotionalState={Mood.Neutral}
                         className="h-96"
                       />
                     </Suspense>
@@ -3231,9 +3245,8 @@ const AdminDashboard = () => {
                 >
                   <LazyBehaviorAnalytics
                     studentId="system-wide"
-                    currentMood="neutral"
+                    currentMood={Mood.Neutral}
                     riskScore={0.15}
-                    showSystemOverview={true}
                   />
                 </Suspense>
               </div>
