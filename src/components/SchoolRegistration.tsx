@@ -201,12 +201,20 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
 
       let friendlyMessage = "An unexpected error occurred during registration.";
 
-      if (
+      // Handle timeout errors specifically
+      if (err.code === "ECONNABORTED" || err.message?.includes("timeout")) {
+        friendlyMessage = `⏱️ Request Timeout\n\nThe server took too long to respond. This might be due to:\n• Server overload or slow processing\n• Network latency issues\n• The backend processing large amounts of data\n\n💡 Try again in a few moments, or the system will use demo mode.`;
+      } else if (
         err.message?.includes("fetch") ||
         err.message?.includes("Network") ||
-        err.message?.includes("Failed to fetch")
+        err.message?.includes("Failed to fetch") ||
+        err.code === "ERR_NETWORK"
       ) {
-        friendlyMessage = `🌐 Network Connection Failed\n\nCannot reach the API server. This might be due to:\n• Server not running at ${baseURL}\n• Network connectivity issues\n• CORS configuration problems\n\n💡 The system can still work in manual setup mode where you'll get credentials to manually add to your database.`;
+        friendlyMessage = `🌐 Network Connection Failed\n\nCannot reach the API server. This might be due to:\n• Server not running at ${apiService.getConfig().getBaseURL()}\n• Network connectivity issues\n• CORS configuration problems\n\n💡 The system can still work in demo mode where you'll get credentials for testing.`;
+      } else if (err.response?.status >= 500) {
+        friendlyMessage = `🔧 Server Error (${err.response.status})\n\nThe API server encountered an internal error:\n${err.response.data?.message || err.response.statusText}\n\n💡 Please try again later or contact the system administrator.`;
+      } else if (err.response?.status >= 400) {
+        friendlyMessage = `❌ Request Error (${err.response.status})\n\n${err.response.data?.message || err.response.statusText}\n\n💡 Please check your input and try again.`;
       } else {
         friendlyMessage = `Unexpected error: ${err.message || "Please try again or contact support"}`;
       }
@@ -258,22 +266,44 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
           `✅ API Connection Successful!\n\n${testResult.message}\nEndpoint: ${baseURL}\n\nYou can now register schools normally.`,
         );
       } else {
-        // API test failed but this is expected when server is down
-        console.log(
-          "ℹ️ Connection test result: API server unreachable (expected)",
-        );
+        console.log("ℹ️ Connection test failed:", testResult.message);
 
-        const informativeMessage =
-          `📡 Connection Test: Server Unreachable\n\n` +
-          `✅ This confirms the API server at ${baseURL} is currently unavailable.\n\n` +
-          `📋 What this means:\n` +
-          `• The API server is not currently accessible\n` +
-          `• This is expected if the server is down or misconfigured\n` +
-          `• School registration will automatically use manual setup mode\n` +
-          `• You'll get credentials to manually add to your database\n\n` +
-          `💡 Next steps:\n` +
-          `• Proceed with school registration (it will work!)\n` +
-          `• Or fix the API server if you want automatic registration`;
+        // Check if this is a mixed content issue
+        const isMixedContent =
+          window.location.protocol === "https:" && baseURL.startsWith("http:");
+
+        let informativeMessage = "";
+
+        if (isMixedContent && testResult.message.includes("Mixed Content")) {
+          informativeMessage =
+            `🔒 Browser Security Issue Detected\n\n` +
+            `Your browser is blocking the request because:\n` +
+            `• Frontend: ${window.location.origin} (HTTPS)\n` +
+            `• API: ${baseURL} (HTTP)\n\n` +
+            `🛠️ Quick Solutions:\n\n` +
+            `1. ALLOW MIXED CONTENT:\n` +
+            `   • Click the 🔒 lock icon in address bar\n` +
+            `   • Click "Site settings"\n` +
+            `   • Change "Insecure content" to "Allow"\n` +
+            `   • Refresh and try again\n\n` +
+            `2. OR USE HTTP FRONTEND:\n` +
+            `   • Access via: http://${window.location.host}\n\n` +
+            `3. OR SET UP HTTPS API:\n` +
+            `   • Configure your .NET API for HTTPS`;
+        } else {
+          informativeMessage =
+            `📡 Connection Test: Server Unreachable\n\n` +
+            `❌ ${testResult.message}\n\n` +
+            `🔍 Endpoint tested: ${baseURL}/Institutions\n\n` +
+            `📋 Possible causes:\n` +
+            `• API server is not running\n` +
+            `• CORS configuration issues\n` +
+            `• School registration will automatically use manual setup mode\n` +
+            `• You'll get credentials to manually add to your database\n\n` +
+            `💡 Next steps:\n` +
+            `• Proceed with school registration (it will work!)\n` +
+            `• Or fix the API server if you want automatic registration`;
+        }
 
         // Don't set as error since this is expected behavior
         console.log(

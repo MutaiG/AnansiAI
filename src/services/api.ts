@@ -3,7 +3,7 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from "axios";
 
 const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:3001/api";
+  import.meta.env.VITE_API_URL || "http://13.60.98.134/anansiai/api";
 
 const IS_DEVELOPMENT =
   import.meta.env.VITE_ENVIRONMENT === "development" || import.meta.env.DEV;
@@ -214,9 +214,9 @@ class ApiClient {
     userId: string,
     password: string,
   ): Promise<ApiResponse<AuthResponse>> {
-    const response = await this.request<AuthResponse>("/auth/login", {
+    const response = await this.request<AuthResponse>("/Auth/login", {
       method: "POST",
-      data: { userId, password },
+      data: { email: userId, password },
     });
 
     if (response.success && response.data.token) {
@@ -469,18 +469,15 @@ class ApiClient {
     });
   }
 
-  // Super Admin Login
+  // Super Admin Login (using regular Auth/login with admin credentials)
   async superAdminLogin(
     loginId: string,
     password: string,
   ): Promise<ApiResponse<AuthResponse>> {
-    const response = await this.request<AuthResponse>(
-      "/auth/super-admin/login",
-      {
-        method: "POST",
-        data: { loginId, password },
-      },
-    );
+    const response = await this.request<AuthResponse>("/Auth/login", {
+      method: "POST",
+      data: { email: loginId, password },
+    });
 
     if (response.success && response.data.token) {
       this.token = response.data.token;

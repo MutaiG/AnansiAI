@@ -524,6 +524,62 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
     setTimeout(() => setMessageModal(null), 5000);
   };
 
+  // Debug function to test API connection directly
+  const testApiConnection = async () => {
+    console.log("🔍 Testing API connection directly...");
+    try {
+      const response = await fetch(`${baseURL}/Institutions`, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+      });
+
+      console.log("📡 API Response Status:", response.status);
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log("✅ API Response Data:", data);
+        showMessage({
+          id: Date.now().toString(),
+          type: "success",
+          priority: "medium",
+          title: "API Connection Success",
+          message: `Connected to API! Found ${Array.isArray(data) ? data.length : "some"} institutions.`,
+          timestamp: new Date().toISOString(),
+        });
+
+        // Force refresh the schools data
+        refetchSchools();
+      } else {
+        console.log(
+          "❌ API Response Error:",
+          response.status,
+          response.statusText,
+        );
+        showMessage({
+          id: Date.now().toString(),
+          type: "error",
+          priority: "high",
+          title: "API Connection Failed",
+          message: `HTTP ${response.status}: ${response.statusText}`,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    } catch (error: any) {
+      console.error("💥 API Test Error:", error);
+      showMessage({
+        id: Date.now().toString(),
+        type: "error",
+        priority: "high",
+        title: "API Test Failed",
+        message: `Network error: ${error.message}`,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  };
+
   // Note: Breadcrumbs functionality removed - not implemented in this project
 
   // New API Service Integration - Direct and Efficient
@@ -2411,17 +2467,69 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
 
               {/* Schools Data Table */}
               <Card className="bg-white/70 backdrop-blur-sm">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+                  <div>
+                    <CardTitle className="text-lg">
+                      Registered Institutions
+                    </CardTitle>
+                    <CardDescription>
+                      {isConnected ? "Live data from API" : "Mock data mode"} •{" "}
+                      {schools?.length || 0} institutions
+                    </CardDescription>
+                  </div>
+                  <Button
+                    onClick={() => {
+                      console.log("🔄 Manually refreshing schools data...");
+                      refetchSchools();
+                    }}
+                    variant="outline"
+                    size="sm"
+                    disabled={schoolsLoading}
+                  >
+                    <RefreshCw
+                      className={`w-4 h-4 mr-2 ${schoolsLoading ? "animate-spin" : ""}`}
+                    />
+                    {schoolsLoading ? "Loading..." : "Refresh"}
+                  </Button>
+                </CardHeader>
                 <CardContent className="p-0">
                   {schoolsError && (
                     <div className="p-6">
                       <Alert className="border-red-200 bg-red-50">
                         <AlertTriangle className="h-4 w-4 text-red-600" />
                         <AlertTitle className="text-red-800">
-                          Data Loading Error
+                          Cannot Load Real Institutions
                         </AlertTitle>
                         <AlertDescription className="text-red-700">
-                          Failed to load schools data. Using cached information.
-                          Please try refreshing the page.
+                          <div className="space-y-2">
+                            <p>API Error: {schoolsError}</p>
+                            <p>API URL: {baseURL}/Institutions</p>
+                            <p>
+                              Status:{" "}
+                              {isConnected ? "Connected" : "Disconnected"}
+                            </p>
+                            <div className="flex gap-2 mt-3">
+                              <Button
+                                onClick={() => {
+                                  console.log("🔄 Testing API connection...");
+                                  refetchSchools();
+                                }}
+                                variant="outline"
+                                size="sm"
+                              >
+                                <RefreshCw className="w-4 h-4 mr-2" />
+                                Retry Connection
+                              </Button>
+                              <Button
+                                onClick={testApiConnection}
+                                variant="outline"
+                                size="sm"
+                              >
+                                <ExternalLink className="w-4 h-4 mr-2" />
+                                Test API
+                              </Button>
+                            </div>
+                          </div>
                         </AlertDescription>
                       </Alert>
                     </div>
