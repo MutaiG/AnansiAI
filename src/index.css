@@ -118,4 +118,17 @@
   .input-field {
     @apply w-full px-4 py-3 border-2 border-primary-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200 bg-primary-50/30 hover:bg-primary-50/50 focus:bg-white placeholder:text-secondary-400;
   }
+
+  /* Animation delay utilities */
+  .animate-delay-2s {
+    animation-delay: -2s;
+  }
+
+  .animate-delay-4s {
+    animation-delay: -4s;
+  }
+
+  .animate-delay-6s {
+    animation-delay: -6s;
+  }
 }

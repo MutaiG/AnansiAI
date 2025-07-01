@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import usePageTitle from "@/hooks/usePageTitle";
 import { useLogin } from "@/hooks/useApiService";
+import { authService } from "@/services/auth";
 import { ApiStatusIndicator } from "@/components/ApiStatusIndicator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,10 +50,10 @@ const SuperAdminLogin = () => {
 
   // Redirect if already authenticated as super admin
   useEffect(() => {
-    if (isAuthenticated && userRole === "SUPER_ADMIN") {
+    if (isAuthenticated && authService.getState().userRole === "SUPER_ADMIN") {
       navigate("/super-admin-dashboard");
     }
-  }, [isAuthenticated, userRole, navigate]);
+  }, [isAuthenticated, navigate]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -108,7 +109,7 @@ const SuperAdminLogin = () => {
     }
 
     try {
-      const result = await resetPassword(resetEmail);
+      const result = await authService.resetPassword(resetEmail);
 
       if (result.success) {
         setResetSent(true);
@@ -132,14 +133,8 @@ const SuperAdminLogin = () => {
       {/* Background Pattern */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-primary-100 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-float"></div>
-        <div
-          className="absolute -bottom-40 -left-40 w-80 h-80 bg-accent-100 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-float"
-          style={{ animationDelay: "-2s" }}
-        ></div>
-        <div
-          className="absolute top-40 left-1/2 w-80 h-80 bg-secondary-100 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-float"
-          style={{ animationDelay: "-4s" }}
-        ></div>
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-accent-100 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-float animate-delay-2s"></div>
+        <div className="absolute top-40 left-1/2 w-80 h-80 bg-secondary-100 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-float animate-delay-4s"></div>
       </div>
 
       <div className="relative w-full max-w-md">

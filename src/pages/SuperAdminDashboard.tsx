@@ -27,6 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ProgressBar } from "@/components/ui/progress-bar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
@@ -2498,12 +2499,12 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
-                              <div className="w-16 bg-gray-200 rounded-full h-2">
-                                <div
-                                  className="bg-blue-600 h-2 rounded-full"
-                                  style={{ width: `${school.performance}%` }}
-                                ></div>
-                              </div>
+                              <ProgressBar
+                                value={school.performance}
+                                className="w-16"
+                                color="blue"
+                                size="md"
+                              />
                               <span className="text-sm font-medium">
                                 {school.performance}%
                               </span>

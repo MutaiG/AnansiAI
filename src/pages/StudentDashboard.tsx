@@ -1284,10 +1284,7 @@ const StudentDashboard = () => {
                         </div>
                         <div className="flex items-center gap-2 ml-11 sm:ml-0">
                           <div className="w-12 sm:w-16 bg-gray-200 rounded-full h-2">
-                            <div
-                              className="bg-purple-600 h-2 rounded-full"
-                              style={{ width: "75%" }}
-                            ></div>
+                            <div className="bg-purple-600 h-2 rounded-full w-3/4"></div>
                           </div>
                           <span className="text-xs sm:text-sm font-medium text-purple-600 whitespace-nowrap">
                             75%
@@ -1336,10 +1333,7 @@ const StudentDashboard = () => {
                         </div>
                         <div className="flex items-center gap-2 ml-11 sm:ml-0">
                           <div className="w-12 sm:w-16 bg-gray-200 rounded-full h-2">
-                            <div
-                              className="bg-blue-600 h-2 rounded-full"
-                              style={{ width: "40%" }}
-                            ></div>
+                            <div className="bg-blue-600 h-2 rounded-full w-2/5"></div>
                           </div>
                           <span className="text-xs sm:text-sm font-medium text-blue-600 whitespace-nowrap">
                             2/5

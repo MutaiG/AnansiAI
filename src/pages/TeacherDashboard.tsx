@@ -2822,10 +2822,7 @@ AI Recommendations:
                       </span>
                       <div className="flex items-center gap-2">
                         <div className="w-8 sm:w-12 bg-gray-200 rounded-full h-1.5">
-                          <div
-                            className="bg-purple-600 h-1.5 rounded-full"
-                            style={{ width: "75%" }}
-                          ></div>
+                          <div className="bg-purple-600 h-1.5 rounded-full w-3/4"></div>
                         </div>
                         <span className="text-xs text-purple-600">75%</span>
                       </div>
