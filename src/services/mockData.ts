@@ -194,6 +194,7 @@ export class MockApiService {
 
     return {
       success: false,
+      data: null as any,
       error: "Invalid credentials",
     };
   }
@@ -236,6 +237,7 @@ export class MockApiService {
 
     return {
       success: false,
+      data: null as any,
       error: "Invalid super admin credentials",
     };
   }

@@ -17,7 +17,7 @@ export interface ApiResponse<T> {
 }
 
 export interface School {
-  id: number;
+  id: string;
   name: string;
   code: string;
   county: string;
@@ -39,11 +39,11 @@ export interface School {
 }
 
 export interface User {
-  id: number;
+  id: string;
   name: string;
   email: string;
   role: "student" | "teacher" | "admin" | "superadmin";
-  schoolId: number;
+  schoolId: string;
   status: "active" | "inactive" | "suspended";
   lastActive: string;
   createdAt: string;

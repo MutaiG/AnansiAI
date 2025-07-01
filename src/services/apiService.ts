@@ -391,13 +391,27 @@ export class ApiService {
       }
     }
 
-    return loginResponse;
-
-    return this.makeRequest(
+    const mockResponse = this.makeRequest(
       "POST",
       "/auth/super-admin/login",
-      { loginId, password },
-      mockResponse,
+      { loginId: email, password },
+      {
+        success: true,
+        data: {
+          token: "mock-super-admin-token",
+          user: {
+            id: "super-admin-1",
+            name: "Super Administrator",
+            email: "super@anansi.ai",
+            role: "superadmin",
+            schoolId: "",
+            status: "active",
+            lastActive: new Date().toISOString(),
+            createdAt: "2024-01-01T00:00:00Z",
+            updatedAt: new Date().toISOString(),
+          },
+        },
+      },
     );
   }
 
@@ -421,7 +435,7 @@ export class ApiService {
         adminName: "Dr. Sarah Johnson",
         adminEmail: "admin@nairobiacademy.ac.ke",
         adminPhone: "+254 701 234 567",
-        address: "Westlands, Nairobi",
+
         establishedYear: 1985,
         type: "secondary",
         createdAt: "2024-01-15T00:00:00Z",
@@ -443,7 +457,7 @@ export class ApiService {
         adminName: "Prof. James Mwangi",
         adminEmail: "admin@mombasainternational.ac.ke",
         adminPhone: "+254 722 345 678",
-        address: "Nyali, Mombasa",
+
         establishedYear: 1992,
         type: "secondary",
         createdAt: "2024-01-15T00:00:00Z",
@@ -465,7 +479,7 @@ export class ApiService {
         adminName: "Dr. Grace Atieno",
         adminEmail: "admin@kisumuigh.ac.ke",
         adminPhone: "+254 733 456 789",
-        address: "Kisumu Central, Kisumu",
+
         establishedYear: 1978,
         type: "secondary",
         createdAt: "2024-01-15T00:00:00Z",
@@ -484,8 +498,7 @@ export class ApiService {
       // Transform AnansiAI school data to Institution API format
       const institutionData = {
         name: schoolData.name || "New School",
-        address:
-          schoolData.address || `${schoolData.county || "Nairobi"}, Kenya`,
+
         createdBy: 1, // Would need current user ID
         modifiedBy: "system",
         isDeleted: false,
@@ -512,7 +525,6 @@ export class ApiService {
           adminName: schoolData.adminName || "Administrator",
           adminEmail: schoolData.adminEmail || "admin@school.ac.ke",
           adminPhone: schoolData.adminPhone || "+254 700 000 000",
-          address: response.data.address,
           establishedYear: new Date().getFullYear(),
           type: schoolData.type || "secondary",
           createdAt: response.data.createdDate || new Date().toISOString(),
@@ -546,7 +558,6 @@ export class ApiService {
       adminName: schoolData.adminName || "Admin",
       adminEmail: schoolData.adminEmail || "admin@newschool.ac.ke",
       adminPhone: schoolData.adminPhone || "+254 700 000 000",
-      address: schoolData.address,
       establishedYear: new Date().getFullYear(),
       type: schoolData.type || "secondary",
       createdAt: new Date().toISOString(),
@@ -1109,7 +1120,7 @@ export class ApiService {
   > {
     try {
       console.log("🚀 Starting school registration with data:", schoolData);
-      console.log("📡 API Base URL:", this.config.getBaseURL());
+      console.log("�� API Base URL:", this.config.getBaseURL());
 
       // Test API connectivity first
       try {
@@ -1234,7 +1245,6 @@ export class ApiService {
         errorMessage,
         errorDetails,
         errorCode: error.code,
-        errorMessage: error.message,
         hasResponse: !!error.response,
         hasRequest: !!error.request,
         fullError: error,

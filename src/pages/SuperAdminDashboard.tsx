@@ -181,7 +181,6 @@ import {
   HardDriveIcon,
   CpuIcon,
   NetworkIcon,
-  SecurityIcon,
   CloudIcon,
   ServerIcon,
 } from "lucide-react";
@@ -1677,7 +1676,9 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
                       <Plus className="w-4 h-4 mr-2" />
                       Register School
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleGenerateReport}>
+                    <DropdownMenuItem
+                      onClick={() => handleGenerateReport("System Report")}
+                    >
                       <FileText className="w-4 h-4 mr-2" />
                       Generate Report
                     </DropdownMenuItem>
@@ -2319,7 +2320,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
                           filteredSchools
                             .map(
                               (school) =>
-                                `${school.name},${school.code},${school.county},${school.subcounty},${school.type},${school.studentCount},${school.teacherCount},${school.performance}%,${school.status},${school.adminName},${school.adminEmail}`,
+                                `${school.name},${school.code},${school.county},${school.subcounty},${school.type},${(school as any).students || (school as any).studentCount || 0},${(school as any).teachers || (school as any).teacherCount || 0},${school.performance}%,${school.status},${school.adminName},${school.adminEmail}`,
                             )
                             .join("\n");
 
@@ -2479,7 +2480,9 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
                             <div className="flex items-center gap-1">
                               <GraduationCap className="w-4 h-4 text-blue-600" />
                               <span className="font-medium">
-                                {school.studentCount}
+                                {(school as any).students ||
+                                  (school as any).studentCount ||
+                                  0}
                               </span>
                             </div>
                           </TableCell>
@@ -2487,7 +2490,9 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
                             <div className="flex items-center gap-1">
                               <Users className="w-4 h-4 text-green-600" />
                               <span className="font-medium">
-                                {school.teacherCount}
+                                {(school as any).teachers ||
+                                  (school as any).teacherCount ||
+                                  0}
                               </span>
                             </div>
                           </TableCell>
@@ -4272,10 +4277,13 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
           onSuccess={() => {
             refetchSchools();
             showMessage({
+              id: Date.now().toString(),
               type: "success",
+              priority: "medium",
               title: "Success!",
-              description:
+              message:
                 "School registered successfully with credentials sent to administrator.",
+              timestamp: new Date().toISOString(),
             });
           }}
         />

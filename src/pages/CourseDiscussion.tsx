@@ -430,6 +430,9 @@ Looking forward to collaborating! 📚`,
                 value={selectedFilter}
                 onChange={(e) => setSelectedFilter(e.target.value)}
                 className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                aria-label="Filter discussion posts"
+                title="Filter discussion posts"
+                placeholder="Filter posts"
               >
                 <option value="all">All Posts</option>
                 <option value="announcement">Announcements</option>

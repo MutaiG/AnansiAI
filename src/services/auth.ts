@@ -1,8 +1,5 @@
-import {
-  apiWithFallback,
-  type AuthResponse,
-  type User,
-} from "./apiWithFallback";
+import { apiWithFallback } from "./apiWithFallback";
+import type { AuthResponse, User } from "./api";
 import { apiClient } from "./api";
 
 export interface AuthState {

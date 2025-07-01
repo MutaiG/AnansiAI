@@ -1632,6 +1632,9 @@ const AdminDashboard = () => {
                               .every((user) => selectedUsers.includes(user.id))}
                             onChange={handleSelectAllUsers}
                             className="rounded border-gray-300"
+                            aria-label="Select all users"
+                            title="Select all users"
+                            placeholder="Select all users"
                           />
                         </TableHead>
                         <TableHead>User</TableHead>
@@ -1672,6 +1675,9 @@ const AdminDashboard = () => {
                                   checked={selectedUsers.includes(user.id)}
                                   onChange={() => handleSelectUser(user.id)}
                                   className="rounded border-gray-300"
+                                  aria-label={`Select user ${user.fullName}`}
+                                  title={`Select user ${user.fullName}`}
+                                  placeholder={`Select user ${user.fullName}`}
                                 />
                               </TableCell>
                               <TableCell>

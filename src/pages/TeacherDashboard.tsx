@@ -297,7 +297,7 @@ export default function TeacherDashboard() {
 
   // Notification system
   const [showNotificationCenter, setShowNotificationCenter] = useState(false);
-  const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
+  const [selectedMessage, setSelectedMessage] = useState<any | null>(null);
   const [showMessageModal, setShowMessageModal] = useState(false);
   const [showProfileSettings, setShowProfileSettings] = useState(false);
 
@@ -801,9 +801,9 @@ export default function TeacherDashboard() {
             id: "content_001",
             title: "Quadratic Functions",
             subject: "Mathematics",
-            type: "lesson",
-            difficulty: "medium",
-            status: "published",
+            type: "lesson" as const,
+            difficulty: "medium" as const,
+            status: "published" as const,
             createdAt: new Date(Date.now() - 86400000).toISOString(),
             studentsCompleted: 24,
             averageScore: 87,
@@ -815,9 +815,9 @@ export default function TeacherDashboard() {
             id: "content_002",
             title: "Calculus Integration Assignment",
             subject: "Mathematics",
-            type: "assignment",
-            difficulty: "hard",
-            status: "published",
+            type: "assignment" as const,
+            difficulty: "hard" as const,
+            status: "published" as const,
             createdAt: new Date(Date.now() - 172800000).toISOString(),
             studentsCompleted: 18,
             averageScore: 79,
@@ -1049,7 +1049,7 @@ export default function TeacherDashboard() {
     if (classData) {
       // Show detailed class information
       addMessage({
-        type: "class_info",
+        type: "info",
         priority: "medium",
         title: `${classData.name} - Class Details`,
         message: `Complete overview of ${classData.name}`,
@@ -1057,7 +1057,7 @@ export default function TeacherDashboard() {
 📖 Subject: ${classData.subject}
 🎓 Grade: ${classData.grade}
 👥 Students: ${classData.studentCount}
-📊 Progress: ${classData.progress}%
+��� Progress: ${classData.progress}%
 📅 Schedule: ${classData.schedule}
 📝 Next Lesson: ${classData.nextLesson}
 📋 Status: ${classData.status.charAt(0).toUpperCase() + classData.status.slice(1)}
@@ -1227,7 +1227,7 @@ ${twinInsight.twinAdaptations.nextRecommendations.join("\n")}`,
     );
     if (content && dashboardData) {
       const updatedContent = dashboardData.lessonContent.map((c) =>
-        c.id === contentId ? { ...c, status: "published" } : c,
+        c.id === contentId ? { ...c, status: "published" as const } : c,
       );
 
       setDashboardData({
@@ -1380,7 +1380,7 @@ ${analyticsReport.recommendations.map((rec) => `- ${rec}`).join("\n")}
       });
 
       addNotification({
-        type: "analytics",
+        type: "system",
         priority: "medium",
         title: "Analytics Report Downloaded",
         message: "Your comprehensive teaching analytics report is ready",
@@ -1425,7 +1425,7 @@ ${analyticsReport.recommendations.map((rec) => `- ${rec}`).join("\n")}
           className: classData.name,
           subject: classData.subject,
           grade: classData.grade,
-          studentCount: classData.studentCount,
+
           progress: classData.progress,
           schedule: classData.schedule,
           description: classData.description,
@@ -1607,7 +1607,7 @@ ${analyticsReport.recommendations.map((rec) => `- ${rec}`).join("\n")}
 
     setTimeout(() => {
       addNotification({
-        type: "communication",
+        type: "system",
         priority: "medium",
         title: "Bulk Message Sent",
         message: "Message sent to all students in selected classes",
@@ -1780,7 +1780,7 @@ ${analyticsReport.recommendations.map((rec) => `- ${rec}`).join("\n")}
     if (!classData || !dashboardData) return;
 
     const updatedClasses = dashboardData.classes.map((c) =>
-      c.id === classId ? { ...c, status: "archived" as const } : c,
+      c.id === classId ? { ...c, status: "completed" as const } : c,
     );
 
     setDashboardData({
@@ -1811,7 +1811,7 @@ ${analyticsReport.recommendations.map((rec) => `- ${rec}`).join("\n")}
         [];
 
       addMessage({
-        type: "student_management",
+        type: "info",
         priority: "medium",
         title: `Student Management - ${classData.name}`,
         message: `Managing ${classStudents.length} students in ${classData.name}`,
@@ -1829,7 +1829,7 @@ ${
    ⭐ Average Grade: ${student.averageGrade}%
    📈 Status: ${student.status.charAt(0).toUpperCase() + student.status.slice(1)}
    ⏰ Last Active: ${student.lastActive}
-   ${student.status === "struggling" ? "⚠️ Needs attention" : ""}
+   ${student.status === "struggling" ? "���️ Needs attention" : ""}
    ${student.status === "excelling" ? "🌟 Top performer" : ""}
 
    **AI Recommendations:**
@@ -1861,7 +1861,6 @@ ${
         metadata: {
           classId: classId,
           className: classData.name,
-          studentCount: classStudents.length,
         },
       });
 
@@ -2014,7 +2013,7 @@ AI Insights:
     if (!content || !dashboardData) return;
 
     const updatedContent = dashboardData.lessonContent.map((c) =>
-      c.id === contentId ? { ...c, status: "archived" } : c,
+      c.id === contentId ? { ...c, status: "archived" as const } : c,
     );
 
     setDashboardData({
@@ -2057,7 +2056,7 @@ Learning Effectiveness:
 • Content Difficulty: ${content.difficulty}
 • Student Engagement: High
 • Time to Complete: ${content.estimatedDuration} min avg
-• Improvement Areas: None identified
+�� Improvement Areas: None identified
 
 AI Recommendations:
 • Content is well-suited for current difficulty level
@@ -2071,7 +2070,6 @@ AI Recommendations:
         category: "Content Performance",
         metadata: {
           contentId: contentId,
-          contentTitle: content.title,
         },
       });
 
@@ -2125,8 +2123,8 @@ AI Recommendations:
         id: `content_${Date.now()}`,
         title: contentForm.title,
         subject: dashboardData?.teacherProfile.subject || "General",
-        type: contentForm.type,
-        difficulty: contentForm.difficulty,
+        type: contentForm.type as "assignment" | "quiz" | "lesson" | "project",
+        difficulty: contentForm.difficulty as "easy" | "medium" | "hard",
         status: "draft",
         createdAt: new Date().toISOString(),
         studentsCompleted: 0,

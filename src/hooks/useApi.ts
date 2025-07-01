@@ -165,7 +165,7 @@ export function useCrud<T>(basePath: string) {
       setLoading(true);
       const response = await apiClient["request"]<T>(basePath, {
         method: "POST",
-        body: JSON.stringify(data),
+        data: data,
       });
 
       if (response.success) {
@@ -186,7 +186,7 @@ export function useCrud<T>(basePath: string) {
       setLoading(true);
       const response = await apiClient["request"]<T>(`${basePath}/${id}`, {
         method: "PUT",
-        body: JSON.stringify(data),
+        data: data,
       });
 
       if (response.success) {

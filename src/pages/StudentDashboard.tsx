@@ -162,6 +162,7 @@ interface DashboardCourse {
 
 // Backend DTO interfaces to match API responses
 interface StudentDashboardData {
+  courses?: DashboardCourse[];
   profile: {
     id: string;
     appUserId: string;
@@ -588,12 +589,16 @@ const StudentDashboard = () => {
     }, 800);
 
     // Navigate to lesson content with course data
-    navigate("/lesson-content", {
-      state: {
-        course: course,
-        lessonId: `${course.id}_lesson_${course.completedLessons + 1}`,
-      },
-    });
+    // Get the first available course or most recent
+    const firstCourse = dashboardData?.courses?.[0];
+    if (firstCourse) {
+      navigate("/lesson-content", {
+        state: {
+          course: firstCourse,
+          lessonId: `${firstCourse.id}_lesson_${firstCourse.completedLessons + 1}`,
+        },
+      });
+    }
   };
 
   const handleCourseAnalytics = (course: any) => {
@@ -747,7 +752,7 @@ const StudentDashboard = () => {
       }
 
       // For real API calls (local development)
-      const apiService = autoApiService || apiWithFallback;
+      const service = apiService;
       // Note: Backend would need to implement markNotificationAsUnread endpoint
       // For now, just update UI
       setNotificationsList((prev) =>
@@ -976,10 +981,12 @@ const StudentDashboard = () => {
               {/* Mood Indicator */}
               <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-full">
                 <span className="text-lg">
-                  {getMoodEmoji(behaviorSummary?.currentMood || "focused")}
+                  {getMoodEmoji(
+                    (behaviorSummary?.currentMood as Mood) || Mood.Focused,
+                  )}
                 </span>
                 <span className="text-sm font-medium text-gray-700 capitalize">
-                  {behaviorSummary?.currentMood || "focused"}
+                  {behaviorSummary?.currentMood || Mood.Focused}
                 </span>
               </div>
 
@@ -2191,7 +2198,7 @@ const StudentDashboard = () => {
                 <BehaviorAnalytics
                   studentId={dashboardData?.profile?.id || "student_001"}
                   currentMood={
-                    (behaviorSummary?.currentMood as Mood) || "focused"
+                    (behaviorSummary?.currentMood as Mood) || Mood.Focused
                   }
                   riskScore={
                     behaviorSummary?.riskLevel === "low"
@@ -2258,7 +2265,6 @@ const StudentDashboard = () => {
                       },
                     ],
                     riskFactors: [],
-                    achievements: achievements,
                     lastUpdated: new Date(),
                   }}
                   onRiskDetected={(risk) => {
@@ -2382,7 +2388,9 @@ const StudentDashboard = () => {
                   <div className="flex items-center justify-between">
                     <span className="text-sm">Risk Level</span>
                     <Badge
-                      className={getRiskLevelColor(behaviorSummary.riskLevel)}
+                      className={getRiskLevelColor(
+                        behaviorSummary.riskLevel as "high" | "medium" | "low",
+                      )}
                     >
                       {behaviorSummary.riskLevel.toUpperCase()}
                     </Badge>
@@ -2492,10 +2500,6 @@ const StudentDashboard = () => {
                 >
                   <LazyAITwinChat
                     studentId={dashboardData?.profile?.id || "student_001"}
-                    currentMood={
-                      (dashboardData?.behaviorSummary?.currentMood as Mood) ||
-                      "focused"
-                    }
                     currentLessonId={undefined}
                     onInteractionLogged={(interaction) => {
                       console.log("AI interaction logged:", interaction);
@@ -2536,8 +2540,8 @@ const StudentDashboard = () => {
               }
             >
               <LazyStudentProfileManager
-                profile={dashboardData?.profile || {}}
-                privacySettings={dashboardData?.profile?.privacySettings || {}}
+                profile={dashboardData?.profile as any}
+                privacySettings={dashboardData?.profile?.privacySettings as any}
                 onProfileUpdate={(updates) => {
                   console.log("Profile updated:", updates);
                   // In a real app, this would update the backend
@@ -2584,6 +2588,7 @@ const StudentDashboard = () => {
                   })
                 }
                 className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                aria-label="Filter achievements by course"
               >
                 <option value="all">All Courses</option>
                 <option value="not-started">Not Started</option>
@@ -2605,6 +2610,7 @@ const StudentDashboard = () => {
                   })
                 }
                 className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                aria-label="Filter achievements by subject"
               >
                 <option value="all">All Subjects</option>
                 <option value="math">Mathematics</option>
@@ -2627,6 +2633,7 @@ const StudentDashboard = () => {
                   })
                 }
                 className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                aria-label="Filter achievements by difficulty level"
               >
                 <option value="all">All Levels</option>
                 <option value="beginner">Beginner</option>

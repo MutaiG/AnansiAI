@@ -296,7 +296,19 @@ const BehaviorAnalytics: React.FC<BehaviorAnalyticsProps> = ({
                   metrics={behaviorMetrics}
                   engagementData={engagementData}
                   activityData={activityData}
-                  analytics={analytics}
+                  analytics={
+                    analytics || {
+                      studentId: studentId,
+                      overallProgress: 0,
+                      subjectProgress: [],
+                      strengths: [],
+                      improvementAreas: [],
+                      recommendedActions: [],
+                      riskFactors: [],
+                      achievements: [],
+                      lastUpdated: new Date(),
+                    }
+                  }
                   currentMood={currentMood}
                 />
               </DialogContent>
@@ -474,7 +486,7 @@ const DetailedAnalyticsView: React.FC<{
   metrics: BehaviorMetric[];
   engagementData: EngagementData[];
   activityData: any[];
-  analytics: LearningAnalytics;
+  analytics: Partial<LearningAnalytics>;
   currentMood: Mood;
 }> = ({ metrics, engagementData, activityData, analytics, currentMood }) => {
   return (
