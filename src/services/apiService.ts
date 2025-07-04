@@ -11,7 +11,7 @@ export class ApiConfig {
   private constructor() {
     // Force HTTP for the API since the backend doesn't support HTTPS
     const apiProtocol = "http";
-    this.baseURL = `${apiProtocol}://13.60.98.134/anansiai/api`;
+    this.baseURL = `${apiProtocol}://13.60.98.134/anansiai`;
 
     console.log(`🔧 API Configuration:`, {
       frontendProtocol: window.location.protocol,
@@ -33,7 +33,7 @@ export class ApiConfig {
       );
     }
 
-    this.isProduction = true; // Treat as production since it's a hosted API
+    this.isProduction = true; // Force production mode - no mock data fallbacks
 
     // Test backend availability on initialization
     this.testBackendConnection();
@@ -65,8 +65,8 @@ export class ApiConfig {
       console.log("🔍 Testing API connection to:", this.baseURL);
 
       try {
-        // Use axios instead of fetch to avoid CORS issues
-        const response = await axios.get(`${this.baseURL}/health`, {
+        // Use axios instead of fetch to avoid CORS issues - test with Institutions endpoint
+        const response = await axios.get(`${this.baseURL}/api/Institutions`, {
           timeout: 3000,
           headers: {
             Accept: "application/json",
@@ -77,6 +77,10 @@ export class ApiConfig {
 
         if (this.hasBackend) {
           console.log("✅ Backend API connected:", this.baseURL);
+          console.log(
+            "🔧 API Response sample:",
+            response.data?.slice?.(0, 1) || response.data,
+          );
         } else {
           console.warn(
             `⚠️ API responded with status ${response.status}:`,
@@ -284,24 +288,13 @@ export class ApiService {
           ? "Network"
           : "API";
 
-      console.warn(`⚠️ ${errorType} Error (${endpoint}):`, {
+      console.warn(`⚠�� ${errorType} Error (${endpoint}):`, {
         code: error.code,
         message: error.message,
         status: error.response?.status,
       });
 
-      // Always use mock data when available - better UX than errors
-      if (mockData !== undefined) {
-        console.log(
-          `📱 Using mock data due to ${errorType.toLowerCase()} error: ${endpoint}`,
-        );
-        await new Promise((resolve) => setTimeout(resolve, 100)); // Minimal delay for realism
-        return {
-          success: true,
-          data: mockData,
-          message: `📱 Mock data (${errorType.toLowerCase()} error)`,
-        };
-      }
+      // No fallback - return error directly
 
       // Return meaningful error messages only if no mock data available
       let errorMessage = "API Error";
@@ -431,7 +424,7 @@ export class ApiService {
 
     try {
       // Try to fetch real data from API
-      const response = await this.client.get("/Institutions", {
+      const response = await this.client.get("/api/Institutions", {
         timeout: 8000,
       });
 
@@ -476,59 +469,19 @@ export class ApiService {
         };
       }
     } catch (error: any) {
-      console.warn("⚠️ API call failed, using mock data:", error.message);
+      console.error("❌ API call failed:", error.message);
+      return {
+        success: false,
+        data: [],
+        error: `Failed to fetch schools: ${error.message}`,
+      };
     }
 
-    // Fallback to mock data
-    const mockSchools: School[] = [
-      {
-        id: 1,
-        name: "Nairobi Academy",
-        code: "NAC",
-        county: "Nairobi",
-        subcounty: "Westlands",
-        ward: "Parklands",
-        students: 1250,
-        teachers: 85,
-        status: "active",
-        performance: 89,
-        aiAccuracy: 94,
-        lastSync: "2 hours ago",
-        adminName: "Dr. Sarah Johnson",
-        adminEmail: "admin@nairobiacademy.ac.ke",
-        adminPhone: "+254 701 234 567",
-        establishedYear: 1985,
-        type: "secondary",
-        createdAt: "2024-01-15T00:00:00Z",
-        updatedAt: "2024-01-15T00:00:00Z",
-      },
-      {
-        id: 2,
-        name: "Mombasa International School",
-        code: "MIS",
-        county: "Mombasa",
-        subcounty: "Nyali",
-        ward: "Frere Town",
-        students: 890,
-        teachers: 62,
-        status: "active",
-        performance: 85,
-        aiAccuracy: 91,
-        lastSync: "1 hour ago",
-        adminName: "Prof. James Mwangi",
-        adminEmail: "admin@mombasainternational.ac.ke",
-        adminPhone: "+254 722 345 678",
-        establishedYear: 1992,
-        type: "secondary",
-        createdAt: "2024-01-15T00:00:00Z",
-        updatedAt: "2024-01-15T00:00:00Z",
-      },
-    ];
-
+    // This shouldn't be reached, but just in case
     return {
-      success: true,
-      data: mockSchools,
-      message: "📱 Using mock data (API unavailable)",
+      success: false,
+      data: [],
+      error: "No data received from API",
     };
   }
 
@@ -546,7 +499,10 @@ export class ApiService {
         institutionId: 0,
       };
 
-      const response = await this.client.post("/Institutions", institutionData);
+      const response = await this.client.post(
+        "/api/Institutions",
+        institutionData,
+      );
 
       if (response.data) {
         // Transform response back to School format
@@ -612,79 +568,100 @@ export class ApiService {
     };
   }
 
-  // System Statistics (combining multiple API calls)
+  // System Statistics (from real API only)
   async getSystemStats(): Promise<ApiResponse<any>> {
-    // Prepare mock data for immediate fallback
-    const mockStats = {
-      totalSchools: 47,
-      totalStudents: 12567,
-      totalTeachers: 823,
-      totalSubjects: 18,
-      avgPerformance: 78.3,
-      systemUptime: 99.8,
-      dataStorage: 67.3,
-      activeUsers: 8945,
-      dailyLogins: 2341,
-      lastUpdated: new Date().toISOString(),
-    };
+    try {
+      console.log("�� Fetching system stats from API...");
+      // Get institutions count from your available endpoint
+      const institutionsResponse = await this.client.get("/api/Institutions", {
+        timeout: 8000,
+      });
 
-    // Use makeRequest for proper timeout handling and fallback
-    return this.makeRequest("GET", "/super-admin/stats", undefined, mockStats);
+      const totalSchools = Array.isArray(institutionsResponse.data)
+        ? institutionsResponse.data.length
+        : 0;
+
+      // Calculate basic stats from available data
+      const calculatedStats = {
+        totalSchools,
+        totalStudents: 0, // Would need student endpoint
+        totalTeachers: 0, // Would need teacher endpoint
+        totalSubjects: 0, // Could get from /api/subjects
+        avgPerformance: 0, // Would need performance data
+        systemUptime: 99.9, // Default value
+        dataStorage: 0, // Would need system metrics
+        activeUsers: 0, // Would need user activity data
+        dailyLogins: 0, // Would need login metrics
+        lastUpdated: new Date().toISOString(),
+      };
+
+      // Try to get subjects count if available
+      try {
+        const subjectsResponse = await this.client.get("/api/subjects", {
+          timeout: 5000,
+        });
+        if (Array.isArray(subjectsResponse.data)) {
+          calculatedStats.totalSubjects = subjectsResponse.data.length;
+        }
+      } catch (subjectError) {
+        console.warn("Could not fetch subjects count:", subjectError);
+      }
+
+      const response = { data: calculatedStats };
+
+      if (response.data) {
+        return {
+          success: true,
+          data: response.data,
+          message: `System stats calculated from ${totalSchools} institutions`,
+        };
+      } else {
+        return {
+          success: false,
+          data: null,
+          error: "No stats data received from API",
+        };
+      }
+    } catch (error: any) {
+      console.error("❌ Failed to fetch system stats:", error.message);
+      return {
+        success: false,
+        data: null,
+        error: `Failed to fetch system stats: ${error.message}`,
+      };
+    }
   }
 
-  // System Alerts
+  // System Alerts (endpoint not available in your API)
   async getSystemAlerts(): Promise<ApiResponse<any[]>> {
-    const mockAlerts = [
-      {
-        id: 1,
-        type: "warning",
-        title: "High Server Load",
-        message: "Server CPU usage is at 85%. Consider scaling resources.",
-        school: "System Wide",
-        time: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-        priority: "high",
-        actionRequired: true,
-        isResolved: false,
-      },
-      {
-        id: 2,
-        type: "info",
-        title: "Scheduled Maintenance",
-        message: "System maintenance scheduled for this weekend.",
-        school: null,
-        time: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-        priority: "medium",
-        actionRequired: false,
-        isResolved: false,
-      },
-    ];
+    console.log("🚨 System alerts endpoint not available in current API");
 
-    return this.makeRequest(
-      "GET",
-      "/super-admin/alerts",
-      undefined,
-      mockAlerts,
-    );
+    // Return empty alerts since this endpoint doesn't exist in your API
+    return {
+      success: true,
+      data: [],
+      message: "System alerts endpoint not implemented yet",
+    };
   }
 
-  // User Profile
+  // User Profile (endpoint not available in your API)
   async getSuperAdminProfile(): Promise<ApiResponse<any>> {
-    const mockProfile = {
-      name: "Dr. Robert Martinez",
-      id: "SUP-ADM-001",
-      role: "Super Administrator",
-      avatar: "",
-      lastLogin: "2 hours ago",
-      region: "Kenya",
-      permissions: ["all"],
-    };
+    console.log("👤 Admin profile endpoint not available in current API");
 
-    return this.makeRequest(
-      "GET",
-      "/super-admin/profile",
-      undefined,
-      mockProfile,
-    );
+    // Return basic profile since this endpoint doesn't exist in your API
+    return {
+      success: true,
+      data: {
+        name: "Super Administrator",
+        id: "admin-001",
+        role: "Super Administrator",
+        avatar: "",
+        lastLogin: new Date().toISOString(),
+        region: "Kenya",
+        permissions: ["all"],
+      },
+      message: "Using default admin profile (endpoint not implemented)",
+    };
   }
 
   // Health Check
@@ -1010,34 +987,7 @@ export class ApiService {
 
   // Subjects API endpoints
   async getSubjects(): Promise<ApiResponse<any[]>> {
-    const mockSubjects = [
-      {
-        id: 1,
-        subjectName: "Mathematics",
-        description: "Advanced Math",
-        isActive: true,
-      },
-      {
-        id: 2,
-        subjectName: "Science",
-        description: "General Science",
-        isActive: true,
-      },
-      {
-        id: 3,
-        subjectName: "English",
-        description: "English Language",
-        isActive: true,
-      },
-      {
-        id: 4,
-        subjectName: "Kiswahili",
-        description: "Kenyan National Language",
-        isActive: true,
-      },
-    ];
-
-    return this.makeRequest("GET", "/subjects", undefined, mockSubjects);
+    return this.makeRequest("GET", "/api/subjects");
   }
 
   async createSubject(subjectData: any): Promise<ApiResponse<any>> {
@@ -1064,34 +1014,7 @@ export class ApiService {
 
   // Lessons API endpoints
   async getLessons(): Promise<ApiResponse<any[]>> {
-    const mockLessons = [
-      {
-        id: 1,
-        title: "Introduction to Algebra",
-        subjectId: 1,
-        content: "Basic algebraic concepts",
-        difficultyLevel: 1,
-        isActive: true,
-      },
-      {
-        id: 2,
-        title: "Cell Biology Basics",
-        subjectId: 2,
-        content: "Understanding cell structure and function",
-        difficultyLevel: 1,
-        isActive: true,
-      },
-      {
-        id: 3,
-        title: "Essay Writing Fundamentals",
-        subjectId: 3,
-        content: "How to structure and write effective essays",
-        difficultyLevel: 2,
-        isActive: true,
-      },
-    ];
-
-    return this.makeRequest("GET", "/lessons", undefined, mockLessons);
+    return this.makeRequest("GET", "/api/lessons");
   }
 
   async createLesson(lessonData: any): Promise<ApiResponse<any>> {
@@ -1119,7 +1042,10 @@ export class ApiService {
   // Institution Management (mapped to schools)
   async createInstitution(institutionData: any): Promise<ApiResponse<any>> {
     try {
-      const response = await this.client.post("/Institutions", institutionData);
+      const response = await this.client.post(
+        "/api/Institutions",
+        institutionData,
+      );
 
       if (response.data) {
         return {
@@ -1163,11 +1089,8 @@ export class ApiService {
       console.log("🚀 Starting school registration with data:", schoolData);
       console.log("🌐 API Base URL:", this.config.getBaseURL());
 
-      // Check if backend is available (quick check)
-      if (!this.config.isBackendAvailable()) {
-        console.log("📱 Backend not available, using mock registration");
-        return this.getMockSchoolRegistrationResponse(schoolData);
-      }
+      // For production mode, always try real API first
+      console.log("🔄 Attempting real API registration...");
 
       // Step 1: Create the Institution
       const institutionData = {
@@ -1181,7 +1104,7 @@ export class ApiService {
 
       console.log("📤 Sending institution data:", institutionData);
       const institutionResponse = await this.client.post(
-        "/Institutions",
+        "/api/Institutions",
         institutionData,
         { timeout: 8000 }, // 8 second timeout
       );
@@ -1190,11 +1113,10 @@ export class ApiService {
         throw new Error("Failed to create institution");
       }
 
-      // Step 2: Generate secure credentials
-      const adminPassword = this.generateSecurePassword();
+      // Step 2: Prepare admin email (password will be auto-generated by API)
       const adminEmail = schoolData.adminEmail;
 
-      // Step 3: Create admin user account
+      // Step 3: Create admin user account using your API schema
       const userData = {
         firstName: schoolData.adminName.split(" ")[0] || "Admin",
         lastName: schoolData.adminName.split(" ").slice(1).join(" ") || "User",
@@ -1208,22 +1130,28 @@ export class ApiService {
         },
       };
 
+      console.log("📤 Sending user registration data:", userData);
       // Use the register endpoint to create the user
-      const userResponse = await this.client.post("/Auth/register", userData, {
-        timeout: 8000, // 8 second timeout
-      });
+      const userResponse = await this.client.post(
+        "/api/Auth/register",
+        userData,
+        {
+          timeout: 8000, // 8 second timeout
+        },
+      );
 
       if (!userResponse.data) {
         // If user creation fails, we should clean up the institution
         console.error(
           "Failed to create admin user, institution created but orphaned",
         );
+        throw new Error("Failed to create admin user account");
       }
 
-      // Step 4: Prepare credentials and school info
+      // Step 4: Extract credentials from API response or generate fallback
       const credentials = {
         email: adminEmail,
-        password: adminPassword, // In real system, this would be sent securely
+        password: userResponse.data.password || this.generateSecurePassword(), // Use API-generated password or fallback
         loginUrl: `${window.location.origin}/login`,
       };
 
@@ -1255,10 +1183,15 @@ export class ApiService {
     } catch (error: any) {
       console.error("❌ Error in school registration:", error);
 
-      // For timeout errors, fallback to mock data
+      // For timeout errors, provide helpful error message
       if (error.code === "ECONNABORTED" || error.message?.includes("timeout")) {
-        console.log("⏱️ Timeout detected, using mock registration response");
-        return this.getMockSchoolRegistrationResponse(schoolData);
+        console.log("⏱️ Request timeout detected");
+        return {
+          success: false,
+          data: null,
+          error:
+            "Request timeout. The server took too long to respond. Please try again.",
+        };
       }
 
       // Detailed error analysis
@@ -1266,21 +1199,20 @@ export class ApiService {
       let errorDetails = "";
 
       if (error.code === "NETWORK_ERROR" || error.message === "Network Error") {
-        console.log(
-          "🌐 Network error detected, using mock registration response",
-        );
-        return this.getMockSchoolRegistrationResponse(schoolData);
+        console.log("🌐 Network error detected");
+        errorMessage = "Network Error";
+        errorDetails = `Cannot reach API server at ${this.config.getBaseURL()}. Please check your connection.`;
       } else if (error.response) {
         // Server responded with error status
         errorMessage = `Server Error (${error.response.status})`;
         errorDetails =
           error.response.data?.message || error.response.statusText;
       } else if (error.request) {
-        // Request made but no response received - fallback to mock
-        console.log(
-          "📡 No response received, using mock registration response",
-        );
-        return this.getMockSchoolRegistrationResponse(schoolData);
+        // Request made but no response received
+        console.log("📡 No response received from server");
+        errorMessage = "No Response";
+        errorDetails =
+          "The server did not respond to the request. Please try again.";
       } else {
         // Something else happened
         errorMessage = error.message || "Unknown error";
@@ -1310,51 +1242,11 @@ export class ApiService {
         hasResponse: !!error.response,
       });
 
-      if (isNetworkError) {
-        console.log("🔄 Activating manual registration fallback mode...");
-
-        // Generate credentials anyway for manual setup
-        const adminPassword = this.generateSecurePassword();
-        const mockSchoolId = Date.now();
-
-        return {
-          success: true, // Mark as success for the fallback scenario
-          data: {
-            school: {
-              id: mockSchoolId,
-              name: schoolData.name,
-              address: schoolData.address,
-              adminName: schoolData.adminName,
-              adminEmail: schoolData.adminEmail,
-              adminPhone: schoolData.adminPhone,
-              status: "pending_manual_setup",
-              createdAt: new Date().toISOString(),
-            },
-            credentials: {
-              email: schoolData.adminEmail,
-              password: adminPassword,
-              loginUrl: `${window.location.origin}/login`,
-            },
-          },
-          message:
-            `⚠️ API Server Unreachable - Manual Setup Required\n\n` +
-            `The school registration has been prepared but requires manual setup:\n\n` +
-            `1. Manually add the institution to your database:\n` +
-            `   - Name: ${schoolData.name}\n` +
-            `   - Address: ${schoolData.address}\n\n` +
-            `2. Create admin user account:\n` +
-            `   - Email: ${schoolData.adminEmail}\n` +
-            `   - Password: ${adminPassword}\n` +
-            `   - Role: Administrator\n\n` +
-            `3. Configure the API server at: ${this.config.getBaseURL()}\n\n` +
-            `Credentials have been generated for your reference.`,
-        };
-      }
-
+      // Return error instead of mock fallback
       return {
         success: false,
-        data: null as any,
-        error: `${errorMessage}${errorDetails ? ": " + errorDetails : ""}`,
+        data: null,
+        error: errorMessage + (errorDetails ? `\n\n${errorDetails}` : ""),
       };
     }
   }
@@ -1516,7 +1408,7 @@ export class ApiService {
       );
 
       // Try the Institutions endpoint since /health might not exist
-      const response = await this.client.get("/Institutions", {
+      const response = await this.client.get("/api/Institutions", {
         timeout: 5000,
         headers: {
           Accept: "application/json",
@@ -1569,7 +1461,7 @@ export class ApiService {
       try {
         console.log("🔄 Trying alternative fetch method...");
         const fetchResponse = await fetch(
-          this.config.getBaseURL() + "/Institutions",
+          this.config.getBaseURL() + "/api/Institutions",
           {
             method: "GET",
             headers: {

@@ -9,6 +9,9 @@ interface ImportMetaEnv {
   readonly VITE_ENABLE_ANALYTICS: string;
   readonly VITE_AUTH_TIMEOUT: string;
   readonly VITE_TOKEN_REFRESH_INTERVAL: string;
+  readonly VITE_FORCE_CLOUD_MODE: string;
+  readonly VITE_FORCE_BACKEND: string;
+  readonly DEV: boolean;
 }
 
 interface ImportMeta {

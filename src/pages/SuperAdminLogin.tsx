@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import usePageTitle from "@/hooks/usePageTitle";
-import { useLogin } from "@/hooks/useApiService";
+import axiosClient from "@/services/axiosClient";
 import { authService } from "@/services/auth";
 import { ApiStatusIndicator } from "@/components/ApiStatusIndicator";
 import { Button } from "@/components/ui/button";
@@ -41,19 +41,15 @@ const SuperAdminLogin = () => {
   const [resetSent, setResetSent] = useState(false);
 
   const navigate = useNavigate();
-  const {
-    superAdminLogin,
-    loading: authLoading,
-    error: authError,
-    isAuthenticated,
-  } = useLogin();
 
   // Redirect if already authenticated as super admin
   useEffect(() => {
-    if (isAuthenticated && authService.getState().userRole === "SUPER_ADMIN") {
+    const token = localStorage.getItem("authToken");
+    const userRole = localStorage.getItem("userRole");
+    if (token && userRole === "superadmin") {
       navigate("/super-admin-dashboard");
     }
-  }, [isAuthenticated, navigate]);
+  }, [navigate]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -82,23 +78,41 @@ const SuperAdminLogin = () => {
       return;
     }
 
+    setIsLoading(true);
     try {
-      const result = await superAdminLogin(
-        formData.loginId.toUpperCase(),
-        formData.password,
-      );
+      const loginData = {
+        email: formData.loginId.toUpperCase(),
+        password: formData.password,
+      };
 
-      if (result) {
+      const response = await axiosClient.post("/api/Auth/login", loginData);
+
+      if (response.data) {
+        // Store auth data
+        localStorage.setItem("authToken", response.data.token || "");
+        localStorage.setItem("anansi_token", response.data.token || "");
+        localStorage.setItem("userRole", "superadmin");
+        localStorage.setItem("userEmail", formData.loginId.toUpperCase());
+
         navigate("/super-admin-dashboard");
       } else {
         setError(
-          authError ||
-            "Invalid credentials. Please check your Super Admin ID and password.",
+          "Invalid credentials. Please check your Super Admin ID and password.",
         );
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Login error:", error);
-      setError("Network error occurred. Please try again.");
+      if (error.response?.status === 401) {
+        setError(
+          "Invalid credentials. Please check your Super Admin ID and password.",
+        );
+      } else if (error.response?.data?.message) {
+        setError(error.response.data.message);
+      } else {
+        setError("Network error occurred. Please try again.");
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 

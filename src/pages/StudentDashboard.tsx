@@ -58,8 +58,7 @@ import {
   Eye,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { apiService } from "@/services/apiService";
-import { useApiStatus, useApiCall } from "@/hooks/useApiService";
+import axiosClient from "@/services/axiosClient";
 
 // Import AI components directly
 import { Suspense, lazy } from "react";
@@ -295,13 +294,20 @@ const StudentDashboard = () => {
         setLoading(true);
 
         // Simple, direct API call with automatic fallback
-        const response = await apiService.getStudentDashboard();
+        const response = await axiosClient
+          .get("/api/student-dashboard")
+          .catch(() => ({
+            data: { success: false, error: "API not available" },
+          }));
 
-        if (response.success && response.data) {
-          setDashboardData(response.data);
+        if (response.data && response.data.success) {
+          setDashboardData(response.data.data);
           setNotificationsList(response.data.notifications);
         } else {
-          console.error("Failed to load dashboard data:", response.error);
+          console.error(
+            "Failed to load dashboard data:",
+            response.data?.error || "Unknown error",
+          );
           // Fallback to mock data if API fails
           const mockData: StudentDashboardData = {
             profile: {
@@ -691,9 +697,11 @@ const StudentDashboard = () => {
     try {
       // Update notification via API
 
-      const response = await apiService.markNotificationAsRead(notificationId);
+      const response = await axiosClient
+        .post(`/api/notifications/${notificationId}/mark-read`)
+        .catch(() => ({ data: { success: false } }));
 
-      if (response.success) {
+      if (response.data && response.data.success) {
         setNotificationsList((prev) =>
           prev.map((notification) =>
             notification.id === notificationId
@@ -752,7 +760,7 @@ const StudentDashboard = () => {
       }
 
       // For real API calls (local development)
-      const service = apiService;
+      // Note: Direct axios calls would be used here
       // Note: Backend would need to implement markNotificationAsUnread endpoint
       // For now, just update UI
       setNotificationsList((prev) =>
@@ -789,9 +797,11 @@ const StudentDashboard = () => {
 
     try {
       // Call API to mark notification as read
-      const response = await apiService.markNotificationAsRead(notificationId);
+      const response = await axiosClient
+        .post(`/api/notifications/${notificationId}/mark-read`)
+        .catch(() => ({ data: { success: false } }));
 
-      if (response.success) {
+      if (response.data && response.data.success) {
         setNotificationsList((prev) =>
           prev.map((notification) =>
             notification.id === notificationId
@@ -830,9 +840,11 @@ const StudentDashboard = () => {
   const markAllNotificationsAsRead = async () => {
     try {
       // Call API to mark all notifications as read
-      const response = await apiService.markAllNotificationsAsRead();
+      const response = await axiosClient
+        .post("/api/notifications/mark-all-read")
+        .catch(() => ({ data: { success: false } }));
 
-      if (response.success) {
+      if (response.data?.success) {
         setNotificationsList((prev) =>
           prev.map((notification) => ({ ...notification, read: true })),
         );

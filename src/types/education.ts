@@ -255,12 +255,29 @@ export enum ReviewStatus {
 // AI and Personalization
 export interface StudentProfile {
   profileId: number;
+  id?: string;
+  appUserId?: string;
   studentId: string;
   personalityTraits: PersonalityTraits;
   learningPreferences: LearningPreferences;
   emotionalState: EmotionalState;
+  aiPersonalityAnalysis?: {
+    dominantTraits: string[];
+    learningArchetype: string;
+    strengthAreas: string[];
+    growthAreas: string[];
+    recommendedApproaches: string[];
+  };
   parentContactInfo?: ParentContactInfo;
+  privacySettings?: {
+    dataSharing: string;
+    parentalAccess: boolean;
+    behaviorTracking: boolean;
+    aiPersonalization: boolean;
+    thirdPartyIntegrations: boolean;
+  };
   isMinor: boolean;
+  lastUpdated?: Date;
   createdAt: Date;
   updatedAt: Date;
   student: AppUser;
@@ -288,6 +305,10 @@ export interface LearningPreferences {
   breakPreference: number; // minutes between sessions
   feedbackStyle: "immediate" | "delayed" | "summary";
   collaborationPreference: "solo" | "pairs" | "groups";
+  preferredStyle?: LearningStyle; // For backward compatibility
+  difficultyPreference?: string;
+  pacePreference?: string;
+  feedbackFrequency?: string;
 }
 
 export interface EmotionalState {
@@ -354,6 +375,12 @@ export interface ParentContactInfo {
   secondaryParent?: ParentInfo;
   emergencyContact: EmergencyContact;
   communicationPreferences: CommunicationPreferences;
+  // Backward compatibility properties
+  primaryParentName?: string;
+  primaryParentEmail?: string;
+  primaryParentPhone?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
 }
 
 export interface ParentInfo {
@@ -398,6 +425,12 @@ export interface PrivacySetting {
   createdAt: Date;
   updatedAt: Date;
   user: AppUser;
+  // Backward compatibility properties
+  dataSharing?: string;
+  parentalAccess?: boolean;
+  behaviorTracking?: boolean;
+  aiPersonalization?: boolean;
+  thirdPartyIntegrations?: boolean;
 }
 
 export enum DataSharingLevel {

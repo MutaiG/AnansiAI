@@ -96,6 +96,8 @@ const StudentProfileManager: React.FC<StudentProfileManagerProps> = ({
 
   // Create default profile structure with all required nested objects
   const defaultProfile: StudentProfile = {
+    profileId: profile?.profileId || 1,
+    studentId: profile?.studentId || "default_student",
     id: profile?.id || "default_student",
     appUserId: profile?.appUserId || "default_user",
     personalityTraits: {
@@ -115,7 +117,7 @@ const StudentProfileManager: React.FC<StudentProfileManagerProps> = ({
       preferredStyle: LearningStyle.Visual,
       preferredModalities: [
         LearningModality.Interactive,
-        LearningModality.Visual,
+        LearningModality.Video,
       ],
       difficultyPreference: "adaptive",
       pacePreference: "moderate",
@@ -177,11 +179,47 @@ const StudentProfileManager: React.FC<StudentProfileManagerProps> = ({
       thirdPartyIntegrations: false,
       ...profile?.privacySettings,
     },
+    isMinor: profile?.isMinor || isMinor || false,
     lastUpdated: profile?.lastUpdated || new Date(),
     createdAt: profile?.createdAt || new Date(),
+    updatedAt: profile?.updatedAt || new Date(),
+    student: profile?.student || {
+      id: "default_user",
+      userName: "DefaultUser",
+      email: "default@example.com",
+      fullName: "Default Student",
+      isActive: true,
+      lastLogin: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
   };
 
   const defaultPrivacy: PrivacySetting = {
+    settingId: privacySettings?.settingId || 1,
+    userId: privacySettings?.userId || "default_user",
+    allowAiPersonalityAnalysis:
+      privacySettings?.allowAiPersonalityAnalysis || true,
+    allowBehaviorTracking: privacySettings?.allowBehaviorTracking || true,
+    allowInteractionRecording:
+      privacySettings?.allowInteractionRecording || true,
+    dataSharingLevel:
+      privacySettings?.dataSharingLevel || DataSharingLevel.Standard,
+    parentNotificationEnabled:
+      privacySettings?.parentNotificationEnabled || true,
+    createdAt: privacySettings?.createdAt || new Date(),
+    updatedAt: privacySettings?.updatedAt || new Date(),
+    user: privacySettings?.user || {
+      id: "default_user",
+      userName: "DefaultUser",
+      email: "default@example.com",
+      fullName: "Default User",
+      isActive: true,
+      lastLogin: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+    // Backward compatibility properties
     dataSharing: "educational_only" as any,
     parentalAccess: true,
     behaviorTracking: true,
@@ -190,8 +228,10 @@ const StudentProfileManager: React.FC<StudentProfileManagerProps> = ({
     ...privacySettings,
   };
 
-  const [localProfile, setLocalProfile] = useState(defaultProfile);
-  const [localPrivacy, setLocalPrivacy] = useState(defaultPrivacy);
+  const [localProfile, setLocalProfile] =
+    useState<StudentProfile>(defaultProfile);
+  const [localPrivacy, setLocalPrivacy] =
+    useState<PrivacySetting>(defaultPrivacy);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   // Personality Analysis Simulation
@@ -242,8 +282,8 @@ const StudentProfileManager: React.FC<StudentProfileManagerProps> = ({
   };
 
   const handleReset = () => {
-    setLocalProfile(profile);
-    setLocalPrivacy(privacySettings);
+    setLocalProfile({ ...defaultProfile, ...profile });
+    setLocalPrivacy({ ...defaultPrivacy, ...privacySettings });
     setIsEditing(false);
   };
 

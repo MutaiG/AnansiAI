@@ -3,6 +3,29 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Custom animation delay classes */
+@layer utilities {
+  .animate-bounce-delay-100 {
+    animation: bounce 1s infinite;
+    animation-delay: 0.1s;
+  }
+
+  .animate-bounce-delay-200 {
+    animation: bounce 1s infinite;
+    animation-delay: 0.2s;
+  }
+
+  /* Chart indicator classes */
+  .chart-indicator {
+    background-color: var(--indicator-color, currentColor);
+  }
+
+  .chart-indicator-border {
+    border-color: var(--indicator-color, currentColor);
+    background-color: var(--indicator-color, currentColor);
+  }
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;

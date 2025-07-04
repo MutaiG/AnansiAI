@@ -9,7 +9,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Wifi, WifiOff, RefreshCw, Server, Cloud } from "lucide-react";
-import { useApiStatus } from "@/hooks/useApiService";
+import axiosClient from "@/services/axiosClient";
 
 interface ApiStatusIndicatorProps {
   showDetails?: boolean;
@@ -20,9 +20,32 @@ export function ApiStatusIndicator({
   showDetails = true,
   className = "",
 }: ApiStatusIndicatorProps) {
-  const { isConnected, lastChecked, checkConnection, baseURL, isProduction } =
-    useApiStatus();
+  const [isConnected, setIsConnected] = useState(false);
+  const [lastChecked, setLastChecked] = useState<string | null>(null);
   const [isChecking, setIsChecking] = useState(false);
+  const baseURL = "http://13.60.98.134/anansiai";
+  const isProduction = process.env.NODE_ENV === "production";
+
+  const checkConnection = async () => {
+    try {
+      const response = await axiosClient.get("/api/Institutions", {
+        timeout: 3000,
+      });
+      const connected = response.status >= 200 && response.status < 300;
+      setIsConnected(connected);
+      setLastChecked(new Date().toISOString());
+      return connected;
+    } catch (error) {
+      setIsConnected(false);
+      setLastChecked(new Date().toISOString());
+      return false;
+    }
+  };
+
+  // Check connection on mount
+  useEffect(() => {
+    checkConnection();
+  }, []);
 
   const handleRefresh = async () => {
     setIsChecking(true);
@@ -82,7 +105,9 @@ export function ApiStatusIndicator({
               </p>
               <p>
                 <strong>Last Checked:</strong>{" "}
-                {lastChecked.toLocaleTimeString()}
+                {lastChecked
+                  ? new Date(lastChecked).toLocaleTimeString()
+                  : "Never"}
               </p>
               <p>
                 <strong>Mode:</strong>{" "}
@@ -107,7 +132,10 @@ export function ApiStatusIndicator({
           <span>•</span>
           <span>{baseURL}</span>
           <span>•</span>
-          <span>Updated {lastChecked.toLocaleTimeString()}</span>
+          <span>
+            Updated{" "}
+            {lastChecked ? new Date(lastChecked).toLocaleTimeString() : "Never"}
+          </span>
           <Button
             variant="ghost"
             size="sm"
@@ -132,8 +160,31 @@ export function ApiStatusBadge({ className = "" }: { className?: string }) {
 
 // Real-time connection monitor
 export function ApiConnectionMonitor() {
-  const { isConnected, baseURL, isProduction } = useApiStatus();
+  const [isConnected, setIsConnected] = useState(false);
   const [showAlert, setShowAlert] = useState(false);
+  const baseURL = "http://13.60.98.134/anansiai";
+  const isProduction = process.env.NODE_ENV === "production";
+
+  const checkConnection = async () => {
+    try {
+      const response = await axiosClient.get("/api/Institutions", {
+        timeout: 3000,
+      });
+      const connected = response.status >= 200 && response.status < 300;
+      setIsConnected(connected);
+      return connected;
+    } catch (error) {
+      setIsConnected(false);
+      return false;
+    }
+  };
+
+  useEffect(() => {
+    checkConnection();
+    // Check connection every 30 seconds
+    const interval = setInterval(checkConnection, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     // Show alert if connection is lost in production

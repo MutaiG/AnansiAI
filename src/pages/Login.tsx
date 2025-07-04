@@ -23,7 +23,7 @@ import {
   Sparkles,
   Building,
 } from "lucide-react";
-import { useLogin } from "@/hooks/useApiService";
+import axiosClient from "@/services/axiosClient";
 import { ApiStatusBadge } from "@/components/ApiStatusIndicator";
 
 const Login = () => {
@@ -33,15 +33,8 @@ const Login = () => {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
-
-  // Use new API service
-  const {
-    login,
-    superAdminLogin,
-    loading: isLoading,
-    error: apiError,
-  } = useLogin();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,47 +45,54 @@ const Login = () => {
       return;
     }
 
+    setIsLoading(true);
     try {
-      // Check if it's a super admin login (you can modify this logic as needed)
-      if (
-        formData.email.includes("admin") ||
-        formData.email.includes("superadmin")
-      ) {
-        const response = await superAdminLogin(
-          formData.email,
-          formData.password,
-        );
+      // Login with direct axios call
+      const loginData = {
+        email: formData.email,
+        password: formData.password,
+      };
 
-        if (response.success) {
-          localStorage.setItem("authToken", response.data?.token || "");
-          localStorage.setItem("anansi_token", response.data?.token || "");
-          localStorage.setItem("userRole", "superadmin");
+      const response = await axiosClient.post("/api/Auth/login", loginData);
+
+      if (response.data) {
+        // Store auth data
+        localStorage.setItem("authToken", response.data.token || "");
+        localStorage.setItem("anansi_token", response.data.token || "");
+        localStorage.setItem("userRole", response.data.role || "user");
+        localStorage.setItem("userEmail", formData.email);
+
+        // Navigate based on role or email pattern
+        if (
+          formData.email.includes("admin") ||
+          formData.email.includes("superadmin") ||
+          response.data.role === "superadmin"
+        ) {
           navigate("/super-admin-dashboard");
+        } else if (response.data.role === "student") {
+          navigate("/student-dashboard");
+        } else if (response.data.role === "teacher") {
+          navigate("/teacher-dashboard");
+        } else if (response.data.role === "admin") {
+          navigate("/admin-dashboard");
         } else {
-          setError(response.error || "Super Admin login failed");
+          // Default to student dashboard
+          navigate("/student-dashboard");
         }
       } else {
-        // Regular user login
-        const response = await login(formData.email, formData.password);
-
-        if (response.success) {
-          localStorage.setItem("authToken", response.data?.token || "");
-          localStorage.setItem("anansi_token", response.data?.token || "");
-          localStorage.setItem("userRole", response.data?.user?.role || "");
-
-          if (response.data?.user?.role === "student") {
-            navigate("/student-dashboard");
-          } else if (response.data?.user?.role === "teacher") {
-            navigate("/teacher-dashboard");
-          } else if (response.data?.user?.role === "admin") {
-            navigate("/admin-dashboard");
-          }
-        } else {
-          setError(response.error || "Login failed");
-        }
+        setError("Login failed - invalid response");
       }
-    } catch (error) {
-      setError("An unexpected error occurred. Please try again.");
+    } catch (error: any) {
+      console.error("Login error:", error);
+      if (error.response?.status === 401) {
+        setError("Invalid email or password");
+      } else if (error.response?.data?.message) {
+        setError(error.response.data.message);
+      } else {
+        setError("Login failed. Please try again.");
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -202,9 +202,9 @@ const Login = () => {
               </div>
 
               {/* Error Alert */}
-              {(error || apiError) && (
+              {error && (
                 <Alert variant="destructive">
-                  <AlertDescription>{error || apiError}</AlertDescription>
+                  <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
 

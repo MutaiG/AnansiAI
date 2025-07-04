@@ -2,13 +2,33 @@ import React, { useState, useEffect } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { X, Wifi, WifiOff, RefreshCw, CheckCircle } from "lucide-react";
-import { useApiStatus } from "@/hooks/useApiService";
+import axiosClient from "@/services/axiosClient";
 
 const ApiStatusNotification: React.FC = () => {
   const [isVisible, setIsVisible] = useState(false);
   const [hasShownConnected, setHasShownConnected] = useState(false);
-  const { isConnected, baseURL, checkConnection } = useApiStatus();
+  const [isConnected, setIsConnected] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const baseURL = "http://13.60.98.134/anansiai";
+
+  const checkConnection = async () => {
+    try {
+      const response = await axiosClient.get("/api/Institutions", {
+        timeout: 3000,
+      });
+      const connected = response.status >= 200 && response.status < 300;
+      setIsConnected(connected);
+      return connected;
+    } catch (error) {
+      setIsConnected(false);
+      return false;
+    }
+  };
+
+  // Check connection on mount
+  useEffect(() => {
+    checkConnection();
+  }, []);
 
   // Show notification when connection status changes
   useEffect(() => {

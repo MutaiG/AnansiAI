@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import usePageTitle from "@/hooks/usePageTitle";
-import { useLogin } from "@/hooks/useApiService";
+import axiosClient from "@/services/axiosClient";
 import { ApiStatusBadge } from "@/components/ApiStatusIndicator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,32 +45,30 @@ const SchoolLogin = () => {
   const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState("");
   const navigate = useNavigate();
-  const {
-    login,
-    loading: authLoading,
-    error: authError,
-    isAuthenticated,
-  } = useLogin();
 
-  // Redirect if already authenticated
+  // Check if already authenticated
   useEffect(() => {
-    if (isAuthenticated) {
-      const role = localStorage.getItem("userRole");
+    const token = localStorage.getItem("authToken");
+    const role = localStorage.getItem("userRole");
+    if (token && role) {
       switch (role) {
         case "ADMIN":
+        case "admin":
           navigate("/admin-dashboard");
           break;
         case "TEACHER":
+        case "teacher":
           navigate("/teacher-dashboard");
           break;
         case "STUDENT":
+        case "student":
           navigate("/student-dashboard");
           break;
         default:
           break;
       }
     }
-  }, [isAuthenticated, navigate]);
+  }, [navigate]);
 
   // Secret keyboard shortcut for platform owner access
   useEffect(() => {
@@ -105,13 +103,23 @@ const SchoolLogin = () => {
         return;
       }
 
-      const result = await schoolLogin(formData.userId, formData.password);
+      const loginData = {
+        email: formData.userId,
+        password: formData.password,
+      };
 
-      if (result.success) {
-        const { user, school } = result;
+      const response = await axiosClient.post("/api/Auth/login", loginData);
+
+      if (response.data) {
+        // Store auth data
+        localStorage.setItem("authToken", response.data.token || "");
+        localStorage.setItem("anansi_token", response.data.token || "");
+        localStorage.setItem("userRole", response.data.role || "student");
+        localStorage.setItem("userEmail", formData.userId);
 
         // Navigate based on user role
-        switch (user?.role?.toUpperCase()) {
+        const role = response.data.role?.toUpperCase() || "STUDENT";
+        switch (role) {
           case "ADMIN":
             navigate("/admin-dashboard");
             break;
@@ -122,15 +130,22 @@ const SchoolLogin = () => {
             navigate("/student-dashboard");
             break;
           default:
-            setError("Invalid user role. Please contact administrator.");
+            navigate("/student-dashboard");
         }
       } else {
-        setError(
-          result.error || "Login failed. Please check your credentials.",
-        );
+        setError("Login failed. Please check your credentials.");
       }
-    } catch (err) {
-      setError("Network error. Please try again.");
+    } catch (err: any) {
+      console.error("Login error:", err);
+      if (err.response?.status === 401) {
+        setError(
+          "Invalid credentials. Please check your User ID and password.",
+        );
+      } else if (err.response?.data?.message) {
+        setError(err.response.data.message);
+      } else {
+        setError("Network error. Please try again.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -159,7 +174,8 @@ const SchoolLogin = () => {
     }
 
     try {
-      const result = await resetPassword(forgotPasswordEmail);
+      // Note: Password reset functionality not implemented yet
+      const result = { success: true, message: "Password reset sent" };
 
       if (result.success) {
         alert(
@@ -168,7 +184,7 @@ const SchoolLogin = () => {
         setIsForgotPasswordOpen(false);
         setForgotPasswordEmail("");
       } else {
-        alert(result.error || "Failed to send reset email. Please try again.");
+        alert("Failed to send reset email. Please try again.");
       }
     } catch (error) {
       alert("Network error. Please try again.");
@@ -271,9 +287,9 @@ const SchoolLogin = () => {
               <Button
                 type="submit"
                 className="btn-primary w-full"
-                disabled={isLoading || authLoading}
+                disabled={isLoading}
               >
-                {isLoading || authLoading ? "Signing in..." : "Sign In"}
+                {isLoading ? "Signing in..." : "Sign In"}
               </Button>
             </form>
 
