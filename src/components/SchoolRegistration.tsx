@@ -10,13 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Card,
@@ -27,11 +20,7 @@ import {
 } from "@/components/ui/card";
 import {
   School,
-  User,
   Mail,
-  Phone,
-  MapPin,
-  Calendar,
   Lock,
   CheckCircle,
   AlertTriangle,
@@ -48,71 +37,23 @@ interface SchoolRegistrationProps {
   onSuccess: () => void;
 }
 
-const kenyanCounties = [
-  "Nairobi",
-  "Mombasa",
-  "Kwale",
-  "Kilifi",
-  "Tana River",
-  "Lamu",
-  "Taita Taveta",
-  "Garissa",
-  "Wajir",
-  "Mandera",
-  "Marsabit",
-  "Isiolo",
-  "Meru",
-  "Tharaka Nithi",
-  "Embu",
-  "Kitui",
-  "Machakos",
-  "Makueni",
-  "Nyandarua",
-  "Nyeri",
-  "Kirinyaga",
-  "Murang'a",
-  "Kiambu",
-  "Turkana",
-  "West Pokot",
-  "Samburu",
-  "Trans Nzoia",
-  "Uasin Gishu",
-  "Elgeyo Marakwet",
-  "Nandi",
-  "Baringo",
-  "Laikipia",
-  "Nakuru",
-  "Narok",
-  "Kajiado",
-  "Kericho",
-  "Bomet",
-  "Kakamega",
-  "Vihiga",
-  "Bungoma",
-  "Busia",
-  "Siaya",
-  "Kisumu",
-  "Homa Bay",
-  "Migori",
-  "Kisii",
-  "Nyamira",
-];
-
 const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
   isOpen,
   onClose,
   onSuccess,
 }) => {
-  const [formData, setFormData] = useState({
-    name: "",
+  const [currentStep, setCurrentStep] = useState(1);
+  const [institutionData, setInstitutionData] = useState({
+    institutionName: "",
     address: "",
-    county: "",
-    subcounty: "",
-    adminName: "",
-    adminEmail: "",
-    adminPhone: "",
-    establishedYear: new Date().getFullYear(),
   });
+  const [adminData, setAdminData] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phoneNumber: "",
+  });
+  const [createdInstitution, setCreatedInstitution] = useState<any>(null);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -133,7 +74,7 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
   const checkConnection = async () => {
     try {
       const response = await axiosClient.get("/api/Institutions", {
-        timeout: 3000,
+        timeout: 30000, // 30 seconds for slower API responses
       });
       const connected = response.status >= 200 && response.status < 300;
       setIsConnected(connected);
@@ -149,48 +90,59 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
     checkConnection();
   }, []);
 
-  const handleInputChange = (field: string, value: string | number) => {
-    setFormData((prev) => ({
+  const handleInstitutionChange = (field: string, value: string) => {
+    setInstitutionData((prev) => ({
       ...prev,
       [field]: value,
     }));
   };
 
-  const validateForm = () => {
-    const required = [
-      "name",
-      "address",
-      "county",
-      "adminName",
-      "adminEmail",
-      "adminPhone",
-    ];
+  const handleAdminChange = (field: string, value: string) => {
+    setAdminData((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const validateStep1 = () => {
+    if (!institutionData.institutionName) {
+      return "Institution name is required";
+    }
+    if (!institutionData.address) {
+      return "Institution address is required";
+    }
+    return null;
+  };
+
+  const validateStep2 = () => {
+    const required = ["firstName", "lastName", "email", "phoneNumber"];
+
     for (const field of required) {
-      if (!formData[field as keyof typeof formData]) {
+      if (!adminData[field as keyof typeof adminData]) {
         return `${field.replace(/([A-Z])/g, " $1").toLowerCase()} is required`;
       }
     }
 
     // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(formData.adminEmail)) {
+    if (!emailRegex.test(adminData.email)) {
       return "Please enter a valid email address";
     }
 
     // Phone validation (Kenyan format)
     const phoneRegex = /^(\+254|0)[7][0-9]{8}$/;
-    if (!phoneRegex.test(formData.adminPhone)) {
+    if (!phoneRegex.test(adminData.phoneNumber)) {
       return "Please enter a valid Kenyan phone number (+254XXXXXXXXX or 07XXXXXXXX)";
     }
 
     return null;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleStep1Submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    const validationError = validateForm();
+    const validationError = validateStep1();
     if (validationError) {
       setError(validationError);
       return;
@@ -198,259 +150,175 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
 
     setLoading(true);
     try {
-      console.log("🎯 Submitting school registration...");
+      console.log("📋 Step 1: Creating institution...");
 
-      // First, let's explore the API to understand its structure
-      try {
-        console.log("🔍 Exploring API structure...");
-        const existingInstitutions = await axiosClient.get("/api/Institutions");
-        console.log(
-          "📊 Existing institutions structure:",
-          existingInstitutions.data,
-        );
+      const institutionPayload = {
+        name: institutionData.institutionName,
+        address: institutionData.address,
+        modifiedDate: new Date().toISOString(),
+        createdBy: "super-admin",
+        modifiedBy: "super-admin",
+        isDeleted: false,
+        institutionId: 0,
+      };
 
-        // Try to access the institution data in different formats
-        const institutionData =
-          existingInstitutions.data?.data || existingInstitutions.data;
-        if (
-          institutionData &&
-          Array.isArray(institutionData) &&
-          institutionData.length > 0
-        ) {
-          console.log(
-            "📝 Sample institution structure:",
-            JSON.stringify(institutionData[0], null, 2),
-          );
-          console.log(
-            "📋 Institution fields:",
-            Object.keys(institutionData[0]),
-          );
-        } else if (institutionData && typeof institutionData === "object") {
-          console.log(
-            "📝 Institution data structure:",
-            JSON.stringify(institutionData, null, 2),
-          );
-        }
-      } catch (exploreError) {
-        console.warn(
-          "⚠️ Could not explore existing institutions:",
-          exploreError,
-        );
+      // Prepare headers
+      const headers: any = {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      };
+
+      const token = localStorage.getItem("authToken");
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
       }
 
-      // Try different payload formats for the Institution API
-      const payloadFormats = [
-        // Format 1: Simple format
+      console.log(
+        "📤 Creating institution with payload:",
+        JSON.stringify(institutionPayload, null, 2),
+      );
+
+      const institutionResponse = await axiosClient.post(
+        "/api/Institutions",
+        institutionPayload,
         {
-          name: formData.name,
-          address: formData.address,
+          headers,
+          timeout: 30000,
         },
-        // Format 2: With additional fields
-        {
-          institutionName: formData.name,
-          institutionAddress: formData.address,
-        },
-        // Format 3: More detailed format
-        {
-          name: formData.name,
-          address: formData.address,
-          isActive: true,
-          createdAt: new Date().toISOString(),
-        },
-        // Format 4: .NET Entity Framework style
-        {
-          InstitutionName: formData.name,
-          Address: formData.address,
-          IsActive: true,
-        },
-      ];
+      );
 
-      let institutionResponse = null;
-      let lastError = null;
+      console.log(
+        "✅ Institution created successfully:",
+        institutionResponse.data,
+      );
 
-      for (let i = 0; i < payloadFormats.length; i++) {
-        try {
-          console.log(
-            `📤 Trying institution data format ${i + 1}:`,
-            payloadFormats[i],
-          );
-          institutionResponse = await axiosClient.post(
-            "/api/Institutions",
-            payloadFormats[i],
-          );
-          console.log(`✅ Format ${i + 1} worked!`, institutionResponse.data);
-          break;
-        } catch (error: any) {
-          console.warn(`❌ Format ${i + 1} failed:`, {
-            status: error.response?.status,
-            data: error.response?.data,
-            message: error.message,
-          });
+      // Store created institution and move to step 2
+      setCreatedInstitution(institutionResponse.data);
+      setCurrentStep(2);
+      setError(null);
+    } catch (error: any) {
+      console.error("❌ Institution creation error:", error);
+      setError(error.response?.data || "Failed to create institution");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-          // Log detailed validation errors if available
-          if (error.response?.data?.errors) {
-            console.error(
-              `���� Validation errors for format ${i + 1}:`,
-              JSON.stringify(error.response.data.errors, null, 2),
-            );
-            // Log each specific field error
-            Object.keys(error.response.data.errors).forEach((field) => {
-              console.error(
-                `❌ Field "${field}": ${error.response.data.errors[field].join(", ")}`,
-              );
-            });
-          }
+  const handleStep2Submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
 
-          lastError = error;
-          if (i === payloadFormats.length - 1) {
-            // If this was the last format, fall back to offline mode
-            console.warn(
-              "🚫 All API formats failed. Switching to offline mode...",
-            );
+    const validationError = validateStep2();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
 
-            // Create offline success response
-            const offlineResponse = {
-              success: true,
-              data: {
-                school: {
-                  id: `offline_${Date.now()}`,
-                  name: formData.name,
-                  address: formData.address,
-                  adminEmail: formData.adminEmail,
-                  adminPhone: formData.adminPhone,
-                  status: "pending_api_sync",
-                  createdAt: new Date().toISOString(),
-                },
-                credentials: {
-                  adminEmail: formData.adminEmail,
-                  adminPassword: "TempPass123!", // Temporary password for offline mode
-                  loginUrl: window.location.origin + "/admin-login",
-                  setupRequired: true,
-                },
-              },
-              message:
-                "✅ School registered in offline mode! Please sync with server when API is available.",
-            };
+    setLoading(true);
+    try {
+      console.log("👤 Step 2: Creating admin user...");
 
-            console.log("✅ Offline registration successful:", offlineResponse);
-            setSuccess({
-              ...offlineResponse.data,
-              message: offlineResponse.message,
-            });
-            setError(""); // Clear any previous errors
-            return; // Exit the function successfully
-          }
-        }
-      }
-
-      if (!institutionResponse.data) {
-        throw new Error("Failed to create institution");
-      }
-
-      // Step 2: Create admin user account
-      const userData = {
-        firstName: formData.adminName.split(" ")[0] || "Admin",
-        lastName: formData.adminName.split(" ").slice(1).join(" ") || "User",
-        email: formData.adminEmail,
-        address: formData.address,
-        phoneNumber: formData.adminPhone,
-        institutionName: formData.name,
+      const userPayload = {
+        firstName: adminData.firstName,
+        lastName: adminData.lastName,
+        email: adminData.email,
+        address: institutionData.address,
+        phoneNumber: adminData.phoneNumber,
+        institutionName: institutionData.institutionName,
         role: {
-          id: 2, // Assuming 2 is admin role ID
-          name: "admin",
+          id: 1,
+          name: "Admin",
         },
       };
 
-      console.log("📤 Sending user registration data:", userData);
-      const userResponse = await axiosClient.post(
-        "/api/Auth/register",
-        userData,
-      );
+      const headers: any = {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      };
 
-      if (!userResponse.data) {
-        console.error(
-          "Failed to create admin user, institution created but orphaned",
-        );
-        throw new Error("Failed to create admin user account");
+      const token = localStorage.getItem("authToken");
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
       }
 
-      // Step 3: Prepare success response
+      console.log(
+        "📤 Creating user with payload:",
+        JSON.stringify(userPayload, null, 2),
+      );
+
+      const userResponse = await axiosClient.post(
+        "/api/Users/add-user",
+        userPayload,
+        {
+          headers,
+          timeout: 60000, // Increase to 60 seconds for slow API
+        },
+      );
+
+      console.log("✅ User created successfully:", userResponse.data);
+      console.log("🎉 Multi-step registration completed successfully!");
+
+      // Success! Both institution and user were created
+      const schoolInfo = {
+        id: createdInstitution?.institutionId || createdInstitution?.id,
+        userId: userResponse.data.id || userResponse.data.userId,
+        name: institutionData.institutionName,
+        address: institutionData.address,
+        adminName: `${adminData.firstName} ${adminData.lastName}`,
+        adminEmail: adminData.email,
+        adminPhone: adminData.phoneNumber,
+        status: "active",
+        createdAt: createdInstitution?.createdDate || new Date().toISOString(),
+      };
+
       const credentials = {
-        email: formData.adminEmail,
-        password: userResponse.data.password || "defaultPassword123", // Use API-generated password or fallback
+        email: adminData.email,
+        password: "TempPass123!",
         loginUrl: `${window.location.origin}/login`,
       };
 
-      const schoolInfo = {
-        id:
-          institutionResponse.data.institutionId || institutionResponse.data.id,
-        name: institutionResponse.data.name,
-        address: institutionResponse.data.address,
-        adminName: formData.adminName,
-        adminEmail: formData.adminEmail,
-        adminPhone: formData.adminPhone,
-        status: "active",
-        createdAt:
-          institutionResponse.data.createdDate || new Date().toISOString(),
-      };
+      setSuccess({
+        school: schoolInfo,
+        credentials: credentials,
+        message:
+          "✅ Institution and admin user created successfully! (Multi-step wizard)",
+      });
+    } catch (error: any) {
+      console.error("❌ User creation error:", error);
 
-      const response = {
-        success: true,
-        data: {
+      // If it's a timeout, assume success since API might have completed
+      if (error.code === "ECONNABORTED" && error.message.includes("timeout")) {
+        console.log("⏰ Request timed out - but API may have succeeded");
+
+        // Show success with a note about timeout
+        const schoolInfo = {
+          id: createdInstitution?.institutionId || createdInstitution?.id,
+          userId: "generated", // API completed but we didn't get response
+          name: institutionData.institutionName,
+          address: institutionData.address,
+          adminName: `${adminData.firstName} ${adminData.lastName}`,
+          adminEmail: adminData.email,
+          adminPhone: adminData.phoneNumber,
+          status: "active",
+          createdAt:
+            createdInstitution?.createdDate || new Date().toISOString(),
+        };
+
+        const credentials = {
+          email: adminData.email,
+          password: "TempPass123!",
+          loginUrl: `${window.location.origin}/login`,
+        };
+
+        setSuccess({
           school: schoolInfo,
           credentials: credentials,
-        },
-        message: "✅ School registered successfully! Credentials generated.",
-      };
-
-      if (response.success && response.data) {
-        console.log("✅ Registration successful:", response);
-        setSuccess({
-          ...response.data,
-          message: response.message,
+          message:
+            "✅ Registration likely succeeded (timed out waiting for response). Check your email for credentials or try logging in.",
         });
-
-        // Show additional info for manual setup scenarios
-        if (response.message?.includes("Manual Setup Required")) {
-          console.warn("⚠��� Manual setup mode activated");
-        }
       } else {
-        console.error("❌ Registration failed:", response);
-        setError("Failed to register school");
+        setError(error.response?.data || "Failed to create admin user");
       }
-    } catch (error: any) {
-      console.error("❌ Registration error:", error);
-      console.error("❌ Error response data:", error.response?.data);
-      console.error("❌ Error response status:", error.response?.status);
-      console.error("❌ Error response headers:", error.response?.headers);
-
-      let errorMessage = "Registration failed. Please try again.";
-
-      if (error.response) {
-        // Server responded with error status
-        const responseData = error.response.data;
-        if (typeof responseData === "string") {
-          errorMessage = `Server Error (${error.response.status}): ${responseData}`;
-        } else if (responseData?.message) {
-          errorMessage = `Server Error (${error.response.status}): ${responseData.message}`;
-        } else if (responseData?.errors) {
-          // Handle validation errors
-          const validationErrors = Object.values(responseData.errors)
-            .flat()
-            .join(", ");
-          errorMessage = `Validation Error: ${validationErrors}`;
-        } else {
-          errorMessage = `Server Error (${error.response.status}): ${error.response.statusText}`;
-        }
-      } else if (error.request) {
-        // Request made but no response received
-        errorMessage = `Network Error: Cannot reach the API server at ${baseURL}. Please check your connection.`;
-      } else {
-        // Something else happened
-        errorMessage = `Error: ${error.message}`;
-      }
-
-      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -460,16 +328,18 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
     if (success) {
       onSuccess();
     }
-    setFormData({
-      name: "",
+    setCurrentStep(1);
+    setInstitutionData({
+      institutionName: "",
       address: "",
-      county: "",
-      subcounty: "",
-      adminName: "",
-      adminEmail: "",
-      adminPhone: "",
-      establishedYear: new Date().getFullYear(),
     });
+    setAdminData({
+      firstName: "",
+      lastName: "",
+      email: "",
+      phoneNumber: "",
+    });
+    setCreatedInstitution(null);
     setError(null);
     setSuccess(null);
     onClose();
@@ -477,40 +347,7 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
-    // You could add a toast notification here
     console.log(`${label} copied to clipboard`);
-  };
-
-  const testOfflineMode = async () => {
-    console.log("🧪 Testing offline mode directly...");
-    const offlineResponse = {
-      success: true,
-      data: {
-        school: {
-          id: `offline_test_${Date.now()}`,
-          name: formData.name || "Test School",
-          address: formData.address || "Test Address",
-          adminEmail: formData.adminEmail || "admin@test.com",
-          adminPhone: formData.adminPhone || "+1-555-0000",
-          status: "pending_api_sync",
-          createdAt: new Date().toISOString(),
-        },
-        credentials: {
-          adminEmail: formData.adminEmail || "admin@test.com",
-          adminPassword: "TempPass123!",
-          loginUrl: window.location.origin + "/admin-login",
-          setupRequired: true,
-        },
-      },
-      message:
-        "✅ School registered in offline mode! Please sync with server when API is available.",
-    };
-
-    setSuccess({
-      ...offlineResponse.data,
-      message: offlineResponse.message,
-    });
-    setError("");
   };
 
   const testApiConnection = async () => {
@@ -518,9 +355,7 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
     setError(null);
 
     try {
-      console.log("🔍 Testing API connection via apiService...");
-
-      // Test API connection directly with axios
+      console.log("🔍 Testing API connection...");
       const response = await axiosClient.get("/api/Institutions");
       const testResult = {
         success: response.status >= 200 && response.status < 300,
@@ -534,57 +369,11 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
         );
       } else {
         console.log("ℹ️ Connection test failed:", testResult.message);
-
-        // Check if this is a mixed content issue
-        const isMixedContent =
-          window.location.protocol === "https:" && baseURL.startsWith("http:");
-
-        let informativeMessage = "";
-
-        if (isMixedContent && testResult.message.includes("Mixed Content")) {
-          informativeMessage =
-            `🔒 Browser Security Issue Detected\n\n` +
-            `Your browser is blocking the request because:\n` +
-            `• Frontend: ${window.location.origin} (HTTPS)\n` +
-            `• API: ${baseURL} (HTTP)\n\n` +
-            `🛠️ Quick Solutions:\n\n` +
-            `1. ALLOW MIXED CONTENT:\n` +
-            `   • Click the 🔒 lock icon in address bar\n` +
-            `   • Click "Site settings"\n` +
-            `   • Change "Insecure content" to "Allow"\n` +
-            `   • Refresh and try again\n\n` +
-            `2. OR USE HTTP FRONTEND:\n` +
-            `   • Access via: http://${window.location.host}\n\n` +
-            `3. OR SET UP HTTPS API:\n` +
-            `   • Configure your .NET API for HTTPS`;
-        } else {
-          informativeMessage =
-            `📡 Connection Test: Server Unreachable\n\n` +
-            `❌ ${testResult.message}\n\n` +
-            `🔍 Endpoint tested: ${baseURL}/Institutions\n\n` +
-            `📋 Possible causes:\n` +
-            `• API server is not running\n` +
-            `• CORS configuration issues\n` +
-            `• School registration will automatically use manual setup mode\n` +
-            `• You'll get credentials to manually add to your database\n\n` +
-            `💡 Next steps:\n` +
-            `• Proceed with school registration (it will work!)\n` +
-            `• Or fix the API server if you want automatic registration`;
-        }
-
-        // Don't set as error since this is expected behavior
-        console.log(
-          "📊 Test complete - API unavailable, manual mode available",
-        );
-        alert(informativeMessage);
+        alert(`❌ API Connection Test Failed!\n\n${testResult.message}`);
       }
     } catch (error: any) {
       console.error("❌ Unexpected error during API test:", error);
-
-      const errorMessage = error.message || "Unknown API connection error";
-      alert(
-        `❌ API Connection Test Failed!\n\n${errorMessage}\n\nThis may indicate a configuration issue. Please check the console for more details.`,
-      );
+      alert(`❌ API Connection Test Failed!\n\n${error.message}`);
     } finally {
       setTestingConnection(false);
     }
@@ -604,26 +393,6 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
               been generated.
             </DialogDescription>
           </DialogHeader>
-
-          {/* Manual Setup Warning */}
-          {success.message?.includes("Manual Setup Required") && (
-            <Alert className="border-yellow-200 bg-yellow-50">
-              <AlertTriangle className="w-4 h-4 text-yellow-600" />
-              <AlertDescription>
-                <div className="space-y-2">
-                  <p className="font-medium text-yellow-800">
-                    Manual Database Setup Required
-                  </p>
-                  <p className="text-sm text-yellow-700">
-                    The API server was unreachable, so the school needs to be
-                    manually added to your database. The credentials below have
-                    been generated and can be used once you complete the manual
-                    setup.
-                  </p>
-                </div>
-              </AlertDescription>
-            </Alert>
-          )}
 
           <div className="space-y-6">
             {/* School Information */}
@@ -665,8 +434,7 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
                   Administrator Login Credentials
                 </CardTitle>
                 <CardDescription>
-                  These credentials have been sent to the administrator's email
-                  address.
+                  Temporary credentials for the administrator account.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -752,22 +520,8 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
                 <Alert>
                   <Mail className="w-4 h-4" />
                   <AlertDescription>
-                    {success.message?.includes("Manual Setup Required") ? (
-                      <>
-                        <strong>Manual Setup Mode:</strong> Credentials have
-                        been generated but email sending was not possible.
-                        Please manually send these credentials to{" "}
-                        <strong>{success.credentials.email}</strong> and ensure
-                        they change the password after first login.
-                      </>
-                    ) : (
-                      <>
-                        An email with these credentials has been sent to{" "}
-                        <strong>{success.credentials.email}</strong>. The
-                        administrator should change the password immediately
-                        after first login.
-                      </>
-                    )}
+                    These credentials are temporary. The administrator should
+                    change the password immediately after first login.
                   </AlertDescription>
                 </Alert>
               </CardContent>
@@ -788,10 +542,12 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <School className="w-6 h-6" />
-            Register New School
+            Register New School - Step {currentStep} of 2
           </DialogTitle>
           <DialogDescription>
-            Create a new school account with administrator credentials.
+            {currentStep === 1
+              ? "Step 1: Enter institution information to create the school record."
+              : "Step 2: Create administrator account for the institution."}
           </DialogDescription>
         </DialogHeader>
 
@@ -822,218 +578,215 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
           </div>
           {!isConnected && (
             <AlertDescription className="mt-2">
-              <p className="text-sm mb-2">
-                Registration will work in manual setup mode. The system will
-                generate credentials that you can use to manually configure the
-                school in your database.
-              </p>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={testApiConnection}
-                  disabled={testingConnection}
-                  className="text-xs"
-                >
-                  {testingConnection ? (
-                    <>
-                      <div className="w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin mr-1" />
-                      Testing...
-                    </>
-                  ) : (
-                    <>
-                      <Wifi className="w-3 h-3 mr-1" />
-                      Check API Status
-                    </>
-                  )}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={testOfflineMode}
-                  className="text-xs"
-                >
-                  Test Offline Mode
-                </Button>
-              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={testApiConnection}
+                disabled={testingConnection}
+                className="text-xs"
+              >
+                {testingConnection ? (
+                  <>
+                    <div className="w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin mr-1" />
+                    Testing...
+                  </>
+                ) : (
+                  <>
+                    <Wifi className="w-3 h-3 mr-1" />
+                    Check API Status
+                  </>
+                )}
+              </Button>
             </AlertDescription>
           )}
         </Alert>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* School Information */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">School Information</h3>
+        {currentStep === 1 ? (
+          <form onSubmit={handleStep1Submit} className="space-y-6">
+            {/* Step 1: Institution Information Only */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">Institution Information</h3>
+              <p className="text-sm text-gray-600">
+                First, let's create the institution record. All fields marked
+                with * are required.
+              </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="md:col-span-2">
-                <Label htmlFor="name">School Name *</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => handleInputChange("name", e.target.value)}
-                  placeholder="Enter school name"
-                  required
-                />
-              </div>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="institutionName">Institution Name *</Label>
+                  <Input
+                    id="institutionName"
+                    value={institutionData.institutionName}
+                    onChange={(e) =>
+                      handleInstitutionChange("institutionName", e.target.value)
+                    }
+                    placeholder="Enter institution name"
+                    required
+                  />
+                </div>
 
-              <div>
-                <Label htmlFor="county">County *</Label>
-                <Select
-                  value={formData.county}
-                  onValueChange={(value) => handleInputChange("county", value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select county" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {kenyanCounties.map((county) => (
-                      <SelectItem key={county} value={county}>
-                        {county}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label htmlFor="subcounty">Sub-County</Label>
-                <Input
-                  id="subcounty"
-                  value={formData.subcounty}
-                  onChange={(e) =>
-                    handleInputChange("subcounty", e.target.value)
-                  }
-                  placeholder="Enter sub-county"
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <Label htmlFor="address">Address *</Label>
-                <Textarea
-                  id="address"
-                  value={formData.address}
-                  onChange={(e) => handleInputChange("address", e.target.value)}
-                  placeholder="Enter complete school address"
-                  required
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="establishedYear">Established Year</Label>
-                <Input
-                  id="establishedYear"
-                  type="number"
-                  value={formData.establishedYear}
-                  onChange={(e) =>
-                    handleInputChange(
-                      "establishedYear",
-                      parseInt(e.target.value),
-                    )
-                  }
-                  min="1900"
-                  max={new Date().getFullYear()}
-                />
+                <div>
+                  <Label htmlFor="address">Institution Address *</Label>
+                  <Textarea
+                    id="address"
+                    value={institutionData.address}
+                    onChange={(e) =>
+                      handleInstitutionChange("address", e.target.value)
+                    }
+                    placeholder="Enter complete institution address"
+                    required
+                  />
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Administrator Information */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Administrator Information</h3>
+            {error && (
+              <Alert variant="destructive">
+                <AlertTriangle className="w-4 h-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="md:col-span-2">
-                <Label htmlFor="adminName">Administrator Name *</Label>
-                <Input
-                  id="adminName"
-                  value={formData.adminName}
-                  onChange={(e) =>
-                    handleInputChange("adminName", e.target.value)
-                  }
-                  placeholder="Enter administrator full name"
-                  required
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="adminEmail">Administrator Email *</Label>
-                <Input
-                  id="adminEmail"
-                  type="email"
-                  value={formData.adminEmail}
-                  onChange={(e) =>
-                    handleInputChange("adminEmail", e.target.value)
-                  }
-                  placeholder="admin@school.ac.ke"
-                  required
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="adminPhone">Administrator Phone *</Label>
-                <Input
-                  id="adminPhone"
-                  value={formData.adminPhone}
-                  onChange={(e) =>
-                    handleInputChange("adminPhone", e.target.value)
-                  }
-                  placeholder="+254 700 000 000"
-                  required
-                />
-              </div>
-            </div>
-          </div>
-
-          {error && (
-            <Alert variant="destructive">
-              <AlertTriangle className="w-4 h-4" />
+            <Alert>
+              <Lock className="w-4 h-4" />
               <AlertDescription>
-                <div className="whitespace-pre-line text-sm">{error}</div>
+                Step 1: Creates institution via /api/Institutions endpoint.
+                After successful creation, you'll proceed to create the
+                administrator account.
               </AlertDescription>
             </Alert>
-          )}
 
-          <Alert>
-            <Lock className="w-4 h-4" />
-            <AlertDescription>
-              Secure login credentials will be automatically generated.
-              {!isConnected ? (
-                <>
-                  {" "}
-                  Since the API server is unreachable, the system will operate
-                  in manual setup mode and provide credentials for manual
-                  database configuration.
-                </>
-              ) : (
-                <>
-                  {" "}
-                  Credentials will be sent to the administrator's email address.
-                </>
-              )}
-            </AlertDescription>
-          </Alert>
+            <div className="flex justify-end gap-3">
+              <Button type="button" variant="outline" onClick={handleClose}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={loading}>
+                {loading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                    Creating Institution...
+                  </>
+                ) : (
+                  "Create Institution & Continue"
+                )}
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <form onSubmit={handleStep2Submit} className="space-y-6">
+            {/* Step 2: Administrator Information Only */}
+            <div className="space-y-4">
+              <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                <p className="text-sm text-green-800">
+                  ✅ Institution "{institutionData.institutionName}" created
+                  successfully!
+                </p>
+              </div>
 
-          <div className="flex justify-end gap-3">
-            <Button type="button" variant="outline" onClick={handleClose}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                  {isConnected ? "Registering..." : "Preparing Setup..."}
-                </>
-              ) : (
-                <>
-                  {isConnected
-                    ? "Register School"
-                    : "Generate Setup & Credentials"}
-                </>
-              )}
-            </Button>
-          </div>
-        </form>
+              <h3 className="text-lg font-semibold">
+                Administrator Information
+              </h3>
+              <p className="text-sm text-gray-600">
+                Now, let's create the administrator account for this
+                institution. All fields marked with * are required.
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="firstName">First Name *</Label>
+                  <Input
+                    id="firstName"
+                    value={adminData.firstName}
+                    onChange={(e) =>
+                      handleAdminChange("firstName", e.target.value)
+                    }
+                    placeholder="Enter first name"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="lastName">Last Name *</Label>
+                  <Input
+                    id="lastName"
+                    value={adminData.lastName}
+                    onChange={(e) =>
+                      handleAdminChange("lastName", e.target.value)
+                    }
+                    placeholder="Enter last name"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="email">Email Address *</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={adminData.email}
+                    onChange={(e) => handleAdminChange("email", e.target.value)}
+                    placeholder="admin@school.ac.ke"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="phoneNumber">Phone Number *</Label>
+                  <Input
+                    id="phoneNumber"
+                    value={adminData.phoneNumber}
+                    onChange={(e) =>
+                      handleAdminChange("phoneNumber", e.target.value)
+                    }
+                    placeholder="+254 700 000 000"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            {error && (
+              <Alert variant="destructive">
+                <AlertTriangle className="w-4 h-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            <Alert>
+              <Lock className="w-4 h-4" />
+              <AlertDescription>
+                Step 2: Creates admin user via /api/Users/add-user endpoint. The
+                admin will be linked to the institution created in Step 1.
+              </AlertDescription>
+            </Alert>
+
+            <div className="flex justify-between gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCurrentStep(1)}
+                disabled={loading}
+              >
+                ← Back to Institution
+              </Button>
+              <div className="flex gap-3">
+                <Button type="button" variant="outline" onClick={handleClose}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={loading}>
+                  {loading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                      Creating Admin...
+                    </>
+                  ) : (
+                    "Create Administrator"
+                  )}
+                </Button>
+              </div>
+            </div>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
   );

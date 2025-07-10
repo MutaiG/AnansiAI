@@ -67,7 +67,7 @@ export class ApiConfig {
       try {
         // Use axios instead of fetch to avoid CORS issues - test with Institutions endpoint
         const response = await axios.get(`${this.baseURL}/api/Institutions`, {
-          timeout: 3000,
+          timeout: 15000, // 15 seconds for slower API responses
           headers: {
             Accept: "application/json",
           },
@@ -254,7 +254,7 @@ export class ApiService {
         method,
         url: endpoint,
         data,
-        timeout: 5000, // 5 second timeout
+        timeout: 20000, // 20 seconds for slower API responses
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
@@ -598,7 +598,7 @@ export class ApiService {
       // Try to get subjects count if available
       try {
         const subjectsResponse = await this.client.get("/api/subjects", {
-          timeout: 5000,
+          timeout: 15000, // 15 seconds for slower API responses
         });
         if (Array.isArray(subjectsResponse.data)) {
           calculatedStats.totalSubjects = subjectsResponse.data.length;
@@ -1279,7 +1279,7 @@ export class ApiService {
       .join("");
   }
 
-  // 📧 Send credentials via email (placeholder - you'll need real email service)
+  // �� Send credentials via email (placeholder - you'll need real email service)
   private async sendCredentialsEmail(
     credentials: { email: string; password: string; loginUrl: string },
     schoolInfo: any,
@@ -1409,7 +1409,7 @@ export class ApiService {
 
       // Try the Institutions endpoint since /health might not exist
       const response = await this.client.get("/api/Institutions", {
-        timeout: 5000,
+        timeout: 15000, // 15 seconds for slower API responses
         headers: {
           Accept: "application/json",
         },

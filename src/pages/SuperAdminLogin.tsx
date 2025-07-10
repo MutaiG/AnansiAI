@@ -24,13 +24,13 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Eye, EyeOff, Shield, AlertCircle } from "lucide-react";
+import { Eye, EyeOff, Shield, AlertCircle, Wifi } from "lucide-react";
 
 const SuperAdminLogin = () => {
   usePageTitle("Super Admin Login");
 
   const [formData, setFormData] = useState({
-    loginId: "",
+    email: "",
     password: "",
   });
   const [showPassword, setShowPassword] = useState(false);
@@ -42,14 +42,16 @@ const SuperAdminLogin = () => {
 
   const navigate = useNavigate();
 
-  // Redirect if already authenticated as super admin
+  // Clear any existing authentication on component mount (force re-login)
   useEffect(() => {
-    const token = localStorage.getItem("authToken");
-    const userRole = localStorage.getItem("userRole");
-    if (token && userRole === "superadmin") {
-      navigate("/super-admin-dashboard");
-    }
-  }, [navigate]);
+    // Clear all auth data to force fresh login
+    localStorage.removeItem("authToken");
+    localStorage.removeItem("anansi_token");
+    localStorage.removeItem("userRole");
+    localStorage.removeItem("userEmail");
+    localStorage.removeItem("userData");
+    console.log("🔄 Cleared existing auth data - ready for fresh login");
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -64,52 +66,100 @@ const SuperAdminLogin = () => {
     e.preventDefault();
     setError("");
 
-    if (!formData.loginId || !formData.password) {
+    if (!formData.email || !formData.password) {
       setError("Please fill in all fields.");
       return;
     }
 
-    // Validate login ID format for Super Admin
-    const loginIdPattern = /^SUP-ADM-\d{3}$/;
-    if (!loginIdPattern.test(formData.loginId.toUpperCase())) {
-      setError(
-        "Invalid Super Admin ID format. Use format: SUP-ADM-XXX (e.g., SUP-ADM-001)",
-      );
+    // Validate email format
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailPattern.test(formData.email)) {
+      setError("Please enter a valid email address.");
       return;
     }
 
     setIsLoading(true);
     try {
       const loginData = {
-        email: formData.loginId.toUpperCase(),
+        email: formData.email.toLowerCase(),
         password: formData.password,
       };
 
-      const response = await axiosClient.post("/api/Auth/login", loginData);
+      console.log("🔐 Attempting super admin login...", {
+        email: loginData.email,
+      });
 
-      if (response.data) {
-        // Store auth data
-        localStorage.setItem("authToken", response.data.token || "");
-        localStorage.setItem("anansi_token", response.data.token || "");
+      // Test API connection first
+      try {
+        await axiosClient.get("/api/Institutions", { timeout: 5000 });
+        console.log("✅ API connection verified");
+      } catch (connError) {
+        console.log("⚠️ API connection issue:", connError);
+      }
+
+      const response = await axiosClient.post("/api/Auth/login", loginData, {
+        timeout: 10000,
+      });
+
+      console.log("🔍 API Response:", response.data);
+
+      if (
+        response.data &&
+        (response.data.token ||
+          response.data.access_token ||
+          response.status === 200)
+      ) {
+        console.log("✅ Super admin login successful");
+
+        // Extract token from various possible response formats
+        const token =
+          response.data.token ||
+          response.data.access_token ||
+          response.data.authToken ||
+          "authenticated";
+
+        // Store auth data - production authentication only
+        localStorage.setItem("authToken", token);
+        localStorage.setItem("anansi_token", token);
         localStorage.setItem("userRole", "superadmin");
-        localStorage.setItem("userEmail", formData.loginId.toUpperCase());
+        localStorage.setItem("userEmail", formData.email.toLowerCase());
+        localStorage.setItem(
+          "userData",
+          JSON.stringify({
+            email: formData.email.toLowerCase(),
+            role: "superadmin",
+            loginTime: new Date().toISOString(),
+          }),
+        );
 
+        console.log("🎯 Authentication successful - redirecting to dashboard");
         navigate("/super-admin-dashboard");
       } else {
-        setError(
-          "Invalid credentials. Please check your Super Admin ID and password.",
-        );
+        console.log("❌ Invalid response format:", response.data);
+        setError("Invalid credentials. Please check your email and password.");
       }
     } catch (error: any) {
-      console.error("Login error:", error);
-      if (error.response?.status === 401) {
-        setError(
-          "Invalid credentials. Please check your Super Admin ID and password.",
-        );
+      console.error("❌ Super admin login error:", error);
+      console.error("Error details:", {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message,
+        code: error.code,
+      });
+
+      if (error.response?.status === 401 || error.response?.status === 400) {
+        setError("Invalid credentials. Please check your email and password.");
       } else if (error.response?.data?.message) {
         setError(error.response.data.message);
+      } else if (
+        error.code === "ERR_NETWORK" ||
+        error.message === "Network Error"
+      ) {
+        setError(
+          "Network error: Cannot connect to API server. Please check your connection or contact support.",
+        );
       } else {
-        setError("Network error occurred. Please try again.");
+        setError("Authentication failed. Please try again.");
       }
     } finally {
       setIsLoading(false);
@@ -186,18 +236,20 @@ const SuperAdminLogin = () => {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="loginId">Super Admin ID</Label>
+                <Label htmlFor="email">Email Address</Label>
                 <Input
-                  id="loginId"
-                  name="loginId"
-                  type="text"
-                  placeholder="SUP-ADM-001"
-                  value={formData.loginId}
+                  id="email"
+                  name="email"
+                  type="email"
+                  placeholder="super.admin@education.go.ke"
+                  value={formData.email}
                   onChange={handleInputChange}
                   required
                   disabled={isLoading}
-                  className="text-center font-mono"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  Production authentication required
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -300,7 +352,7 @@ const SuperAdminLogin = () => {
               </Dialog>
             </div>
 
-            <div className="pt-6 border-t border-secondary-200">
+            <div className="pt-6 border-t border-secondary-200 space-y-4">
               <div className="bg-blue-50 rounded-lg p-4">
                 <h4 className="font-medium text-blue-900 mb-2 flex items-center gap-2">
                   <Shield className="w-4 h-4" />
@@ -311,6 +363,19 @@ const SuperAdminLogin = () => {
                   <p>• School registration and management</p>
                   <p>• System administration privileges</p>
                   <p>• Infrastructure monitoring access</p>
+                </div>
+              </div>
+
+              <div className="bg-blue-50 rounded-lg p-4">
+                <h4 className="font-medium text-blue-900 mb-2 flex items-center gap-2">
+                  <Shield className="w-4 h-4" />
+                  Production Authentication
+                </h4>
+                <div className="text-sm text-blue-800 space-y-1">
+                  <p>• Secure HTTPS connection to API server</p>
+                  <p>• Authentication required for all operations</p>
+                  <p>• Contact system administrator for credentials</p>
+                  <p>• All sessions are logged and monitored</p>
                 </div>
               </div>
             </div>

@@ -1,21 +1,38 @@
 import { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { X, Server, Cloud, Wifi, WifiOff, AlertTriangle } from "lucide-react";
+import {
+  X,
+  Server,
+  Cloud,
+  Wifi,
+  WifiOff,
+  AlertTriangle,
+  Shield,
+} from "lucide-react";
 import axiosClient from "@/services/axiosClient";
 import CorsErrorHelper from "./CorsErrorHelper";
 
 const DevelopmentBanner = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [isVisible, setIsVisible] = useState(true);
   const [showCorsHelper, setShowCorsHelper] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const baseURL = "http://13.60.98.134/anansiai";
   const isProduction = process.env.NODE_ENV === "production";
+  const isSecure = window.location.protocol === "https:";
+
+  // Check if user is authenticated as super admin
+  const isAuthenticated = !!localStorage.getItem("authToken");
+  const userRole = localStorage.getItem("userRole");
+  const isOnSuperAdminPages = location.pathname.includes("super-admin");
 
   const checkConnection = async () => {
     try {
       const response = await axiosClient.get("/api/Institutions", {
-        timeout: 3000,
+        timeout: 15000, // 15 seconds for slower API responses
       });
       const connected = response.status >= 200 && response.status < 300;
       setIsConnected(connected);
@@ -52,11 +69,12 @@ const DevelopmentBanner = () => {
         bgColor: "bg-green-50 border-green-200",
       };
     } else {
+      const mixedContentWarning = isSecure ? " (HTTPS->HTTP blocked)" : "";
       return {
         icon: WifiOff,
         status: "❌ API Connection Failed",
-        description: `Cannot connect to API server at ${baseURL}`,
-        badge: isProduction ? "API Offline" : "Connection Error",
+        description: `Cannot connect to ${baseURL}${mixedContentWarning}`,
+        badge: isSecure ? "Mixed Content" : "Connection Error",
         color: "text-red-600",
         bgColor: "bg-red-50 border-red-200",
       };
@@ -105,6 +123,32 @@ const DevelopmentBanner = () => {
                 </Button>
               </>
             )}
+
+            {/* Super Admin Access Button */}
+            {!isAuthenticated && !isOnSuperAdminPages && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate("/super-admin-login")}
+                className="h-6 px-2 text-purple-600 hover:text-purple-700"
+              >
+                <Shield className="w-3 h-3 mr-1" />
+                Super Admin
+              </Button>
+            )}
+
+            {isAuthenticated && userRole === "superadmin" && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate("/super-admin-dashboard")}
+                className="h-6 px-2 text-green-600 hover:text-green-700"
+              >
+                <Shield className="w-3 h-3 mr-1" />
+                Dashboard
+              </Button>
+            )}
+
             <Button
               variant="ghost"
               size="sm"

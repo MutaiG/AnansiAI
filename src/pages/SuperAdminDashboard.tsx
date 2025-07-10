@@ -728,7 +728,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
     try {
       console.log("🔍 Testing API connection...");
       const response = await axiosClient.get("/api/Institutions", {
-        timeout: 5000,
+        timeout: 15000, // 15 seconds for slower API responses
       });
       const connected = response.status >= 200 && response.status < 300;
       setIsConnected(connected);
