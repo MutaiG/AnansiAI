@@ -308,7 +308,7 @@ const AdminDashboard = () => {
       const [institutionsResponse, usersResponse] = await Promise.all([
         axiosClient.get("/api/Institutions").catch(() => ({ data: [] })),
         axiosClient
-          .get("/api/Users/get-users-by-role")
+          .get("/api/Users/get-users-by-role?roleName=teacher")
           .catch(() => ({ data: [] })),
       ]);
 
