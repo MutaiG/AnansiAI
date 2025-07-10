@@ -2927,6 +2927,700 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
               <UsersManagement onShowMessage={showMessage} />
             </TabsContent>
 
+            {/* Academics Tab */}
+            <TabsContent value="academics" className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-2xl font-bold text-gray-900">
+                    Multi-School Academic Management
+                  </h3>
+                  <p className="text-gray-600">
+                    Curriculum oversight and academic performance across all{" "}
+                    {schoolsData.length} schools
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={handleGenerateAcademicReport}
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Cross-School Report
+                  </Button>
+                  <Button onClick={handleAddSubject}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Subject
+                  </Button>
+                </div>
+              </div>
+
+              {/* Academic Overview */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-green-100">Platform Subjects</p>
+                        <p className="text-3xl font-bold">24</p>
+                        <p className="text-green-100">Across all schools</p>
+                      </div>
+                      <BookOpen className="w-8 h-8 text-green-200" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-blue-100">Platform Average</p>
+                        <p className="text-3xl font-bold">78.5%</p>
+                        <p className="text-blue-100">
+                          {schoolsData.length} schools combined
+                        </p>
+                      </div>
+                      <BarChart3 className="w-8 h-8 text-blue-200" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-purple-100">Total Assessments</p>
+                        <p className="text-3xl font-bold">1,847</p>
+                        <p className="text-purple-100">All schools this term</p>
+                      </div>
+                      <FileText className="w-8 h-8 text-purple-200" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-gradient-to-br from-orange-500 to-orange-600 text-white">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-orange-100">Curriculum Coverage</p>
+                        <p className="text-3xl font-bold">92%</p>
+                        <p className="text-orange-100">Platform average</p>
+                      </div>
+                      <Target className="w-8 h-8 text-orange-200" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* School Performance by Subject */}
+              <Card className="bg-white/70 backdrop-blur-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <BookOpen className="w-5 h-5 text-blue-600" />
+                    School Performance by Subject
+                  </CardTitle>
+                  <CardDescription>
+                    Subject performance overview across your managed schools
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {[
+                      {
+                        subject: "Mathematics",
+                        school: "Nairobi Academy",
+                        performance: 96.8,
+                        county: "Nairobi",
+                      },
+                      {
+                        subject: "English",
+                        school: "Mombasa International",
+                        performance: 94.2,
+                        county: "Mombasa",
+                      },
+                      {
+                        subject: "Science",
+                        school: "Kisumu Elite School",
+                        performance: 92.7,
+                        county: "Kisumu",
+                      },
+                      {
+                        subject: "Kiswahili",
+                        school: "Nakuru High School",
+                        performance: 91.3,
+                        county: "Nakuru",
+                      },
+                      {
+                        subject: "Social Studies",
+                        school: "Eldoret Academy",
+                        performance: 90.8,
+                        county: "Uasin Gishu",
+                      },
+                      {
+                        subject: "Computer Science",
+                        school: "Thika Girls High",
+                        performance: 89.4,
+                        county: "Kiambu",
+                      },
+                    ].map((item, index) => (
+                      <div
+                        key={index}
+                        className="p-3 border rounded-lg hover:bg-gray-50 cursor-pointer"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
+                              <BookOpen className="w-3 h-3 text-blue-600" />
+                            </div>
+                            <div>
+                              <p className="font-medium text-sm">
+                                {item.subject}
+                              </p>
+                              <p className="text-xs text-gray-600">
+                                {item.school} �� {item.county}
+                              </p>
+                            </div>
+                          </div>
+                          <span className="font-bold text-sm">
+                            {item.performance}%
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Subject Performance Chart */}
+              <Card className="bg-white/70 backdrop-blur-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <BarChart3 className="w-5 h-5 text-blue-600" />
+                    Platform-Wide Subject Performance Analysis
+                  </CardTitle>
+                  <CardDescription>
+                    Performance vs targets across all {schoolsData.length}{" "}
+                    schools in the platform
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={performanceData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="subject" />
+                      <YAxis />
+                      <RechartsTooltip />
+                      <Legend />
+                      <Bar
+                        dataKey="performance"
+                        fill="#3B82F6"
+                        name="Current Performance"
+                      />
+                      <Bar dataKey="target" fill="#10B981" name="Target" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
+              {/* Subjects Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {performanceData.map((subject) => (
+                  <Card
+                    key={subject.subject}
+                    className="bg-white/70 backdrop-blur-sm hover:shadow-lg transition-all duration-200"
+                  >
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-lg">
+                        {subject.subject}
+                      </CardTitle>
+                      <CardDescription>
+                        Performance: {subject.performance}% (Target:{" "}
+                        {subject.target}%)
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <Progress value={subject.performance} className="h-3" />
+
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">Current</span>
+                        <span className="font-medium">
+                          {subject.performance}%
+                        </span>
+                      </div>
+
+                      <div className="pt-3 border-t">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full"
+                          onClick={() =>
+                            handleViewSubjectAnalytics(subject.subject)
+                          }
+                        >
+                          <Eye className="w-4 h-4 mr-2" />
+                          View Analytics
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </TabsContent>
+
+            {/* AI Insights Tab */}
+            <TabsContent value="ai-insights" className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-2xl font-bold text-gray-900">
+                    AI Twin Management & Analytics
+                  </h3>
+                  <p className="text-gray-600">
+                    Comprehensive AI Twin oversight, behavior analytics, and
+                    system management
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={handleGenerateAIReport}>
+                    <Brain className="w-4 h-4 mr-2" />
+                    AI Twin Report
+                  </Button>
+                  <Button onClick={handleAISettings}>
+                    <Settings className="w-4 h-4 mr-2" />
+                    AI Twin Settings
+                  </Button>
+                </div>
+              </div>
+
+              {/* AI Overview Stats */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-blue-100">AI Twins Active</p>
+                        <p className="text-3xl font-bold">98,742</p>
+                        <p className="text-blue-100">Learning profiles</p>
+                      </div>
+                      <Brain className="w-8 h-8 text-blue-200" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-green-100">AI Accuracy</p>
+                        <p className="text-3xl font-bold">94.2%</p>
+                        <p className="text-green-100">Prediction accuracy</p>
+                      </div>
+                      <Target className="w-8 h-8 text-green-200" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-gradient-to-br from-orange-500 to-orange-600 text-white">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-orange-100">Daily Interactions</p>
+                        <p className="text-3xl font-bold">892,456</p>
+                        <p className="text-orange-100">AI engagements</p>
+                      </div>
+                      <Activity className="w-8 h-8 text-orange-200" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-gradient-to-br from-red-500 to-red-600 text-white">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-red-100">Behavior Alerts</p>
+                        <p className="text-3xl font-bold">1,247</p>
+                        <p className="text-red-100">Require attention</p>
+                      </div>
+                      <AlertTriangle className="w-8 h-8 text-red-200" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* AI Twin Interaction Overview */}
+              <div className="grid lg:grid-cols-2 gap-6 mb-6">
+                <Card className="bg-white/70 backdrop-blur-sm">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <MessageSquare className="w-5 h-5 text-blue-600" />
+                      Real-time AI Twin Conversations
+                    </CardTitle>
+                    <CardDescription>
+                      Monitor active AI Twin chats across all students
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {[
+                        {
+                          student: "Alice Johnson",
+                          subject: "Mathematics",
+                          activity: "Solving quadratic equations",
+                          mood: "Focused",
+                        },
+                        {
+                          student: "David Chen",
+                          subject: "Physics",
+                          activity: "Understanding momentum",
+                          mood: "Curious",
+                        },
+                        {
+                          student: "Sarah Kimani",
+                          subject: "Chemistry",
+                          activity: "Balancing chemical equations",
+                          mood: "Confident",
+                        },
+                        {
+                          student: "John Mwangi",
+                          subject: "Biology",
+                          activity: "Cell division concepts",
+                          mood: "Struggling",
+                        },
+                      ].map((chat, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center justify-between p-3 border rounded-lg hover:bg-blue-50 cursor-pointer"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                            <div>
+                              <p className="font-medium text-sm">
+                                {chat.student}
+                              </p>
+                              <p className="text-xs text-gray-600">
+                                {chat.subject} • {chat.activity}
+                              </p>
+                            </div>
+                          </div>
+                          <Badge
+                            variant={
+                              chat.mood === "Struggling"
+                                ? "destructive"
+                                : "secondary"
+                            }
+                            className="text-xs"
+                          >
+                            {chat.mood}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                    <Button variant="outline" className="w-full mt-4">
+                      <Eye className="w-4 h-4 mr-2" />
+                      View All Active Chats
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-white/70 backdrop-blur-sm">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Lightbulb className="w-5 h-5 text-yellow-600" />
+                      AI Twin Learning Insights
+                    </CardTitle>
+                    <CardDescription>
+                      Key insights from AI Twin interactions today
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div className="p-3 bg-blue-50 rounded-lg">
+                        <h4 className="font-medium text-blue-900">
+                          Top Learning Challenge
+                        </h4>
+                        <p className="text-sm text-blue-700">
+                          Quadratic equations - 67% of students requesting help
+                        </p>
+                      </div>
+                      <div className="p-3 bg-green-50 rounded-lg">
+                        <h4 className="font-medium text-green-900">
+                          Success Story
+                        </h4>
+                        <p className="text-sm text-green-700">
+                          AI Twin helped improve Biology comprehension by 34%
+                        </p>
+                      </div>
+                      <div className="p-3 bg-orange-50 rounded-lg">
+                        <h4 className="font-medium text-orange-900">
+                          Engagement Peak
+                        </h4>
+                        <p className="text-sm text-orange-700">
+                          Highest AI Twin usage: 2:00 PM - 4:00 PM
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Behavior Alerts */}
+              <Card className="bg-white/70 backdrop-blur-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-red-600" />
+                    AI Twin Behavioral Alerts
+                  </CardTitle>
+                  <CardDescription>
+                    AI-detected behavioral patterns requiring attention
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {[
+                    {
+                      type: "Academic Decline",
+                      count: 342,
+                      severity: "high",
+                      description: "Significant drop in performance",
+                    },
+                    {
+                      type: "Engagement Issues",
+                      count: 567,
+                      severity: "medium",
+                      description: "Reduced participation patterns",
+                    },
+                    {
+                      type: "Learning Difficulty",
+                      count: 234,
+                      severity: "medium",
+                      description: "Struggling with concepts",
+                    },
+                    {
+                      type: "Social Isolation",
+                      count: 104,
+                      severity: "high",
+                      description: "Withdrawal from peer interaction",
+                    },
+                  ].map((alert, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 cursor-pointer"
+                      onClick={() => handleViewBehaviorAlert(alert.type)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`w-3 h-3 rounded-full ${
+                            alert.severity === "high"
+                              ? "bg-red-500"
+                              : "bg-yellow-500"
+                          }`}
+                        />
+                        <div>
+                          <h4 className="font-medium">{alert.type}</h4>
+                          <p className="text-sm text-gray-600">
+                            {alert.description}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <Badge
+                          variant={
+                            alert.severity === "high"
+                              ? "destructive"
+                              : "outline"
+                          }
+                        >
+                          {alert.count} students
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Performance Tab */}
+            <TabsContent value="performance" className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-2xl font-bold text-gray-900">
+                    Multi-School Performance Management
+                  </h3>
+                  <p className="text-gray-600">
+                    Performance tracking and analytics across all{" "}
+                    {schoolsData.length} schools on the platform
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={handleGeneratePerformanceReport}
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Performance Report
+                  </Button>
+                  <Button onClick={handleSetPerformanceTargets}>
+                    <Target className="w-4 h-4 mr-2" />
+                    Set Targets
+                  </Button>
+                </div>
+              </div>
+
+              {/* Performance Overview */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-blue-100">Platform Performance</p>
+                        <p className="text-3xl font-bold">
+                          {systemStatsData.avgPerformance}%
+                        </p>
+                        <p className="text-blue-100">
+                          {schoolsData.length} schools average
+                        </p>
+                      </div>
+                      <BarChart3 className="w-8 h-8 text-blue-200" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-green-100">Teacher Effectiveness</p>
+                        <p className="text-3xl font-bold">87.6%</p>
+                        <p className="text-green-100">Across all schools</p>
+                      </div>
+                      <Award className="w-8 h-8 text-green-200" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-gradient-to-br from-orange-500 to-orange-600 text-white">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-orange-100">Platform Engagement</p>
+                        <p className="text-3xl font-bold">78.9%</p>
+                        <p className="text-orange-100">Multi-school average</p>
+                      </div>
+                      <Activity className="w-8 h-8 text-orange-200" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-purple-100">Achievement Rate</p>
+                        <p className="text-3xl font-bold">92.3%</p>
+                        <p className="text-purple-100">Platform-wide</p>
+                      </div>
+                      <Star className="w-8 h-8 text-purple-200" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* School Performance Overview */}
+              <Card className="bg-white/70 backdrop-blur-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <School className="w-5 h-5 text-blue-600" />
+                    School Performance Overview
+                  </CardTitle>
+                  <CardDescription>
+                    Performance monitoring across your {schoolsData.length}
+                    -school network
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {[
+                      {
+                        name: "Nairobi Academy",
+                        performance: 96.8,
+                        students: 1240,
+                        trend: "up",
+                        county: "Nairobi",
+                      },
+                      {
+                        name: "Mombasa International",
+                        performance: 94.2,
+                        students: 980,
+                        trend: "up",
+                        county: "Mombasa",
+                      },
+                      {
+                        name: "Kisumu Elite School",
+                        performance: 92.7,
+                        students: 856,
+                        trend: "stable",
+                        county: "Kisumu",
+                      },
+                      {
+                        name: "Nakuru High School",
+                        performance: 91.3,
+                        students: 1120,
+                        trend: "up",
+                        county: "Nakuru",
+                      },
+                      {
+                        name: "Eldoret Academy",
+                        performance: 90.8,
+                        students: 743,
+                        trend: "down",
+                        county: "Uasin Gishu",
+                      },
+                    ].map((school, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 cursor-pointer"
+                        onClick={() => handleViewSchoolPerformance(school.name)}
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full">
+                            <School className="w-4 h-4 text-blue-600" />
+                          </div>
+                          <div>
+                            <h4 className="font-medium">{school.name}</h4>
+                            <p className="text-sm text-gray-600">
+                              {school.students} students ��� {school.county}{" "}
+                              County
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <p className="font-bold text-lg">
+                              {school.performance}%
+                            </p>
+                            <div className="flex items-center gap-1">
+                              {school.trend === "up" && (
+                                <TrendingUp className="w-4 h-4 text-green-600" />
+                              )}
+                              {school.trend === "down" && (
+                                <TrendingDown className="w-4 h-4 text-red-600" />
+                              )}
+                              {school.trend === "stable" && (
+                                <Activity className="w-4 h-4 text-gray-600" />
+                              )}
+                              <span className="text-xs text-gray-600">
+                                Performance
+                              </span>
+                            </div>
+                          </div>
+                          <Button variant="ghost" size="sm">
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
             {/* Analytics Tab */}
             <TabsContent value="analytics" className="space-y-6">
               <div className="flex items-center justify-between">
