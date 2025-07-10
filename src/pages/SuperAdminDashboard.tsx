@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import usePageTitle from "@/hooks/usePageTitle";
 import SchoolRegistration from "@/components/SchoolRegistration";
+import InstitutionsManagement from "@/components/InstitutionsManagement";
 import ApiDiagnostics from "@/components/ApiDiagnostics";
 import ApiStatusNotification from "@/components/ApiStatusNotification";
 import axiosClient from "@/services/axiosClient";
@@ -2254,7 +2255,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
                       Platform Quick Actions
                     </CardTitle>
                     <CardDescription>
-                      Frequently used multi-school management tasks
+                      Frequently used institution management tasks
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
@@ -2263,7 +2264,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
                       onClick={() => setIsSchoolRegistrationOpen(true)}
                     >
                       <Plus className="w-4 h-4 mr-2" />
-                      Register New School
+                      Add Institution
                     </Button>
 
                     <Button
@@ -2436,7 +2437,13 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
 
             {/* Schools Tab */}
             <TabsContent value="schools" className="space-y-6">
-              <div className="flex items-center justify-between">
+              <InstitutionsManagement onShowMessage={showMessage} />
+
+              {/* Legacy Content - Keeping for reference */}
+              <div
+                className="flex items-center justify-between"
+                style={{ display: "none" }}
+              >
                 <div>
                   <h3 className="text-2xl font-bold text-gray-900">
                     National School Management

@@ -19,6 +19,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   School,
   Mail,
   Lock,
@@ -28,6 +35,7 @@ import {
   ExternalLink,
   Wifi,
   WifiOff,
+  Building,
 } from "lucide-react";
 import axiosClient from "@/services/axiosClient";
 
@@ -35,14 +43,18 @@ interface SchoolRegistrationProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  initialStep?: number; // Allow starting at step 2 for existing institutions
+  preSelectedInstitution?: any; // Pre-select an institution
 }
 
 const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
   isOpen,
   onClose,
   onSuccess,
+  initialStep = 1,
+  preSelectedInstitution = null,
 }) => {
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStep] = useState(initialStep);
   const [institutionData, setInstitutionData] = useState({
     institutionName: "",
     address: "",
@@ -52,8 +64,13 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
     lastName: "",
     email: "",
     phoneNumber: "",
+    address: "", // API requires address in user payload
   });
   const [createdInstitution, setCreatedInstitution] = useState<any>(null);
+  const [availableInstitutions, setAvailableInstitutions] = useState<any[]>([]);
+  const [selectedInstitution, setSelectedInstitution] = useState<any>(null);
+  const [availableRoles, setAvailableRoles] = useState<any[]>([]);
+  const [selectedRole, setSelectedRole] = useState<any>(null);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -85,10 +102,61 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
     }
   };
 
-  // Check connection on mount
+  // Check connection and fetch roles on mount
   useEffect(() => {
     checkConnection();
-  }, []);
+    fetchRoles();
+    if (initialStep === 2) {
+      fetchInstitutions();
+    }
+  }, [initialStep]);
+
+  // Handle pre-selected institution
+  useEffect(() => {
+    if (preSelectedInstitution && initialStep === 2) {
+      setSelectedInstitution(preSelectedInstitution);
+      console.log("🏫 Pre-selected institution:", preSelectedInstitution);
+    }
+  }, [preSelectedInstitution, initialStep]);
+
+  // Fetch available institutions
+  const fetchInstitutions = async () => {
+    try {
+      console.log("🏫 Fetching available institutions...");
+      const response = await axiosClient.get("/api/Institutions");
+      console.log("✅ Available institutions:", response.data);
+      setAvailableInstitutions(response.data || []);
+      return response.data || [];
+    } catch (error) {
+      console.error("❌ Failed to fetch institutions:", error);
+      setAvailableInstitutions([]);
+      return [];
+    }
+  };
+
+  // Fetch available roles
+  const fetchRoles = async () => {
+    try {
+      const response = await axiosClient.get("/api/Users/get-roles");
+      console.log("📋 Available roles:", response.data);
+      setAvailableRoles(response.data || []);
+
+      // Auto-select Admin role if available
+      const adminRole = response.data?.find(
+        (role: any) => role.name?.toLowerCase() === "admin",
+      );
+      if (adminRole) {
+        setSelectedRole(adminRole);
+        console.log("✅ Auto-selected Admin role:", adminRole);
+      }
+    } catch (error) {
+      console.error("❌ Failed to fetch roles:", error);
+      // Fallback to hardcoded admin role
+      const fallbackRole = { id: "2", name: "Admin" };
+      setAvailableRoles([fallbackRole]);
+      setSelectedRole(fallbackRole);
+    }
+  };
 
   const handleInstitutionChange = (field: string, value: string) => {
     setInstitutionData((prev) => ({
@@ -115,7 +183,13 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
   };
 
   const validateStep2 = () => {
-    const required = ["firstName", "lastName", "email", "phoneNumber"];
+    const required = [
+      "firstName",
+      "lastName",
+      "email",
+      "phoneNumber",
+      "address",
+    ];
 
     for (const field of required) {
       if (!adminData[field as keyof typeof adminData]) {
@@ -133,6 +207,14 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
     const phoneRegex = /^(\+254|0)[7][0-9]{8}$/;
     if (!phoneRegex.test(adminData.phoneNumber)) {
       return "Please enter a valid Kenyan phone number (+254XXXXXXXXX or 07XXXXXXXX)";
+    }
+
+    if (!selectedRole) {
+      return "Please select a role for the administrator";
+    }
+
+    if (!selectedInstitution) {
+      return "Please select an institution for the administrator";
     }
 
     return null;
@@ -155,11 +237,10 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
       const institutionPayload = {
         name: institutionData.institutionName,
         address: institutionData.address,
-        modifiedDate: new Date().toISOString(),
+        // Optional fields for tracking
         createdBy: "super-admin",
         modifiedBy: "super-admin",
         isDeleted: false,
-        institutionId: 0,
       };
 
       // Prepare headers
@@ -192,8 +273,22 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
         institutionResponse.data,
       );
 
-      // Store created institution and move to step 2
+      // Store created institution
       setCreatedInstitution(institutionResponse.data);
+
+      // Fetch updated institutions list including the newly created one
+      console.log("🔄 Refreshing institutions list...");
+      const institutions = await fetchInstitutions();
+
+      // Auto-select the newly created institution
+      const newInstitution = institutionResponse.data;
+      setSelectedInstitution(newInstitution);
+      console.log(
+        "✅ Auto-selected newly created institution:",
+        newInstitution,
+      );
+
+      // Move to step 2
       setCurrentStep(2);
       setError(null);
     } catch (error: any) {
@@ -217,18 +312,22 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
     setLoading(true);
     try {
       console.log("👤 Step 2: Creating admin user...");
+      console.log(
+        "📝 Admin will be assigned to institution:",
+        selectedInstitution,
+      );
 
+      // API Payload matches POST /api/Users/add-users-as-super-admin requirements
       const userPayload = {
-        firstName: adminData.firstName,
-        lastName: adminData.lastName,
-        email: adminData.email,
-        address: institutionData.address,
-        phoneNumber: adminData.phoneNumber,
-        institutionName: institutionData.institutionName,
-        role: {
-          id: 1,
-          name: "Admin",
-        },
+        firstName: adminData.firstName, // Required: string
+        lastName: adminData.lastName, // Required: string
+        email: adminData.email, // Required: string
+        address: adminData.address, // Required: string
+        phoneNumber: adminData.phoneNumber, // Required: string
+        // Required: number
+        institutionId:
+          selectedInstitution?.institutionId || selectedInstitution?.id || 0,
+        role: selectedRole || { id: "2", name: "Admin" }, // Required: {id, name}
       };
 
       const headers: any = {
@@ -247,7 +346,7 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
       );
 
       const userResponse = await axiosClient.post(
-        "/api/Users/add-user",
+        "/api/Users/add-users-as-super-admin",
         userPayload,
         {
           headers,
@@ -260,15 +359,20 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
 
       // Success! Both institution and user were created
       const schoolInfo = {
-        id: createdInstitution?.institutionId || createdInstitution?.id,
+        id: selectedInstitution?.institutionId || selectedInstitution?.id,
         userId: userResponse.data.id || userResponse.data.userId,
-        name: institutionData.institutionName,
-        address: institutionData.address,
+        name: selectedInstitution?.name || institutionData.institutionName,
+        address: selectedInstitution?.address || institutionData.address,
         adminName: `${adminData.firstName} ${adminData.lastName}`,
         adminEmail: adminData.email,
         adminPhone: adminData.phoneNumber,
+        adminAddress: adminData.address,
+        role: selectedRole?.name || "Admin",
         status: "active",
-        createdAt: createdInstitution?.createdDate || new Date().toISOString(),
+        createdAt:
+          selectedInstitution?.createdDate ||
+          createdInstitution?.createdDate ||
+          new Date().toISOString(),
       };
 
       const credentials = {
@@ -292,16 +396,20 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
 
         // Show success with a note about timeout
         const schoolInfo = {
-          id: createdInstitution?.institutionId || createdInstitution?.id,
+          id: selectedInstitution?.institutionId || selectedInstitution?.id,
           userId: "generated", // API completed but we didn't get response
-          name: institutionData.institutionName,
-          address: institutionData.address,
+          name: selectedInstitution?.name || institutionData.institutionName,
+          address: selectedInstitution?.address || institutionData.address,
           adminName: `${adminData.firstName} ${adminData.lastName}`,
           adminEmail: adminData.email,
           adminPhone: adminData.phoneNumber,
+          adminAddress: adminData.address,
+          role: selectedRole?.name || "Admin",
           status: "active",
           createdAt:
-            createdInstitution?.createdDate || new Date().toISOString(),
+            selectedInstitution?.createdDate ||
+            createdInstitution?.createdDate ||
+            new Date().toISOString(),
         };
 
         const credentials = {
@@ -328,7 +436,7 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
     if (success) {
       onSuccess();
     }
-    setCurrentStep(1);
+    setCurrentStep(initialStep);
     setInstitutionData({
       institutionName: "",
       address: "",
@@ -338,8 +446,11 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
       lastName: "",
       email: "",
       phoneNumber: "",
+      address: "",
     });
     setCreatedInstitution(null);
+    setAvailableInstitutions([]);
+    setSelectedInstitution(null);
     setError(null);
     setSuccess(null);
     onClose();
@@ -422,6 +533,23 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
                     Address
                   </Label>
                   <p>{success.school.address}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium text-gray-600">
+                    Administrator
+                  </Label>
+                  <p>
+                    {success.school.adminName} ({success.school.role})
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium text-gray-600">
+                    Admin Contact
+                  </Label>
+                  <p>{success.school.adminEmail}</p>
+                  <p className="text-sm text-gray-500">
+                    {success.school.adminPhone}
+                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -542,13 +670,74 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <School className="w-6 h-6" />
-            Register New School - Step {currentStep} of 2
+            {currentStep === 1
+              ? "Create Institution (Step 1 of 2)"
+              : "Add Administrator (Step 2 of 2)"}
           </DialogTitle>
           <DialogDescription>
             {currentStep === 1
               ? "Step 1: Enter institution information to create the school record."
-              : "Step 2: Create administrator account for the institution."}
+              : "Step 2: Select institution and create administrator account for it."}
           </DialogDescription>
+
+          {/* Step Navigation */}
+          <div className="flex items-center gap-4 pt-4">
+            <div className="flex items-center gap-2">
+              <div
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                  currentStep === 1
+                    ? "bg-primary-500 text-white"
+                    : "bg-primary-600 text-white"
+                }`}
+              >
+                1
+              </div>
+              <span
+                className={
+                  currentStep === 1
+                    ? "font-medium text-primary-600"
+                    : "text-gray-500"
+                }
+              >
+                Create Institution
+              </span>
+            </div>
+
+            <div className="w-8 border-t border-gray-300" />
+
+            <div className="flex items-center gap-2">
+              <div
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                  currentStep === 2
+                    ? "bg-primary-500 text-white"
+                    : "bg-gray-300 text-gray-600"
+                }`}
+              >
+                2
+              </div>
+              <span
+                className={
+                  currentStep === 2
+                    ? "font-medium text-primary-600"
+                    : "text-gray-500"
+                }
+              >
+                Add Administrator
+              </span>
+            </div>
+
+            {currentStep === 1 && (
+              <Button
+                onClick={() => {
+                  setCurrentStep(2);
+                  fetchInstitutions();
+                }}
+                className="ml-4 bg-primary-500 hover:bg-primary-600 text-white font-medium px-4 py-2"
+              >
+                Skip to Admin Registration
+              </Button>
+            )}
+          </div>
         </DialogHeader>
 
         {/* API Status Indicator */}
@@ -647,15 +836,6 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
               </Alert>
             )}
 
-            <Alert>
-              <Lock className="w-4 h-4" />
-              <AlertDescription>
-                Step 1: Creates institution via /api/Institutions endpoint.
-                After successful creation, you'll proceed to create the
-                administrator account.
-              </AlertDescription>
-            </Alert>
-
             <div className="flex justify-end gap-3">
               <Button type="button" variant="outline" onClick={handleClose}>
                 Cancel
@@ -676,19 +856,109 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
           <form onSubmit={handleStep2Submit} className="space-y-6">
             {/* Step 2: Administrator Information Only */}
             <div className="space-y-4">
-              <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                <p className="text-sm text-green-800">
-                  ✅ Institution "{institutionData.institutionName}" created
-                  successfully!
-                </p>
+              {createdInstitution && (
+                <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                  <p className="text-sm text-green-800">
+                    ✅ Institution "{institutionData.institutionName}" created
+                    successfully!
+                  </p>
+                </div>
+              )}
+
+              {!createdInstitution && availableInstitutions.length === 0 && (
+                <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                  <p className="text-sm text-yellow-800">
+                    ⚠️ No institutions available. You may need to:
+                  </p>
+                  <ul className="text-sm text-yellow-700 mt-1 ml-4 list-disc">
+                    <li>Check your internet connection</li>
+                    <li>Create an institution first</li>
+                    <li>
+                      Contact system administrator if the API is unavailable
+                    </li>
+                  </ul>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentStep(1)}
+                    className="mt-3"
+                  >
+                    <Building className="w-4 h-4 mr-2" />
+                    Go to Step 1 (Create Institution)
+                  </Button>
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="institutionSelect">
+                    Select Institution for Administrator *
+                  </Label>
+                  <Select
+                    value={
+                      selectedInstitution?.institutionId?.toString() ||
+                      selectedInstitution?.id?.toString()
+                    }
+                    onValueChange={(value) => {
+                      const institution = availableInstitutions.find(
+                        (inst) =>
+                          inst.institutionId?.toString() === value ||
+                          inst.id?.toString() === value,
+                      );
+                      setSelectedInstitution(institution);
+                      console.log(
+                        "🏫 Selected institution for admin:",
+                        institution,
+                      );
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select institution to assign administrator" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableInstitutions.length === 0 ? (
+                        <div className="p-2 text-sm text-gray-500 text-center">
+                          No institutions available. Please create an
+                          institution first.
+                        </div>
+                      ) : (
+                        availableInstitutions.map((institution) => (
+                          <SelectItem
+                            key={institution.institutionId || institution.id}
+                            value={(
+                              institution.institutionId || institution.id
+                            ).toString()}
+                          >
+                            <div>
+                              <div className="font-medium">
+                                {institution.name}
+                              </div>
+                              <div className="text-xs text-gray-500 truncate">
+                                {institution.address}
+                              </div>
+                            </div>
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  {selectedInstitution && (
+                    <p className="text-xs text-green-600 mt-1">
+                      Administrator will be assigned to:{" "}
+                      {selectedInstitution.name}
+                    </p>
+                  )}
+                </div>
               </div>
 
               <h3 className="text-lg font-semibold">
                 Administrator Information
               </h3>
               <p className="text-sm text-gray-600">
-                Now, let's create the administrator account for this
-                institution. All fields marked with * are required.
+                Now, select the institution and create the administrator
+                account. You can assign the admin to the newly created
+                institution or any existing one. All fields marked with * are
+                required.
               </p>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -742,6 +1012,43 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
                     required
                   />
                 </div>
+
+                <div className="md:col-span-2">
+                  <Label htmlFor="adminAddress">Administrator Address *</Label>
+                  <Textarea
+                    id="adminAddress"
+                    value={adminData.address}
+                    onChange={(e) =>
+                      handleAdminChange("address", e.target.value)
+                    }
+                    placeholder="Enter administrator's address"
+                    required
+                  />
+                </div>
+
+                {availableRoles.length > 1 && (
+                  <div className="md:col-span-2">
+                    <Label htmlFor="role">Administrator Role *</Label>
+                    <Select
+                      value={selectedRole?.id}
+                      onValueChange={(value) => {
+                        const role = availableRoles.find((r) => r.id === value);
+                        setSelectedRole(role);
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select administrator role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableRoles.map((role) => (
+                          <SelectItem key={role.id} value={role.id}>
+                            {role.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -751,14 +1058,6 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-
-            <Alert>
-              <Lock className="w-4 h-4" />
-              <AlertDescription>
-                Step 2: Creates admin user via /api/Users/add-user endpoint. The
-                admin will be linked to the institution created in Step 1.
-              </AlertDescription>
-            </Alert>
 
             <div className="flex justify-between gap-3">
               <Button
