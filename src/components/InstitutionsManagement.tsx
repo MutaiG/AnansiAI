@@ -47,6 +47,8 @@ import {
   MapPin,
   Building,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import axiosClient from "@/services/axiosClient";
 import SchoolRegistration from "./SchoolRegistration";
@@ -75,6 +77,10 @@ const InstitutionsManagement: React.FC<InstitutionsManagementProps> = ({
   const [searchTerm, setSearchTerm] = useState("");
   const [error, setError] = useState<string | null>(null);
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
   // Dialog states
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -100,7 +106,7 @@ const InstitutionsManagement: React.FC<InstitutionsManagementProps> = ({
       console.log("🏫 Fetching institutions...");
       const response = await axiosClient.get("/api/Institutions");
       console.log("✅ Institutions fetched:", response.data);
-      setInstitutions(response.data || []);
+      setInstitutions(response.data.data || []);
     } catch (error: any) {
       console.error("❌ Failed to fetch institutions:", error);
       setError("Failed to load institutions");
@@ -225,6 +231,31 @@ const InstitutionsManagement: React.FC<InstitutionsManagementProps> = ({
       institution.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       institution.address.toLowerCase().includes(searchTerm.toLowerCase()),
   );
+
+  // Pagination logic
+  const totalPages = Math.ceil(filteredInstitutions.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedInstitutions = filteredInstitutions.slice(
+    startIndex,
+    endIndex,
+  );
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handlePrevious = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
+  const handleNext = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -367,7 +398,7 @@ const InstitutionsManagement: React.FC<InstitutionsManagementProps> = ({
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredInstitutions.map((institution) => (
+                  paginatedInstitutions.map((institution) => (
                     <TableRow key={institution.institutionId || institution.id}>
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
@@ -432,6 +463,62 @@ const InstitutionsManagement: React.FC<InstitutionsManagementProps> = ({
               </TableBody>
             </Table>
           </div>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="px-6 py-4 border-t flex items-center justify-between">
+              <div className="text-sm text-gray-600">
+                Showing {startIndex + 1} to{" "}
+                {Math.min(endIndex, filteredInstitutions.length)} of{" "}
+                {filteredInstitutions.length} institutions
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePrevious}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  Previous
+                </Button>
+
+                {/* Page numbers */}
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    const pageNum =
+                      Math.max(1, Math.min(totalPages - 4, currentPage - 2)) +
+                      i;
+                    if (pageNum > totalPages) return null;
+
+                    return (
+                      <Button
+                        key={pageNum}
+                        variant={
+                          currentPage === pageNum ? "default" : "outline"
+                        }
+                        size="sm"
+                        onClick={() => handlePageChange(pageNum)}
+                        className="w-8 h-8 p-0"
+                      >
+                        {pageNum}
+                      </Button>
+                    );
+                  })}
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleNext}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

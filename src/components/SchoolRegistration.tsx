@@ -125,8 +125,8 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
       console.log("🏫 Fetching available institutions...");
       const response = await axiosClient.get("/api/Institutions");
       console.log("✅ Available institutions:", response.data);
-      setAvailableInstitutions(response.data || []);
-      return response.data || [];
+      setAvailableInstitutions(response.data.data || []);
+      return response.data.data || [];
     } catch (error) {
       console.error("❌ Failed to fetch institutions:", error);
       setAvailableInstitutions([]);
@@ -873,9 +873,6 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
                   <ul className="text-sm text-yellow-700 mt-1 ml-4 list-disc">
                     <li>Check your internet connection</li>
                     <li>Create an institution first</li>
-                    <li>
-                      Contact system administrator if the API is unavailable
-                    </li>
                   </ul>
                   <Button
                     variant="outline"

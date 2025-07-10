@@ -36,7 +36,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <div className="min-h-screen">
-            <DevelopmentBanner />
+            {process.env.NODE_ENV !== "production" && <DevelopmentBanner />}
             <Routes>
               {/* Redirect root to school login - but allow direct teacher dashboard access in dev */}
               <Route path="/" element={<Navigate to="/login" replace />} />

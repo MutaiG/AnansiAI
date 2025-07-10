@@ -5,6 +5,7 @@ import SchoolRegistration from "@/components/SchoolRegistration";
 import InstitutionsManagement from "@/components/InstitutionsManagement";
 import ApiDiagnostics from "@/components/ApiDiagnostics";
 import ApiStatusNotification from "@/components/ApiStatusNotification";
+import UserForm from "@/components/UserForm";
 import axiosClient from "@/services/axiosClient";
 import {
   Card,
@@ -122,6 +123,7 @@ import {
   ChevronLeft,
   ChevronRight,
   MoreVertical,
+  MoreHorizontal,
   Home,
   Briefcase,
   PieChart as PieChartIcon,
@@ -484,6 +486,12 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
   const [usersPerPage] = useState(10);
   const [messageModal, setMessageModal] = useState<MessageModal | null>(null);
   const [showNotificationCenter, setShowNotificationCenter] = useState(false);
+
+  // User CRUD states (create removed - handled in InstitutionsManagement)
+  const [isEditUserOpen, setIsEditUserOpen] = useState(false);
+  const [isDeleteUserOpen, setIsDeleteUserOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [userToDelete, setUserToDelete] = useState(null);
   const [isPasswordChangeOpen, setIsPasswordChangeOpen] = useState(false);
   const [isAIConfigOpen, setIsAIConfigOpen] = useState(false);
   const [isAIMonitorOpen, setIsAIMonitorOpen] = useState(false);
@@ -559,7 +567,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
     try {
       setSchoolsLoading(true);
       setSchoolsError(null);
-      console.log("📚 Fetching institutions from API...");
+      console.log("�� Fetching institutions from API...");
 
       const response = await axiosClient
         .get("/api/Institutions")
@@ -889,6 +897,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
   // Load data on component mount - following user's preferred pattern
   useEffect(() => {
     fetchSchools();
+    fetchRealUsers();
     fetchSystemStats();
     fetchSystemAlerts();
     fetchSuperAdminProfile();
@@ -1193,6 +1202,81 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
     setSelectedUsers([]);
   };
 
+  // User CRUD Operations (create removed - handled in InstitutionsManagement)
+  const handleEditUser = (user: any) => {
+    setEditingUser(user);
+    setIsEditUserOpen(true);
+  };
+
+  const handleDeleteUser = (user: any) => {
+    setUserToDelete(user);
+    setIsDeleteUserOpen(true);
+  };
+
+  const handleSaveUser = async (userData: any) => {
+    try {
+      // Update existing user
+      const response = await axiosClient.put(
+        `/api/Users/${editingUser.id}`,
+        userData,
+      );
+
+      showMessage({
+        id: Date.now().toString(),
+        type: "success",
+        priority: "medium",
+        title: "User Updated",
+        message: `User ${userData.firstName} ${userData.lastName} has been updated successfully.`,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Refresh users list
+      fetchRealUsers();
+      setIsEditUserOpen(false);
+      setEditingUser(null);
+    } catch (error) {
+      showMessage({
+        id: Date.now().toString(),
+        type: "error",
+        priority: "high",
+        title: "Error",
+        message: `Failed to update user: ${error.message}`,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  };
+
+  const handleConfirmDeleteUser = async () => {
+    if (!userToDelete) return;
+
+    try {
+      await axiosClient.delete(`/api/Users/${userToDelete.id}`);
+
+      showMessage({
+        id: Date.now().toString(),
+        type: "success",
+        priority: "medium",
+        title: "User Deleted",
+        message: `User ${userToDelete.fullName} has been deleted successfully.`,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Refresh users list
+      fetchRealUsers();
+      setIsDeleteUserOpen(false);
+      setUserToDelete(null);
+    } catch (error) {
+      showMessage({
+        id: Date.now().toString(),
+        type: "error",
+        priority: "high",
+        title: "Error",
+        message: `Failed to delete user: ${error.message}`,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  };
+
   // Academic Management Actions
   const handleGenerateAcademicReport = () => {
     showMessage({
@@ -1443,6 +1527,79 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
     });
   };
 
+  // Real users from API
+  const [realUsers, setRealUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+
+  const fetchRealUsers = async () => {
+    try {
+      setUsersLoading(true);
+      console.log("👥 Fetching users from API...");
+
+      const response = await axiosClient.get("/api/Users/get-users-by-role");
+      console.log("✅ Users API response:", response.data);
+
+      const usersData = response.data.data || response.data || [];
+
+      // Transform API data to match UI expectations
+      const transformedUsers = Array.isArray(usersData)
+        ? usersData.map((user, index) => ({
+            id: user.id || user.userId || String(index + 1),
+            fullName:
+              `${user.firstName || ""} ${user.lastName || ""}`.trim() ||
+              "Unknown User",
+            email: user.email || "",
+            phoneNumber: user.phoneNumber || "",
+            role: user.role?.name || user.roleName || "Unknown",
+            isActive: user.isActive !== undefined ? user.isActive : true,
+            lastLogin:
+              user.lastLogin ||
+              new Date().toISOString().split("T")[0] +
+                " " +
+                new Date()
+                  .toLocaleTimeString("en-GB", { hour12: false })
+                  .slice(0, 5),
+            photoUrl: user.photoUrl || "",
+            schoolName: user.institutionName || "Unknown Institution",
+            schoolCode: user.institutionId
+              ? `INST${user.institutionId}`
+              : "UNK",
+            county: user.address || "Unknown",
+          }))
+        : [];
+
+      setRealUsers(transformedUsers);
+      console.log(
+        `✅ Successfully loaded ${transformedUsers.length} users from API`,
+      );
+
+      // Show success message
+      showMessage({
+        id: Date.now().toString(),
+        type: "success",
+        priority: "medium",
+        title: "Users Loaded",
+        message: `✅ Loaded ${transformedUsers.length} users from API`,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("❌ Failed to fetch users:", error);
+      setRealUsers([]);
+
+      // Show error message
+      showMessage({
+        id: Date.now().toString(),
+        type: "error",
+        priority: "high",
+        title: "API Error",
+        message: `❌ Failed to load users: ${error.message}`,
+        timestamp: new Date().toISOString(),
+      });
+    } finally {
+      setUsersLoading(false);
+    }
+  };
+
   // Mock multi-school users data
   const users = [
     {
@@ -1577,8 +1734,11 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
     },
   ];
 
+  // Use only real API users (mock data removed)
+  const allUsers = realUsers;
+
   // Filter users
-  const filteredUsers = users.filter((user) => {
+  const filteredUsers = allUsers.filter((user) => {
     const matchesSearch =
       (user.fullName || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
       (user.email || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -1615,12 +1775,27 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
     return matchesSearch && matchesStatus && matchesCounty;
   });
 
-  // Pagination for users
+  // Pagination for users (matching institutions pattern)
   const totalUsersPages = Math.ceil(filteredUsers.length / usersPerPage);
-  const paginatedUsers = filteredUsers.slice(
-    (usersPage - 1) * usersPerPage,
-    usersPage * usersPerPage,
-  );
+  const startUsersIndex = (usersPage - 1) * usersPerPage;
+  const endUsersIndex = startUsersIndex + usersPerPage;
+  const paginatedUsers = filteredUsers.slice(startUsersIndex, endUsersIndex);
+
+  const handleUsersPageChange = (page: number) => {
+    setUsersPage(page);
+  };
+
+  const handleUsersPrevious = () => {
+    if (usersPage > 1) {
+      setUsersPage(usersPage - 1);
+    }
+  };
+
+  const handleUsersNext = () => {
+    if (usersPage < totalUsersPages) {
+      setUsersPage(usersPage + 1);
+    }
+  };
 
   // Helper functions
   const getRoleColor = (role: string) => {
@@ -2507,60 +2682,11 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
                 </div>
               </div>
 
-              {/* Search and Filters */}
-              <Card className="bg-white/70 backdrop-blur-sm">
-                <CardContent className="p-6">
-                  <div className="flex flex-col lg:flex-row gap-4">
-                    <div className="flex-1">
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                        <Input
-                          placeholder="Search schools by name, code, or county..."
-                          value={searchQuery}
-                          onChange={(e) => setSearchQuery(e.target.value)}
-                          className="pl-10"
-                        />
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Select
-                        value={filterStatus}
-                        onValueChange={setFilterStatus}
-                      >
-                        <SelectTrigger className="w-32">
-                          <SelectValue placeholder="Status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Status</SelectItem>
-                          <SelectItem value="active">Active</SelectItem>
-                          <SelectItem value="inactive">Inactive</SelectItem>
-                          <SelectItem value="pending">Pending</SelectItem>
-                        </SelectContent>
-                      </Select>
-
-                      <Select
-                        value={filterCounty}
-                        onValueChange={setFilterCounty}
-                      >
-                        <SelectTrigger className="w-32">
-                          <SelectValue placeholder="County" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Counties</SelectItem>
-                          {Object.keys(kenyanCountiesData).map((county) => (
-                            <SelectItem key={county} value={county}>
-                              {county}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Schools Data Table */}
-              <Card className="bg-white/70 backdrop-blur-sm">
+              {/* Schools Data Table - HIDDEN as requested: duplicates InstitutionsManagement above */}
+              <Card
+                className="bg-white/70 backdrop-blur-sm"
+                style={{ display: "none" }}
+              >
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
                   <div>
                     <CardTitle className="text-lg">
@@ -2938,6 +3064,33 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
 
               {/* Enhanced Users Table */}
               <Card className="bg-white/70 backdrop-blur-sm">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-lg">
+                        Users Management
+                      </CardTitle>
+                      <CardDescription>
+                        {usersLoading
+                          ? "Loading users from API..."
+                          : realUsers.length > 0
+                            ? `✅ API Data: ${realUsers.length} users loaded`
+                            : `⚠️ No users loaded - click Refresh to load from API`}
+                      </CardDescription>
+                    </div>
+                    <Button
+                      onClick={fetchRealUsers}
+                      variant="outline"
+                      size="sm"
+                      disabled={usersLoading}
+                    >
+                      <RefreshCw
+                        className={`w-4 h-4 mr-2 ${usersLoading ? "animate-spin" : ""}`}
+                      />
+                      {usersLoading ? "Loading..." : "Refresh Users"}
+                    </Button>
+                  </div>
+                </CardHeader>
                 <CardContent className="p-0">
                   <Table>
                     <TableHeader>
@@ -3017,27 +3170,29 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
                           <TableCell>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="sm">
-                                  <MoreVertical className="w-4 h-4" />
+                                <Button variant="ghost" className="h-8 w-8 p-0">
+                                  <MoreHorizontal className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
+                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                 <DropdownMenuItem
                                   onClick={() => handleViewUserDetails(user.id)}
                                 >
                                   <Eye className="w-4 h-4 mr-2" />
                                   View Details
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => handleEditUser(user)}
+                                >
                                   <Edit className="w-4 h-4 mr-2" />
                                   Edit User
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
-                                  <Mail className="w-4 h-4 mr-2" />
-                                  Send Message
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem className="text-red-600">
+                                <DropdownMenuItem
+                                  className="text-red-600"
+                                  onClick={() => handleDeleteUser(user)}
+                                >
                                   <Trash2 className="w-4 h-4 mr-2" />
                                   Delete User
                                 </DropdownMenuItem>
@@ -3049,59 +3204,68 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
                     </TableBody>
                   </Table>
 
-                  {/* Pagination */}
-                  <div className="p-4 border-t flex items-center justify-between">
-                    <p className="text-sm text-gray-600">
-                      Showing {(usersPage - 1) * usersPerPage + 1} to{" "}
-                      {Math.min(usersPage * usersPerPage, filteredUsers.length)}{" "}
-                      of {filteredUsers.length} users
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setUsersPage(Math.max(1, usersPage - 1))}
-                        disabled={usersPage === 1}
-                      >
-                        <ChevronLeft className="w-4 h-4" />
-                        Previous
-                      </Button>
-
-                      <div className="flex gap-1">
-                        {Array.from(
-                          { length: Math.min(5, totalUsersPages) },
-                          (_, i) => {
-                            const pageNum = i + 1;
-                            return (
-                              <Button
-                                key={pageNum}
-                                variant={
-                                  pageNum === usersPage ? "default" : "outline"
-                                }
-                                size="sm"
-                                onClick={() => setUsersPage(pageNum)}
-                                className="w-8"
-                              >
-                                {pageNum}
-                              </Button>
-                            );
-                          },
-                        )}
+                  {/* Pagination Controls (matching institutions pattern) */}
+                  {totalUsersPages > 1 && (
+                    <div className="px-6 py-4 border-t flex items-center justify-between">
+                      <div className="text-sm text-gray-600">
+                        Showing {startUsersIndex + 1} to{" "}
+                        {Math.min(endUsersIndex, filteredUsers.length)} of{" "}
+                        {filteredUsers.length} users
                       </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleUsersPrevious}
+                          disabled={usersPage === 1}
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                          Previous
+                        </Button>
 
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          setUsersPage(Math.min(totalUsersPages, usersPage + 1))
-                        }
-                        disabled={usersPage === totalUsersPages}
-                      >
-                        Next
-                        <ChevronRight className="w-4 h-4" />
-                      </Button>
+                        {/* Page numbers */}
+                        <div className="flex items-center gap-1">
+                          {Array.from(
+                            { length: Math.min(5, totalUsersPages) },
+                            (_, i) => {
+                              const pageNum =
+                                Math.max(
+                                  1,
+                                  Math.min(totalUsersPages - 4, usersPage - 2),
+                                ) + i;
+                              if (pageNum > totalUsersPages) return null;
+
+                              return (
+                                <Button
+                                  key={pageNum}
+                                  variant={
+                                    usersPage === pageNum
+                                      ? "default"
+                                      : "outline"
+                                  }
+                                  size="sm"
+                                  onClick={() => handleUsersPageChange(pageNum)}
+                                  className="w-8 h-8 p-0"
+                                >
+                                  {pageNum}
+                                </Button>
+                              );
+                            },
+                          )}
+                        </div>
+
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleUsersNext}
+                          disabled={usersPage === totalUsersPages}
+                        >
+                          Next
+                          <ChevronRight className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -4548,6 +4712,82 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
                 }}
               >
                 Save Configuration
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* User CRUD Dialogs */}
+
+        {/* Edit User Dialog */}
+        <Dialog
+          open={isEditUserOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              setIsEditUserOpen(false);
+              setEditingUser(null);
+            }
+          }}
+        >
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Edit User</DialogTitle>
+              <DialogDescription>Update user information</DialogDescription>
+            </DialogHeader>
+
+            <UserForm
+              user={editingUser}
+              onSave={handleSaveUser}
+              onCancel={() => {
+                setIsEditUserOpen(false);
+                setEditingUser(null);
+              }}
+            />
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete User Confirmation Dialog */}
+        <Dialog open={isDeleteUserOpen} onOpenChange={setIsDeleteUserOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete User</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete this user? This action cannot be
+                undone.
+              </DialogDescription>
+            </DialogHeader>
+
+            {userToDelete && (
+              <div className="py-4">
+                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                  <Avatar className="h-10 w-10">
+                    <AvatarFallback>
+                      {userToDelete.fullName
+                        ?.split(" ")
+                        .map((n: string) => n[0])
+                        .join("") || "U"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <p className="font-medium">{userToDelete.fullName}</p>
+                    <p className="text-sm text-gray-600">
+                      {userToDelete.email}
+                    </p>
+                    <p className="text-sm text-gray-500">{userToDelete.role}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setIsDeleteUserOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={handleConfirmDeleteUser}>
+                Delete User
               </Button>
             </DialogFooter>
           </DialogContent>
