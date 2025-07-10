@@ -28,11 +28,8 @@ import {
 import {
   School,
   Mail,
-  Lock,
   CheckCircle,
   AlertTriangle,
-  Copy,
-  ExternalLink,
   Wifi,
   WifiOff,
   Building,
@@ -554,106 +551,15 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
               </CardContent>
             </Card>
 
-            {/* Generated Credentials */}
-            <Card className="border-blue-200 bg-blue-50">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Lock className="w-5 h-5" />
-                  Administrator Login Credentials
-                </CardTitle>
-                <CardDescription>
-                  Temporary credentials for the administrator account.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-4">
-                  <div className="flex items-center justify-between p-3 bg-white rounded-lg border">
-                    <div>
-                      <Label className="text-sm font-medium text-gray-600">
-                        Email
-                      </Label>
-                      <p className="font-mono text-sm">
-                        {success.credentials.email}
-                      </p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() =>
-                        copyToClipboard(success.credentials.email, "Email")
-                      }
-                    >
-                      <Copy className="w-4 h-4" />
-                    </Button>
-                  </div>
-
-                  <div className="flex items-center justify-between p-3 bg-white rounded-lg border">
-                    <div>
-                      <Label className="text-sm font-medium text-gray-600">
-                        Password
-                      </Label>
-                      <p className="font-mono text-sm">
-                        {success.credentials.password}
-                      </p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() =>
-                        copyToClipboard(
-                          success.credentials.password,
-                          "Password",
-                        )
-                      }
-                    >
-                      <Copy className="w-4 h-4" />
-                    </Button>
-                  </div>
-
-                  <div className="flex items-center justify-between p-3 bg-white rounded-lg border">
-                    <div>
-                      <Label className="text-sm font-medium text-gray-600">
-                        Login URL
-                      </Label>
-                      <p className="font-mono text-sm text-blue-600">
-                        {success.credentials.loginUrl}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          copyToClipboard(
-                            success.credentials.loginUrl,
-                            "Login URL",
-                          )
-                        }
-                      >
-                        <Copy className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          window.open(success.credentials.loginUrl, "_blank")
-                        }
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-
-                <Alert>
-                  <Mail className="w-4 h-4" />
-                  <AlertDescription>
-                    These credentials are temporary. The administrator should
-                    change the password immediately after first login.
-                  </AlertDescription>
-                </Alert>
-              </CardContent>
-            </Card>
+            {/* Email Notification */}
+            <Alert className="border-green-200 bg-green-50">
+              <Mail className="w-4 h-4" />
+              <AlertDescription>
+                Login credentials have been generated and sent to the
+                administrator's email address ({success.school.adminEmail}). The
+                administrator should check their email for login instructions.
+              </AlertDescription>
+            </Alert>
 
             <div className="flex justify-end gap-3">
               <Button onClick={handleClose}>Close</Button>

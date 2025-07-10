@@ -192,24 +192,26 @@ const UsersManagement: React.FC<UsersManagementProps> = ({ onShowMessage }) => {
 
     setLoading(true);
     try {
-      console.log(`🗑️ Deleting user ${selectedUser.id}`);
-      await axiosClient.delete(`/api/Users/${selectedUser.id}`);
-      console.log("✅ User deleted");
+      console.log(`🗑️ Attempting to delete user ${selectedUser.id}`);
 
-      await fetchUsers(); // Refresh list
+      // The API doesn't have a delete endpoint, so we show an error message
+      console.warn("⚠️ Delete endpoint not available in API");
+
       setIsDeleteDialogOpen(false);
       setSelectedUser(null);
 
       onShowMessage?.({
         id: Date.now().toString(),
-        type: "success",
-        priority: "medium",
-        title: "User Deleted",
-        message: `${selectedUser.fullName} has been deleted successfully.`,
+        type: "error",
+        priority: "high",
+        title: "Delete Not Available",
+        message:
+          "User deletion is not supported by the current API. Contact system administrator to add a DELETE /api/Users/{id} endpoint.",
         timestamp: new Date().toISOString(),
       });
     } catch (error: any) {
       console.error("❌ Failed to delete user:", error);
+
       onShowMessage?.({
         id: Date.now().toString(),
         type: "error",
@@ -228,21 +230,19 @@ const UsersManagement: React.FC<UsersManagementProps> = ({ onShowMessage }) => {
     try {
       const newStatus = !user.isActive;
       console.log(
-        `🔄 Toggling user ${user.id} status to ${newStatus ? "active" : "inactive"}`,
+        `🔄 Attempting to toggle user ${user.id} status to ${newStatus ? "active" : "inactive"}`,
       );
 
-      await axiosClient.put(`/api/Users/${user.id}/status`, {
-        isActive: newStatus,
-      });
-
-      await fetchUsers(); // Refresh list
+      // The API doesn't have a status update endpoint, so we show an error message
+      console.warn("⚠️ Status update endpoint not available in API");
 
       onShowMessage?.({
         id: Date.now().toString(),
-        type: "success",
-        priority: "medium",
-        title: "Status Updated",
-        message: `${user.fullName} has been ${newStatus ? "activated" : "deactivated"}.`,
+        type: "error",
+        priority: "high",
+        title: "Status Update Not Available",
+        message:
+          "User status updates are not supported by the current API. Contact system administrator to add a PUT /api/Users/{id}/status endpoint.",
         timestamp: new Date().toISOString(),
       });
     } catch (error: any) {
@@ -568,26 +568,18 @@ const UsersManagement: React.FC<UsersManagementProps> = ({ onShowMessage }) => {
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
-                              onClick={() => handleToggleUserStatus(user)}
+                              disabled
+                              className="text-gray-400"
                             >
-                              {user.isActive ? (
-                                <>
-                                  <UserX className="mr-2 h-4 w-4" />
-                                  Deactivate
-                                </>
-                              ) : (
-                                <>
-                                  <UserCheck className="mr-2 h-4 w-4" />
-                                  Activate
-                                </>
-                              )}
+                              <UserX className="mr-2 h-4 w-4" />
+                              Status Toggle (Not Available)
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              onClick={() => openDelete(user)}
-                              className="text-red-600"
+                              disabled
+                              className="text-gray-400"
                             >
                               <Trash2 className="mr-2 h-4 w-4" />
-                              Delete User
+                              Delete (Not Available)
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
