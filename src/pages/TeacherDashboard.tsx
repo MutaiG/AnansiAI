@@ -42,6 +42,8 @@ import {
   Copy,
   Archive,
   UserPlus,
+  RefreshCw,
+  ClipboardList,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -93,6 +95,8 @@ import { NotificationCenter } from "@/components/NotificationCenter";
 import { MessageModal } from "@/components/MessageModal";
 import DevelopmentBanner from "@/components/DevelopmentBanner";
 import usePageTitle from "@/hooks/usePageTitle";
+import axiosClient from "@/services/axiosClient";
+import { toast } from "@/hooks/use-toast";
 
 // Types for the teacher dashboard
 interface TeacherProfile {
@@ -107,6 +111,41 @@ interface TeacherProfile {
   bio: string;
   schoolId: string;
   schoolName: string;
+}
+
+interface Lesson {
+  lessonId: number;
+  subjectId: number;
+  title: string;
+  content: string;
+  difficultyLevel: number;
+  approvalStatus: number;
+  approvedAt?: string;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+interface Assignment {
+  assignmentId: number;
+  lessonId: number;
+  title: string;
+  questionType: number;
+  content: string;
+  rubric: string;
+  deadline: string;
+  approvalStatus: number;
+  approvedAt?: string;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+interface Subject {
+  subjectId: number;
+  subjectName: string;
+  description: string;
+  isActive: boolean;
 }
 
 interface TeacherStats {
@@ -262,7 +301,23 @@ export default function TeacherDashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [showCreateClass, setShowCreateClass] = useState(false);
-  const [showCreateContent, setShowCreateContent] = useState(false);
+  const [showCreateLesson, setShowCreateLesson] = useState(false);
+  const [showEditLesson, setShowEditLesson] = useState(false);
+  const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
+  const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [lessonsLoading, setLessonsLoading] = useState(false);
+
+  // Assignments state
+  const [showCreateAssignment, setShowCreateAssignment] = useState(false);
+  const [showEditAssignment, setShowEditAssignment] = useState(false);
+  const [selectedAssignment, setSelectedAssignment] =
+    useState<Assignment | null>(null);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [assignmentsLoading, setAssignmentsLoading] = useState(false);
+
+  // Subjects state
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [subjectsLoading, setSubjectsLoading] = useState(false);
   const [lastAction, setLastAction] = useState<{
     type: string;
     message: string;
@@ -277,14 +332,24 @@ export default function TeacherDashboard() {
     schedule: "",
   });
 
-  const [contentForm, setContentForm] = useState({
+  const [lessonForm, setLessonForm] = useState({
     title: "",
-    type: "lesson",
-    subject: "",
-    description: "",
-    difficulty: "medium",
-    estimatedDuration: 45,
     content: "",
+    subjectId: 0,
+    difficultyLevel: 1,
+    approvalStatus: 1,
+    isActive: true,
+  });
+
+  const [assignmentForm, setAssignmentForm] = useState({
+    title: "",
+    content: "",
+    rubric: "",
+    lessonId: 0,
+    questionType: 1,
+    deadline: "",
+    approvalStatus: 1,
+    isActive: true,
   });
 
   const [profileForm, setProfileForm] = useState({
@@ -317,6 +382,220 @@ export default function TeacherDashboard() {
     getMessageById,
   } = useNotifications();
 
+  // Subjects CRUD Functions
+  const fetchSubjects = async () => {
+    try {
+      setSubjectsLoading(true);
+      const response = await axiosClient.get("/api/subjects/all-subjects");
+      setSubjects(Array.isArray(response.data) ? response.data : []);
+    } catch (error) {
+      console.error("Error fetching subjects:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to fetch subjects",
+      });
+    } finally {
+      setSubjectsLoading(false);
+    }
+  };
+
+  // Assignments CRUD Functions
+  const fetchAssignments = async () => {
+    try {
+      setAssignmentsLoading(true);
+      const response = await axiosClient.get(
+        "/api/assignments/all-assignments",
+      );
+      setAssignments(Array.isArray(response.data) ? response.data : []);
+    } catch (error) {
+      console.error("Error fetching assignments:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to fetch assignments",
+      });
+    } finally {
+      setAssignmentsLoading(false);
+    }
+  };
+
+  const createAssignment = async () => {
+    if (!assignmentForm.title.trim() || !assignmentForm.content.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: "Please fill in both title and content",
+      });
+      return;
+    }
+
+    if (!assignmentForm.deadline) {
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: "Please set a deadline for the assignment",
+      });
+      return;
+    }
+
+    try {
+      const response = await axiosClient.post(
+        "/api/assignments/add-assignment",
+        {
+          ...assignmentForm,
+          deadline: new Date(assignmentForm.deadline).toISOString(),
+        },
+      );
+      if (response.data) {
+        toast({
+          title: "Success",
+          description: "Assignment created successfully",
+        });
+        fetchAssignments(); // Refresh assignments
+        setShowCreateAssignment(false);
+        setAssignmentForm({
+          title: "",
+          content: "",
+          rubric: "",
+          lessonId: 0,
+          questionType: 1,
+          deadline: "",
+          approvalStatus: 1,
+          isActive: true,
+        });
+      }
+    } catch (error) {
+      console.error("Error creating assignment:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to create assignment",
+      });
+    }
+  };
+
+  const updateAssignment = async () => {
+    if (
+      !selectedAssignment ||
+      !assignmentForm.title.trim() ||
+      !assignmentForm.content.trim()
+    ) {
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: "Please fill in both title and content",
+      });
+      return;
+    }
+
+    try {
+      const response = await axiosClient.put(
+        `/api/assignments/${selectedAssignment.assignmentId}`,
+        {
+          ...assignmentForm,
+          deadline: new Date(assignmentForm.deadline).toISOString(),
+        },
+      );
+      if (response.data) {
+        toast({
+          title: "Success",
+          description: "Assignment updated successfully",
+        });
+        fetchAssignments(); // Refresh assignments
+        setShowEditAssignment(false);
+        setSelectedAssignment(null);
+        setAssignmentForm({
+          title: "",
+          content: "",
+          rubric: "",
+          lessonId: 0,
+          questionType: 1,
+          deadline: "",
+          approvalStatus: 1,
+          isActive: true,
+        });
+      }
+    } catch (error) {
+      console.error("Error updating assignment:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to update assignment",
+      });
+    }
+  };
+
+  const deleteAssignment = async (assignmentId: number) => {
+    try {
+      const response = await axiosClient.delete(
+        `/api/assignments/${assignmentId}`,
+      );
+      if (response.status === 200) {
+        toast({
+          title: "Success",
+          description: "Assignment deleted successfully",
+        });
+        fetchAssignments(); // Refresh assignments
+      }
+    } catch (error) {
+      console.error("Error deleting assignment:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to delete assignment",
+      });
+    }
+  };
+
+  const handleEditAssignment = (assignment: Assignment) => {
+    setSelectedAssignment(assignment);
+    setAssignmentForm({
+      title: assignment.title,
+      content: assignment.content,
+      rubric: assignment.rubric,
+      lessonId: assignment.lessonId,
+      questionType: assignment.questionType,
+      deadline: assignment.deadline
+        ? new Date(assignment.deadline).toISOString().slice(0, 16)
+        : "",
+      approvalStatus: assignment.approvalStatus,
+      isActive: assignment.isActive,
+    });
+    setShowEditAssignment(true);
+  };
+
+  const getQuestionTypeLabel = (type: number) => {
+    switch (type) {
+      case 1:
+        return "Multiple Choice";
+      case 2:
+        return "Short Answer";
+      case 3:
+        return "Essay";
+      case 4:
+        return "True/False";
+      default:
+        return "Unknown";
+    }
+  };
+
+  const getSubjectName = (subjectId: number) => {
+    const subject = subjects.find((s) => s.subjectId === subjectId);
+    return subject ? subject.subjectName : `Subject ${subjectId}`;
+  };
+
+  const handleLogout = () => {
+    // Clear all stored authentication data
+    localStorage.removeItem("userRole");
+    localStorage.removeItem("userId");
+    localStorage.removeItem("userName");
+    localStorage.removeItem("authToken");
+
+    // Redirect to login page
+    navigate("/login");
+  };
+
   // Authentication check
   useEffect(() => {
     const userRole = localStorage.getItem("userRole");
@@ -338,6 +617,13 @@ export default function TeacherDashboard() {
       return () => clearTimeout(timer);
     }
   }, [lastAction]);
+
+  // Load lessons, assignments, and subjects when component mounts
+  useEffect(() => {
+    fetchLessons();
+    fetchAssignments();
+    fetchSubjects();
+  }, []);
 
   // Load dashboard data
   const loadDashboardData = async () => {
@@ -2171,6 +2457,174 @@ AI Recommendations:
     }
   };
 
+  // Lessons CRUD Functions
+  const fetchLessons = async () => {
+    try {
+      setLessonsLoading(true);
+      const response = await axiosClient.get("/api/lessons/all-lessons");
+      setLessons(Array.isArray(response.data) ? response.data : []);
+    } catch (error) {
+      console.error("Error fetching lessons:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to fetch lessons",
+      });
+    } finally {
+      setLessonsLoading(false);
+    }
+  };
+
+  const createLesson = async () => {
+    if (!lessonForm.title.trim() || !lessonForm.content.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: "Please fill in both title and content",
+      });
+      return;
+    }
+
+    try {
+      const response = await axiosClient.post("/api/lessons", lessonForm);
+      if (response.data) {
+        toast({
+          title: "Success",
+          description: "Lesson created successfully",
+        });
+        fetchLessons(); // Refresh lessons
+        setShowCreateLesson(false);
+        setLessonForm({
+          title: "",
+          content: "",
+          subjectId: 0,
+          difficultyLevel: 1,
+          approvalStatus: 1,
+          isActive: true,
+        });
+      }
+    } catch (error) {
+      console.error("Error creating lesson:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to create lesson",
+      });
+    }
+  };
+
+  const updateLesson = async () => {
+    if (
+      !selectedLesson ||
+      !lessonForm.title.trim() ||
+      !lessonForm.content.trim()
+    ) {
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: "Please fill in both title and content",
+      });
+      return;
+    }
+
+    try {
+      const response = await axiosClient.put(
+        `/api/lessons/${selectedLesson.lessonId}`,
+        {
+          lessonId: selectedLesson.lessonId,
+          ...lessonForm,
+        },
+      );
+      if (response.data) {
+        toast({
+          title: "Success",
+          description: "Lesson updated successfully",
+        });
+        fetchLessons(); // Refresh lessons
+        setShowEditLesson(false);
+        setSelectedLesson(null);
+        setLessonForm({
+          title: "",
+          content: "",
+          subjectId: 0,
+          difficultyLevel: 1,
+          approvalStatus: 1,
+          isActive: true,
+        });
+      }
+    } catch (error) {
+      console.error("Error updating lesson:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to update lesson",
+      });
+    }
+  };
+
+  const deleteLesson = async (lessonId: number) => {
+    try {
+      const response = await axiosClient.delete(`/api/lessons`, {
+        params: { lessonId },
+      });
+      if (response.status === 200) {
+        toast({
+          title: "Success",
+          description: "Lesson deleted successfully",
+        });
+        fetchLessons(); // Refresh lessons
+      }
+    } catch (error) {
+      console.error("Error deleting lesson:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to delete lesson",
+      });
+    }
+  };
+
+  const handleEditLesson = (lesson: Lesson) => {
+    setSelectedLesson(lesson);
+    setLessonForm({
+      title: lesson.title,
+      content: lesson.content,
+      subjectId: lesson.subjectId,
+      difficultyLevel: lesson.difficultyLevel,
+      approvalStatus: lesson.approvalStatus,
+      isActive: lesson.isActive,
+    });
+    setShowEditLesson(true);
+  };
+
+  const getDifficultyLabel = (level: number) => {
+    switch (level) {
+      case 1:
+        return "Easy";
+      case 2:
+        return "Medium";
+      case 3:
+        return "Hard";
+      default:
+        return "Unknown";
+    }
+  };
+
+  const getApprovalStatusLabel = (status: number) => {
+    switch (status) {
+      case 0:
+        return "Draft";
+      case 1:
+        return "Pending";
+      case 2:
+        return "Approved";
+      case 3:
+        return "Rejected";
+      default:
+        return "Unknown";
+    }
+  };
+
   // Helper functions
   const getSeverityColor = (severity: string) => {
     switch (severity) {
@@ -2438,7 +2892,7 @@ AI Recommendations:
                     Profile Settings
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => navigate("/login")}>
+                  <DropdownMenuItem onClick={handleLogout}>
                     <LogOut className="mr-2 h-4 w-4" />
                     Log out
                   </DropdownMenuItem>
@@ -2456,7 +2910,7 @@ AI Recommendations:
           onValueChange={setActiveTab}
           className="space-y-6"
         >
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger
               value="overview"
               className="flex items-center space-x-2"
@@ -2483,7 +2937,14 @@ AI Recommendations:
               className="flex items-center space-x-2"
             >
               <BookOpen className="h-4 w-4" />
-              <span>Content</span>
+              <span>Lessons</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="assignments"
+              className="flex items-center space-x-2"
+            >
+              <ClipboardList className="h-4 w-4" />
+              <span>Assignments</span>
             </TabsTrigger>
             <TabsTrigger
               value="analytics"
@@ -2709,10 +3170,18 @@ AI Recommendations:
                 <CardContent className="space-y-3">
                   <Button
                     className="w-full justify-start"
-                    onClick={() => setShowCreateContent(true)}
+                    onClick={() => setShowCreateLesson(true)}
                   >
-                    <Plus className="mr-2 h-4 w-4" />
-                    Create Content
+                    <BookOpen className="mr-2 h-4 w-4" />
+                    Create Lesson
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start"
+                    onClick={() => setShowCreateAssignment(true)}
+                  >
+                    <ClipboardList className="mr-2 h-4 w-4" />
+                    Create Assignment
                   </Button>
                   <Button
                     variant="outline"
@@ -3029,7 +3498,8 @@ AI Recommendations:
                     {insight.behaviorAnalysis.riskScore > 5 && (
                       <div className="bg-red-50 p-2 rounded text-xs">
                         <span className="font-medium text-red-700">
-                          ⚠️ Risk Score: {insight.behaviorAnalysis.riskScore}/10
+                          ⚠��� Risk Score: {insight.behaviorAnalysis.riskScore}
+                          /10
                         </span>
                       </div>
                     )}
@@ -3403,184 +3873,360 @@ AI Recommendations:
             </div>
           </TabsContent>
 
-          {/* Content Tab */}
+          {/* Lessons Tab */}
           <TabsContent value="content" className="space-y-6">
             <div className="flex justify-between items-center">
               <div>
-                <h2 className="text-2xl font-bold">Learning Content</h2>
+                <h2 className="text-2xl font-bold">Lesson Management</h2>
                 <p className="text-gray-600">
-                  Create and manage lessons and assignments
+                  Create and manage your lessons with full CRUD operations
                 </p>
               </div>
-              <Button onClick={() => setShowCreateContent(true)}>
+              <Button onClick={() => setShowCreateLesson(true)}>
                 <Plus className="mr-2 h-4 w-4" />
-                Create Content
+                Create Lesson
               </Button>
             </div>
 
             <Card>
               <CardHeader>
-                <CardTitle>Content Library</CardTitle>
+                <CardTitle className="flex items-center justify-between">
+                  <span>Lesson Library</span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={fetchLessons}
+                      disabled={lessonsLoading}
+                    >
+                      <RefreshCw
+                        className={`h-4 w-4 mr-2 ${lessonsLoading ? "animate-spin" : ""}`}
+                      />
+                      Refresh
+                    </Button>
+                  </div>
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Title</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Subject</TableHead>
-                      <TableHead>Difficulty</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Completed</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {dashboardData?.lessonContent?.map((content) => (
-                      <TableRow key={content.id}>
-                        <TableCell className="font-medium">
-                          {content.title}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{content.type}</Badge>
-                        </TableCell>
-                        <TableCell>{content.subject}</TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={
-                              content.difficulty === "hard"
-                                ? "destructive"
-                                : content.difficulty === "medium"
-                                  ? "secondary"
-                                  : "outline"
-                            }
-                          >
-                            {content.difficulty}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={
-                              content.status === "published"
-                                ? "default"
-                                : content.status === "draft"
-                                  ? "secondary"
-                                  : "outline"
-                            }
-                          >
-                            {content.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{content.studentsCompleted}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleViewContent(content.id)}
-                              title="View Content"
-                            >
-                              <Eye className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleEditContent(content.id)}
-                              title="Edit Content"
-                            >
-                              <Edit className="h-3 w-3" />
-                            </Button>
-                            {content.status === "draft" && (
-                              <Button
-                                size="sm"
-                                variant="default"
-                                onClick={() => handlePublishContent(content.id)}
-                                title="Publish Content"
-                              >
-                                <Upload className="h-3 w-3" />
-                              </Button>
-                            )}
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button size="sm" variant="outline">
-                                  <MoreHorizontal className="h-3 w-3" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent>
-                                <DropdownMenuItem
-                                  onClick={() => handleViewContent(content.id)}
-                                >
-                                  <Eye className="mr-2 h-3 w-3" />
-                                  Preview Content
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() =>
-                                    handleContentAnalytics(content.id)
-                                  }
-                                >
-                                  <BarChart3 className="mr-2 h-3 w-3" />
-                                  View Analytics
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() => handleShareContent(content.id)}
-                                >
-                                  <Send className="mr-2 h-3 w-3" />
-                                  Share Content
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() =>
-                                    handleDuplicateContent(content.id)
-                                  }
-                                >
-                                  <Copy className="mr-2 h-3 w-3" />
-                                  Duplicate
-                                </DropdownMenuItem>
-                                <DropdownMenuItem>
-                                  <Download className="mr-2 h-3 w-3" />
-                                  Export
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  onClick={() =>
-                                    handleArchiveContent(content.id)
-                                  }
-                                >
-                                  <Archive className="mr-2 h-3 w-3" />
-                                  Archive
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  className="text-red-600"
-                                  onClick={() =>
-                                    handleDeleteContent(content.id)
-                                  }
-                                >
-                                  <Trash2 className="mr-2 h-3 w-3" />
-                                  Delete
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )) || (
+                {lessonsLoading ? (
+                  <div className="text-center py-8">
+                    <RefreshCw className="h-8 w-8 mx-auto mb-2 animate-spin text-gray-400" />
+                    <p className="text-gray-500">Loading lessons...</p>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
                       <TableRow>
-                        <TableCell
-                          colSpan={7}
-                          className="text-center py-8 text-gray-500"
-                        >
-                          <BookOpen className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                          <p className="text-sm">No content created yet</p>
-                          <Button
-                            className="mt-2"
-                            onClick={() => setShowCreateContent(true)}
-                          >
-                            Create Your First Content
-                          </Button>
-                        </TableCell>
+                        <TableHead>Title</TableHead>
+                        <TableHead>Subject</TableHead>
+                        <TableHead>Difficulty</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Active</TableHead>
+                        <TableHead>Actions</TableHead>
                       </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {lessons.length > 0 ? (
+                        lessons.map((lesson) => (
+                          <TableRow key={lesson.lessonId}>
+                            <TableCell className="font-medium">
+                              {lesson.title}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline">
+                                {getSubjectName(lesson.subjectId)}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant={
+                                  lesson.difficultyLevel === 3
+                                    ? "destructive"
+                                    : lesson.difficultyLevel === 2
+                                      ? "secondary"
+                                      : "outline"
+                                }
+                              >
+                                {getDifficultyLabel(lesson.difficultyLevel)}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant={
+                                  lesson.approvalStatus === 2
+                                    ? "default"
+                                    : lesson.approvalStatus === 1
+                                      ? "secondary"
+                                      : "outline"
+                                }
+                              >
+                                {getApprovalStatusLabel(lesson.approvalStatus)}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant={
+                                  lesson.isActive ? "default" : "secondary"
+                                }
+                              >
+                                {lesson.isActive ? "Active" : "Inactive"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center space-x-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleEditLesson(lesson)}
+                                  title="Edit Lesson"
+                                >
+                                  <Edit className="h-3 w-3" />
+                                </Button>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button size="sm" variant="outline">
+                                      <MoreHorizontal className="h-3 w-3" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent>
+                                    <DropdownMenuItem
+                                      onClick={() => handleEditLesson(lesson)}
+                                    >
+                                      <Edit className="mr-2 h-3 w-3" />
+                                      Edit Lesson
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem>
+                                      <Eye className="mr-2 h-3 w-3" />
+                                      Preview Lesson
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem>
+                                      <Copy className="mr-2 h-3 w-3" />
+                                      Duplicate
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem>
+                                      <Download className="mr-2 h-3 w-3" />
+                                      Export
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      className="text-red-600"
+                                      onClick={() =>
+                                        deleteLesson(lesson.lessonId)
+                                      }
+                                    >
+                                      <Trash2 className="mr-2 h-3 w-3" />
+                                      Delete
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow>
+                          <TableCell
+                            colSpan={6}
+                            className="text-center py-8 text-gray-500"
+                          >
+                            <BookOpen className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                            <p className="text-sm">No lessons created yet</p>
+                            <Button
+                              className="mt-2"
+                              onClick={() => setShowCreateLesson(true)}
+                            >
+                              Create Your First Lesson
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Assignments Tab */}
+          <TabsContent value="assignments" className="space-y-6">
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-2xl font-bold">Assignment Management</h2>
+                <p className="text-gray-600">
+                  Create and manage assignments with deadlines and rubrics
+                </p>
+              </div>
+              <Button onClick={() => setShowCreateAssignment(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Create Assignment
+              </Button>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span>Assignment Library</span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={fetchAssignments}
+                      disabled={assignmentsLoading}
+                    >
+                      <RefreshCw
+                        className={`h-4 w-4 mr-2 ${assignmentsLoading ? "animate-spin" : ""}`}
+                      />
+                      Refresh
+                    </Button>
+                  </div>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {assignmentsLoading ? (
+                  <div className="text-center py-8">
+                    <RefreshCw className="h-8 w-8 mx-auto mb-2 animate-spin text-gray-400" />
+                    <p className="text-gray-500">Loading assignments...</p>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Title</TableHead>
+                        <TableHead>Lesson ID</TableHead>
+                        <TableHead>Question Type</TableHead>
+                        <TableHead>Deadline</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Active</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {assignments.length > 0 ? (
+                        assignments.map((assignment) => (
+                          <TableRow key={assignment.assignmentId}>
+                            <TableCell className="font-medium">
+                              {assignment.title}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline">
+                                Lesson {assignment.lessonId}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="secondary">
+                                {getQuestionTypeLabel(assignment.questionType)}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {assignment.deadline
+                                ? new Date(
+                                    assignment.deadline,
+                                  ).toLocaleDateString()
+                                : "No deadline"}
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant={
+                                  assignment.approvalStatus === 2
+                                    ? "default"
+                                    : assignment.approvalStatus === 1
+                                      ? "secondary"
+                                      : "outline"
+                                }
+                              >
+                                {getApprovalStatusLabel(
+                                  assignment.approvalStatus,
+                                )}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant={
+                                  assignment.isActive ? "default" : "secondary"
+                                }
+                              >
+                                {assignment.isActive ? "Active" : "Inactive"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center space-x-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() =>
+                                    handleEditAssignment(assignment)
+                                  }
+                                  title="Edit Assignment"
+                                >
+                                  <Edit className="h-3 w-3" />
+                                </Button>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button size="sm" variant="outline">
+                                      <MoreHorizontal className="h-3 w-3" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent>
+                                    <DropdownMenuItem
+                                      onClick={() =>
+                                        handleEditAssignment(assignment)
+                                      }
+                                    >
+                                      <Edit className="mr-2 h-3 w-3" />
+                                      Edit Assignment
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem>
+                                      <Eye className="mr-2 h-3 w-3" />
+                                      Preview Assignment
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem>
+                                      <Copy className="mr-2 h-3 w-3" />
+                                      Duplicate
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem>
+                                      <Download className="mr-2 h-3 w-3" />
+                                      Export
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      className="text-red-600"
+                                      onClick={() =>
+                                        deleteAssignment(
+                                          assignment.assignmentId,
+                                        )
+                                      }
+                                    >
+                                      <Trash2 className="mr-2 h-3 w-3" />
+                                      Delete
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow>
+                          <TableCell
+                            colSpan={7}
+                            className="text-center py-8 text-gray-500"
+                          >
+                            <ClipboardList className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                            <p className="text-sm">
+                              No assignments created yet
+                            </p>
+                            <Button
+                              className="mt-2"
+                              onClick={() => setShowCreateAssignment(true)}
+                            >
+                              Create Your First Assignment
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -3797,56 +4443,72 @@ AI Recommendations:
         </DialogContent>
       </Dialog>
 
-      {/* Create Content Dialog */}
-      <Dialog open={showCreateContent} onOpenChange={setShowCreateContent}>
+      {/* Create Lesson Dialog */}
+      <Dialog open={showCreateLesson} onOpenChange={setShowCreateLesson}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Create Learning Content</DialogTitle>
+            <DialogTitle>Create New Lesson</DialogTitle>
             <DialogDescription>
-              Create a new lesson or assignment for your students
+              Create a new lesson with structured content for your students
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="content-title">Title *</Label>
+              <Label htmlFor="lesson-title">Title *</Label>
               <Input
-                id="content-title"
-                value={contentForm.title}
+                id="lesson-title"
+                value={lessonForm.title}
                 onChange={(e) =>
-                  setContentForm({ ...contentForm, title: e.target.value })
+                  setLessonForm({ ...lessonForm, title: e.target.value })
                 }
                 placeholder="e.g., Introduction to Algebra"
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="content-type">Type</Label>
+                <Label htmlFor="lesson-subjectId">Subject *</Label>
                 <Select
-                  value={contentForm.type}
+                  value={lessonForm.subjectId.toString()}
                   onValueChange={(value) =>
-                    setContentForm({
-                      ...contentForm,
-                      type: value as "lesson" | "assignment",
+                    setLessonForm({
+                      ...lessonForm,
+                      subjectId: parseInt(value),
                     })
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Select a subject" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="lesson">Lesson</SelectItem>
-                    <SelectItem value="assignment">Assignment</SelectItem>
+                    {subjectsLoading ? (
+                      <SelectItem value="0" disabled>
+                        Loading subjects...
+                      </SelectItem>
+                    ) : subjects.length > 0 ? (
+                      subjects.map((subject) => (
+                        <SelectItem
+                          key={subject.subjectId}
+                          value={subject.subjectId.toString()}
+                        >
+                          {subject.subjectName} (ID: {subject.subjectId})
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="0" disabled>
+                        No subjects available
+                      </SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label htmlFor="content-difficulty">Difficulty</Label>
+                <Label htmlFor="lesson-difficulty">Difficulty Level</Label>
                 <Select
-                  value={contentForm.difficulty}
+                  value={lessonForm.difficultyLevel.toString()}
                   onValueChange={(value) =>
-                    setContentForm({
-                      ...contentForm,
-                      difficulty: value as "easy" | "medium" | "hard",
+                    setLessonForm({
+                      ...lessonForm,
+                      difficultyLevel: parseInt(value),
                     })
                   }
                 >
@@ -3854,66 +4516,540 @@ AI Recommendations:
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="easy">Easy</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="hard">Hard</SelectItem>
+                    <SelectItem value="1">Easy</SelectItem>
+                    <SelectItem value="2">Medium</SelectItem>
+                    <SelectItem value="3">Hard</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div>
-              <Label htmlFor="content-description">Description</Label>
+              <Label htmlFor="lesson-content">Lesson Content *</Label>
               <Textarea
-                id="content-description"
-                value={contentForm.description}
+                id="lesson-content"
+                value={lessonForm.content}
                 onChange={(e) =>
-                  setContentForm({
-                    ...contentForm,
-                    description: e.target.value,
-                  })
+                  setLessonForm({ ...lessonForm, content: e.target.value })
                 }
-                placeholder="Brief description of the content..."
-                rows={2}
+                placeholder="Enter the detailed lesson content, objectives, and materials..."
+                rows={8}
               />
             </div>
-            <div>
-              <Label htmlFor="content-body">Content *</Label>
-              <Textarea
-                id="content-body"
-                value={contentForm.content}
-                onChange={(e) =>
-                  setContentForm({ ...contentForm, content: e.target.value })
-                }
-                placeholder="Enter the lesson content or assignment instructions..."
-                rows={6}
-              />
-            </div>
-            <div>
-              <Label htmlFor="estimated-duration">
-                Estimated Duration (minutes)
-              </Label>
-              <Input
-                id="estimated-duration"
-                type="number"
-                value={contentForm.estimatedDuration}
-                onChange={(e) =>
-                  setContentForm({
-                    ...contentForm,
-                    estimatedDuration: parseInt(e.target.value) || 60,
-                  })
-                }
-                placeholder="60"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="lesson-approval">Approval Status</Label>
+                <Select
+                  value={lessonForm.approvalStatus.toString()}
+                  onValueChange={(value) =>
+                    setLessonForm({
+                      ...lessonForm,
+                      approvalStatus: parseInt(value),
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">Draft</SelectItem>
+                    <SelectItem value="1">Pending</SelectItem>
+                    <SelectItem value="2">Approved</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center space-x-2 pt-6">
+                <input
+                  type="checkbox"
+                  id="lesson-active"
+                  checked={lessonForm.isActive}
+                  onChange={(e) =>
+                    setLessonForm({ ...lessonForm, isActive: e.target.checked })
+                  }
+                  className="rounded"
+                />
+                <Label htmlFor="lesson-active">Active Lesson</Label>
+              </div>
             </div>
           </div>
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setShowCreateContent(false)}
+              onClick={() => setShowCreateLesson(false)}
             >
               Cancel
             </Button>
-            <Button onClick={handleCreateContent}>Create Content</Button>
+            <Button onClick={createLesson}>Create Lesson</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Lesson Dialog */}
+      <Dialog open={showEditLesson} onOpenChange={setShowEditLesson}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Lesson</DialogTitle>
+            <DialogDescription>
+              Update lesson information and content
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="edit-lesson-title">Title *</Label>
+              <Input
+                id="edit-lesson-title"
+                value={lessonForm.title}
+                onChange={(e) =>
+                  setLessonForm({ ...lessonForm, title: e.target.value })
+                }
+                placeholder="e.g., Introduction to Algebra"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-lesson-subjectId">Subject *</Label>
+                <Select
+                  value={lessonForm.subjectId.toString()}
+                  onValueChange={(value) =>
+                    setLessonForm({
+                      ...lessonForm,
+                      subjectId: parseInt(value),
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a subject" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {subjectsLoading ? (
+                      <SelectItem value="0" disabled>
+                        Loading subjects...
+                      </SelectItem>
+                    ) : subjects.length > 0 ? (
+                      subjects.map((subject) => (
+                        <SelectItem
+                          key={subject.subjectId}
+                          value={subject.subjectId.toString()}
+                        >
+                          {subject.subjectName} (ID: {subject.subjectId})
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="0" disabled>
+                        No subjects available
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="edit-lesson-difficulty">Difficulty Level</Label>
+                <Select
+                  value={lessonForm.difficultyLevel.toString()}
+                  onValueChange={(value) =>
+                    setLessonForm({
+                      ...lessonForm,
+                      difficultyLevel: parseInt(value),
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">Easy</SelectItem>
+                    <SelectItem value="2">Medium</SelectItem>
+                    <SelectItem value="3">Hard</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="edit-lesson-content">Lesson Content *</Label>
+              <Textarea
+                id="edit-lesson-content"
+                value={lessonForm.content}
+                onChange={(e) =>
+                  setLessonForm({ ...lessonForm, content: e.target.value })
+                }
+                placeholder="Enter the detailed lesson content, objectives, and materials..."
+                rows={8}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-lesson-approval">Approval Status</Label>
+                <Select
+                  value={lessonForm.approvalStatus.toString()}
+                  onValueChange={(value) =>
+                    setLessonForm({
+                      ...lessonForm,
+                      approvalStatus: parseInt(value),
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">Draft</SelectItem>
+                    <SelectItem value="1">Pending</SelectItem>
+                    <SelectItem value="2">Approved</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center space-x-2 pt-6">
+                <input
+                  type="checkbox"
+                  id="edit-lesson-active"
+                  checked={lessonForm.isActive}
+                  onChange={(e) =>
+                    setLessonForm({ ...lessonForm, isActive: e.target.checked })
+                  }
+                  className="rounded"
+                />
+                <Label htmlFor="edit-lesson-active">Active Lesson</Label>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowEditLesson(false);
+                setSelectedLesson(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={updateLesson}>Update Lesson</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Assignment Dialog */}
+      <Dialog
+        open={showCreateAssignment}
+        onOpenChange={setShowCreateAssignment}
+      >
+        <DialogContent className="sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Create New Assignment</DialogTitle>
+            <DialogDescription>
+              Create a new assignment with questions, rubric, and deadline
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="assignment-title">Title *</Label>
+              <Input
+                id="assignment-title"
+                value={assignmentForm.title}
+                onChange={(e) =>
+                  setAssignmentForm({
+                    ...assignmentForm,
+                    title: e.target.value,
+                  })
+                }
+                placeholder="e.g., Algebra Problem Set 1"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="assignment-lessonId">Lesson ID *</Label>
+                <Input
+                  id="assignment-lessonId"
+                  type="number"
+                  value={assignmentForm.lessonId || ""}
+                  onChange={(e) =>
+                    setAssignmentForm({
+                      ...assignmentForm,
+                      lessonId: parseInt(e.target.value) || 0,
+                    })
+                  }
+                  placeholder="Enter lesson ID"
+                />
+              </div>
+              <div>
+                <Label htmlFor="assignment-questionType">Question Type</Label>
+                <Select
+                  value={assignmentForm.questionType.toString()}
+                  onValueChange={(value) =>
+                    setAssignmentForm({
+                      ...assignmentForm,
+                      questionType: parseInt(value),
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">Multiple Choice</SelectItem>
+                    <SelectItem value="2">Short Answer</SelectItem>
+                    <SelectItem value="3">Essay</SelectItem>
+                    <SelectItem value="4">True/False</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="assignment-content">Assignment Content *</Label>
+              <Textarea
+                id="assignment-content"
+                value={assignmentForm.content}
+                onChange={(e) =>
+                  setAssignmentForm({
+                    ...assignmentForm,
+                    content: e.target.value,
+                  })
+                }
+                placeholder="Enter the assignment instructions, questions, and requirements..."
+                rows={6}
+              />
+            </div>
+            <div>
+              <Label htmlFor="assignment-rubric">Rubric</Label>
+              <Textarea
+                id="assignment-rubric"
+                value={assignmentForm.rubric}
+                onChange={(e) =>
+                  setAssignmentForm({
+                    ...assignmentForm,
+                    rubric: e.target.value,
+                  })
+                }
+                placeholder="Enter grading criteria and rubric details..."
+                rows={4}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="assignment-deadline">Deadline *</Label>
+                <Input
+                  id="assignment-deadline"
+                  type="datetime-local"
+                  value={assignmentForm.deadline}
+                  onChange={(e) =>
+                    setAssignmentForm({
+                      ...assignmentForm,
+                      deadline: e.target.value,
+                    })
+                  }
+                />
+              </div>
+              <div>
+                <Label htmlFor="assignment-approval">Approval Status</Label>
+                <Select
+                  value={assignmentForm.approvalStatus.toString()}
+                  onValueChange={(value) =>
+                    setAssignmentForm({
+                      ...assignmentForm,
+                      approvalStatus: parseInt(value),
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">Draft</SelectItem>
+                    <SelectItem value="1">Pending</SelectItem>
+                    <SelectItem value="2">Approved</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="assignment-active"
+                checked={assignmentForm.isActive}
+                onChange={(e) =>
+                  setAssignmentForm({
+                    ...assignmentForm,
+                    isActive: e.target.checked,
+                  })
+                }
+                className="rounded"
+              />
+              <Label htmlFor="assignment-active">Active Assignment</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowCreateAssignment(false)}
+            >
+              Cancel
+            </Button>
+            <Button onClick={createAssignment}>Create Assignment</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Assignment Dialog */}
+      <Dialog open={showEditAssignment} onOpenChange={setShowEditAssignment}>
+        <DialogContent className="sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Edit Assignment</DialogTitle>
+            <DialogDescription>
+              Update assignment information, content, and settings
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="edit-assignment-title">Title *</Label>
+              <Input
+                id="edit-assignment-title"
+                value={assignmentForm.title}
+                onChange={(e) =>
+                  setAssignmentForm({
+                    ...assignmentForm,
+                    title: e.target.value,
+                  })
+                }
+                placeholder="e.g., Algebra Problem Set 1"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-assignment-lessonId">Lesson ID *</Label>
+                <Input
+                  id="edit-assignment-lessonId"
+                  type="number"
+                  value={assignmentForm.lessonId || ""}
+                  onChange={(e) =>
+                    setAssignmentForm({
+                      ...assignmentForm,
+                      lessonId: parseInt(e.target.value) || 0,
+                    })
+                  }
+                  placeholder="Enter lesson ID"
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-assignment-questionType">
+                  Question Type
+                </Label>
+                <Select
+                  value={assignmentForm.questionType.toString()}
+                  onValueChange={(value) =>
+                    setAssignmentForm({
+                      ...assignmentForm,
+                      questionType: parseInt(value),
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">Multiple Choice</SelectItem>
+                    <SelectItem value="2">Short Answer</SelectItem>
+                    <SelectItem value="3">Essay</SelectItem>
+                    <SelectItem value="4">True/False</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="edit-assignment-content">
+                Assignment Content *
+              </Label>
+              <Textarea
+                id="edit-assignment-content"
+                value={assignmentForm.content}
+                onChange={(e) =>
+                  setAssignmentForm({
+                    ...assignmentForm,
+                    content: e.target.value,
+                  })
+                }
+                placeholder="Enter the assignment instructions, questions, and requirements..."
+                rows={6}
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-assignment-rubric">Rubric</Label>
+              <Textarea
+                id="edit-assignment-rubric"
+                value={assignmentForm.rubric}
+                onChange={(e) =>
+                  setAssignmentForm({
+                    ...assignmentForm,
+                    rubric: e.target.value,
+                  })
+                }
+                placeholder="Enter grading criteria and rubric details..."
+                rows={4}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-assignment-deadline">Deadline *</Label>
+                <Input
+                  id="edit-assignment-deadline"
+                  type="datetime-local"
+                  value={assignmentForm.deadline}
+                  onChange={(e) =>
+                    setAssignmentForm({
+                      ...assignmentForm,
+                      deadline: e.target.value,
+                    })
+                  }
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-assignment-approval">
+                  Approval Status
+                </Label>
+                <Select
+                  value={assignmentForm.approvalStatus.toString()}
+                  onValueChange={(value) =>
+                    setAssignmentForm({
+                      ...assignmentForm,
+                      approvalStatus: parseInt(value),
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">Draft</SelectItem>
+                    <SelectItem value="1">Pending</SelectItem>
+                    <SelectItem value="2">Approved</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="edit-assignment-active"
+                checked={assignmentForm.isActive}
+                onChange={(e) =>
+                  setAssignmentForm({
+                    ...assignmentForm,
+                    isActive: e.target.checked,
+                  })
+                }
+                className="rounded"
+              />
+              <Label htmlFor="edit-assignment-active">Active Assignment</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowEditAssignment(false);
+                setSelectedAssignment(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={updateAssignment}>Update Assignment</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

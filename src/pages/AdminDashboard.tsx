@@ -35,6 +35,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -230,6 +240,7 @@ interface SubjectData {
 }
 import { MessageModal, type SystemMessage } from "@/components/MessageModal";
 import usePageTitle from "@/hooks/usePageTitle";
+import { toast } from "@/hooks/use-toast";
 import { Mood } from "@/types/education";
 
 // Lazy load AI components for better performance
@@ -275,10 +286,21 @@ const AdminDashboard = () => {
   const [createUserLoading, setCreateUserLoading] = useState(false);
   const [updateUserLoading, setUpdateUserLoading] = useState(false);
   const [createSubjectLoading, setCreateSubjectLoading] = useState(false);
+  const [updateSubjectLoading, setUpdateSubjectLoading] = useState(false);
+  const [deleteSubjectLoading, setDeleteSubjectLoading] = useState(false);
 
   const [selectedTab, setSelectedTab] = useState("overview");
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
   const [isAddSubjectOpen, setIsAddSubjectOpen] = useState(false);
+  const [isEditSubjectOpen, setIsEditSubjectOpen] = useState(false);
+  const [isViewSubjectOpen, setIsViewSubjectOpen] = useState(false);
+  const [selectedSubject, setSelectedSubject] = useState<SubjectData | null>(
+    null,
+  );
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [subjectToDelete, setSubjectToDelete] = useState<SubjectData | null>(
+    null,
+  );
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPasswordChangeOpen, setIsPasswordChangeOpen] = useState(false);
@@ -489,9 +511,13 @@ const AdminDashboard = () => {
           id: subject.subjectId?.toString() || subject.id,
           subjectId: subject.subjectId,
           name: subject.subjectName || subject.name,
+          subjectName: subject.subjectName || subject.name, // Ensure both are available
           description: subject.description,
           code:
-            subject.code || subject.subjectName?.substring(0, 3).toUpperCase(),
+            subject.code ||
+            (subject.subjectName || subject.name)
+              ?.substring(0, 3)
+              .toUpperCase(),
           credits: 3, // No API data available
         })),
         classes: lessons.map((lesson) => ({
@@ -524,16 +550,6 @@ const AdminDashboard = () => {
       };
 
       setDashboardData(dashboardData);
-
-      // Show success message when data is loaded
-      showMessage({
-        id: Date.now().toString(),
-        title: "Dashboard Updated",
-        message: `✅ Connected to live data: ${institutions.length} institutions, ${allUsers.length} users, ${subjects.length} subjects, ${assignments.length} assignments`,
-        type: "success",
-        priority: "medium",
-        timestamp: new Date().toISOString(),
-      });
     } catch (error: any) {
       console.error("Error fetching dashboard data:", error);
 
@@ -727,28 +743,92 @@ const AdminDashboard = () => {
         isActive: true,
       });
       if (response.data) {
-        showMessage({
-          id: Date.now().toString(),
+        toast({
           title: "Success",
-          message: "Subject created successfully",
-          type: "success",
-          priority: "medium",
-          timestamp: new Date().toISOString(),
+          description: "Subject created successfully",
         });
         fetchDashboardData(); // Refresh data
       }
     } catch (error: any) {
       console.error("Error creating subject:", error);
-      showMessage({
-        id: Date.now().toString(),
+      toast({
+        variant: "destructive",
         title: "Error",
-        message: "Failed to create subject",
-        type: "error",
-        priority: "high",
-        timestamp: new Date().toISOString(),
+        description: "Failed to create subject",
       });
     } finally {
       setCreateSubjectLoading(false);
+    }
+  };
+
+  const updateSubject = async (subjectData: SubjectData) => {
+    try {
+      setUpdateSubjectLoading(true);
+      console.log("🔄 Updating subject:", subjectData);
+      const response = await axiosClient.put(
+        `/api/subjects/${subjectData.subjectId}`,
+        {
+          subjectName: subjectData.name,
+          description: subjectData.description,
+          isActive: true,
+        },
+      );
+      if (response.data) {
+        toast({
+          title: "Success",
+          description: "Subject updated successfully",
+        });
+        fetchDashboardData(); // Refresh data
+      }
+    } catch (error: any) {
+      console.error("Error updating subject:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to update subject",
+      });
+    } finally {
+      setUpdateSubjectLoading(false);
+    }
+  };
+
+  const deleteSubject = async (subjectId: number) => {
+    try {
+      setDeleteSubjectLoading(true);
+      console.log("🔄 Deleting subject with ID:", subjectId);
+      const response = await axiosClient.delete(`/api/subjects/${subjectId}`);
+      if (response.status === 200) {
+        toast({
+          title: "Success",
+          description: "Subject deleted successfully",
+        });
+        fetchDashboardData(); // Refresh data
+      }
+    } catch (error: any) {
+      console.error("Error deleting subject:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to delete subject",
+      });
+    } finally {
+      setDeleteSubjectLoading(false);
+    }
+  };
+
+  const fetchSubjectDetails = async (subjectId: number) => {
+    try {
+      console.log("🔄 Fetching subject details for ID:", subjectId);
+      const response = await axiosClient.get(`/api/subjects/${subjectId}`);
+      return response.data;
+    } catch (error: any) {
+      console.error("Error fetching subject details:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to fetch subject details",
+      });
+      return null;
     }
   };
 
@@ -1137,13 +1217,10 @@ const AdminDashboard = () => {
 
   const handleAddSubject = async () => {
     if (!newSubject.name || !newSubject.description) {
-      showMessage({
-        id: Date.now().toString(),
-        type: "error",
-        priority: "medium",
+      toast({
+        variant: "destructive",
         title: "Validation Error",
-        message: "Please fill in both subject name and description",
-        timestamp: new Date().toISOString(),
+        description: "Please fill in both subject name and description",
       });
       return;
     }
@@ -1156,39 +1233,130 @@ const AdminDashboard = () => {
 
       // Success is handled within createSubject function
       if (true) {
-        showMessage({
-          id: Date.now().toString(),
-          type: "success",
-          priority: "high",
+        toast({
           title: "Subject Created Successfully",
-          message: `Subject "${newSubject.name}" has been added to the system.`,
-          details:
-            "AI will automatically generate personalized content for this subject.",
-          timestamp: new Date().toISOString(),
+          description: `Subject "${newSubject.name}" has been added to the system. AI will automatically generate personalized content.`,
         });
 
         setIsAddSubjectOpen(false);
         setNewSubject({ name: "", description: "", category: "" });
         reload();
       } else {
-        showMessage({
-          id: Date.now().toString(),
-          type: "error",
-          priority: "high",
+        toast({
+          variant: "destructive",
           title: "Subject Creation Failed",
-          message: "Failed to create subject. Please try again.",
-          timestamp: new Date().toISOString(),
+          description: "Failed to create subject. Please try again.",
         });
       }
     } catch (error) {
       console.error("Error creating subject:", error);
-      showMessage({
-        id: Date.now().toString(),
-        type: "error",
-        priority: "critical",
+      toast({
+        variant: "destructive",
         title: "System Error",
-        message: "An unexpected error occurred while creating the subject.",
-        timestamp: new Date().toISOString(),
+        description: "An unexpected error occurred while creating the subject.",
+      });
+    }
+  };
+
+  const handleEditSubject = (subject: SubjectData) => {
+    setSelectedSubject(subject);
+    setNewSubject({
+      name: subject.name || subject.subjectName || "",
+      description: subject.description || "",
+      category: "",
+    });
+    setIsEditSubjectOpen(true);
+  };
+
+  const handleViewSubject = async (subject: SubjectData) => {
+    if (subject.subjectId) {
+      const details = await fetchSubjectDetails(subject.subjectId);
+      if (details) {
+        setSelectedSubject({ ...subject, ...details });
+        setIsViewSubjectOpen(true);
+      }
+    } else {
+      setSelectedSubject(subject);
+      setIsViewSubjectOpen(true);
+    }
+  };
+
+  const handleDeleteSubject = (subject: SubjectData) => {
+    console.log("🗑️ Delete subject called with:", subject);
+    console.log(
+      "Subject ID:",
+      subject.subjectId,
+      "Subject name:",
+      subject.name || subject.subjectName,
+    );
+
+    setSubjectToDelete(subject);
+    setIsDeleteConfirmOpen(true);
+  };
+
+  const confirmDeleteSubject = async () => {
+    if (!subjectToDelete) return;
+
+    console.log(
+      "🔥 Executing delete action for subject ID:",
+      subjectToDelete.subjectId,
+    );
+    if (subjectToDelete.subjectId) {
+      await deleteSubject(subjectToDelete.subjectId);
+    } else {
+      console.error("❌ No subject ID found for deletion");
+      toast({
+        variant: "destructive",
+        title: "Delete Failed",
+        description: "Subject ID not found. Cannot delete subject.",
+      });
+    }
+
+    setIsDeleteConfirmOpen(false);
+    setSubjectToDelete(null);
+  };
+
+  const handleUpdateSubject = async () => {
+    if (!newSubject.name || !newSubject.description) {
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: "Please fill in both subject name and description",
+      });
+      return;
+    }
+
+    if (!selectedSubject?.subjectId) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Subject ID not found",
+      });
+      return;
+    }
+
+    try {
+      await updateSubject({
+        subjectId: selectedSubject.subjectId,
+        name: newSubject.name,
+        description: newSubject.description,
+      });
+
+      toast({
+        title: "Subject Updated Successfully",
+        description: `Subject "${newSubject.name}" has been updated.`,
+      });
+
+      setIsEditSubjectOpen(false);
+      setSelectedSubject(null);
+      setNewSubject({ name: "", description: "", category: "" });
+      reload();
+    } catch (error) {
+      console.error("Error updating subject:", error);
+      toast({
+        variant: "destructive",
+        title: "System Error",
+        description: "An unexpected error occurred while updating the subject.",
       });
     }
   };
@@ -1371,7 +1539,7 @@ const AdminDashboard = () => {
   // Filter subjects based on search
   const filteredSubjects = subjects.filter(
     (subject) =>
-      (subject.subjectName || "")
+      (subject.name || subject.subjectName || "")
         .toLowerCase()
         .includes(subjectSearchQuery.toLowerCase()) ||
       (subject.description || "")
@@ -2489,14 +2657,16 @@ const AdminDashboard = () => {
                 ) : (
                   filteredSubjects.map((subject) => (
                     <Card
-                      key={subject.subjectId}
+                      key={subject.subjectId || subject.id}
                       className="hover:shadow-md transition-shadow"
                     >
                       <CardHeader>
                         <div className="flex items-center justify-between">
                           <CardTitle className="text-lg flex items-center gap-2">
                             <BookOpen className="w-5 h-5 text-blue-600" />
-                            {subject.subjectName}
+                            {subject.name ||
+                              subject.subjectName ||
+                              "Unnamed Subject"}
                           </CardTitle>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -2505,20 +2675,27 @@ const AdminDashboard = () => {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem>
-                                <Brain className="w-4 h-4 mr-2" />
-                                AI Content
+                              <DropdownMenuItem
+                                onClick={() => handleViewSubject(subject)}
+                              >
+                                <Eye className="w-4 h-4 mr-2" />
+                                View Details
                               </DropdownMenuItem>
-                              <DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleEditSubject(subject)}
+                              >
                                 <Edit className="w-4 h-4 mr-2" />
                                 Edit Subject
                               </DropdownMenuItem>
                               <DropdownMenuItem>
-                                <Eye className="w-4 h-4 mr-2" />
-                                View Details
+                                <Brain className="w-4 h-4 mr-2" />
+                                AI Content
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem className="text-red-600">
+                              <DropdownMenuItem
+                                className="text-red-600"
+                                onClick={() => handleDeleteSubject(subject)}
+                              >
                                 <Trash2 className="w-4 h-4 mr-2" />
                                 Delete Subject
                               </DropdownMenuItem>
@@ -3571,6 +3748,281 @@ const AdminDashboard = () => {
             </DialogContent>
           </Dialog>
 
+          {/* Edit Subject Dialog */}
+          <Dialog open={isEditSubjectOpen} onOpenChange={setIsEditSubjectOpen}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Edit className="w-5 h-5" />
+                  Edit Subject
+                </DialogTitle>
+                <DialogDescription>
+                  Update subject information and settings
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="editSubjectName">Subject Name *</Label>
+                  <Input
+                    id="editSubjectName"
+                    value={newSubject.name}
+                    onChange={(e) =>
+                      setNewSubject({ ...newSubject, name: e.target.value })
+                    }
+                    placeholder="e.g., Advanced Mathematics"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="editSubjectDescription">Description *</Label>
+                  <Textarea
+                    id="editSubjectDescription"
+                    value={newSubject.description}
+                    onChange={(e) =>
+                      setNewSubject({
+                        ...newSubject,
+                        description: e.target.value,
+                      })
+                    }
+                    placeholder="Brief description of the subject..."
+                    rows={3}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="editSubjectCategory">
+                    Category (Optional)
+                  </Label>
+                  <Select
+                    value={newSubject.category}
+                    onValueChange={(value) =>
+                      setNewSubject({ ...newSubject, category: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="science">Science</SelectItem>
+                      <SelectItem value="mathematics">Mathematics</SelectItem>
+                      <SelectItem value="languages">Languages</SelectItem>
+                      <SelectItem value="social-studies">
+                        Social Studies
+                      </SelectItem>
+                      <SelectItem value="arts">Arts</SelectItem>
+                      <SelectItem value="physical-education">
+                        Physical Education
+                      </SelectItem>
+                      <SelectItem value="technology">Technology</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Alert>
+                  <Brain className="h-4 w-4" />
+                  <AlertTitle>AI Enhancement</AlertTitle>
+                  <AlertDescription>
+                    Changes will be reflected in AI-generated content and
+                    personalized learning materials.
+                  </AlertDescription>
+                </Alert>
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsEditSubjectOpen(false);
+                    setSelectedSubject(null);
+                    setNewSubject({ name: "", description: "", category: "" });
+                  }}
+                  disabled={updateSubjectLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleUpdateSubject}
+                  disabled={updateSubjectLoading}
+                >
+                  {updateSubjectLoading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      Updating...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4 mr-2" />
+                      Update Subject
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Delete Subject Confirmation Dialog */}
+          <AlertDialog
+            open={isDeleteConfirmOpen}
+            onOpenChange={setIsDeleteConfirmOpen}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle className="flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-red-600" />
+                  Confirm Deletion
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to delete "
+                  {subjectToDelete?.name || subjectToDelete?.subjectName}"? This
+                  action cannot be undone and will also remove all associated
+                  content and AI-generated materials.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={confirmDeleteSubject}
+                  className="bg-red-600 hover:bg-red-700"
+                  disabled={deleteSubjectLoading}
+                >
+                  {deleteSubjectLoading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete Subject
+                    </>
+                  )}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          {/* View Subject Dialog */}
+          <Dialog open={isViewSubjectOpen} onOpenChange={setIsViewSubjectOpen}>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <BookOpen className="w-5 h-5" />
+                  Subject Details
+                </DialogTitle>
+                <DialogDescription>
+                  View detailed information about this subject
+                </DialogDescription>
+              </DialogHeader>
+              {selectedSubject && (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-sm font-medium text-gray-500">
+                        Subject ID
+                      </Label>
+                      <p className="text-lg font-semibold">
+                        {selectedSubject.subjectId}
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-gray-500">
+                        Status
+                      </Label>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge
+                          variant="outline"
+                          className="bg-green-50 text-green-700"
+                        >
+                          Active
+                        </Badge>
+                        <Badge className="bg-purple-100 text-purple-700">
+                          <Brain className="w-3 h-3 mr-1" />
+                          AI Enhanced
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label className="text-sm font-medium text-gray-500">
+                      Subject Name
+                    </Label>
+                    <p className="text-xl font-semibold mt-1">
+                      {selectedSubject.name || selectedSubject.subjectName}
+                    </p>
+                  </div>
+
+                  <div>
+                    <Label className="text-sm font-medium text-gray-500">
+                      Description
+                    </Label>
+                    <p className="text-gray-700 mt-1">
+                      {selectedSubject.description ||
+                        "No description available"}
+                    </p>
+                  </div>
+
+                  <div>
+                    <Label className="text-sm font-medium text-gray-500">
+                      Subject Code
+                    </Label>
+                    <p className="text-gray-700 mt-1">
+                      {selectedSubject.code ||
+                        (selectedSubject.name || selectedSubject.subjectName)
+                          ?.substring(0, 3)
+                          .toUpperCase() ||
+                        "N/A"}
+                    </p>
+                  </div>
+
+                  <div className="pt-4 border-t">
+                    <h4 className="font-medium text-gray-800 mb-3 flex items-center gap-2">
+                      <Brain className="w-4 h-4 text-purple-600" />
+                      AI Features
+                    </h4>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-green-600" />
+                        Personalized Content
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-green-600" />
+                        Adaptive Learning
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-green-600" />
+                        Progress Tracking
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-green-600" />
+                        Smart Assessments
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsViewSubjectOpen(false);
+                    setSelectedSubject(null);
+                  }}
+                >
+                  Close
+                </Button>
+                <Button
+                  onClick={() => {
+                    setIsViewSubjectOpen(false);
+                    if (selectedSubject) {
+                      handleEditSubject(selectedSubject);
+                    }
+                  }}
+                >
+                  <Edit className="w-4 h-4 mr-2" />
+                  Edit Subject
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
           {/* User Details Dialog */}
           <Dialog open={isUserDetailsOpen} onOpenChange={setIsUserDetailsOpen}>
             <DialogContent className="max-w-2xl">
@@ -4077,6 +4529,10 @@ const AdminDashboard = () => {
             isOpen={isMessageModalOpen}
             onClose={closeMessageModal}
             message={currentMessage}
+            onAction={(actionId, message) => {
+              console.log(`Action ${actionId} executed for message:`, message);
+              closeMessageModal();
+            }}
           />
         </main>
       </div>
