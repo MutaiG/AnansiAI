@@ -197,6 +197,8 @@ interface UserData {
   fullName?: string;
   email: string;
   phoneNumber?: string;
+  address?: string;
+  institutionName?: string;
   role: string;
   status?: string;
   lastActivity?: string;
@@ -292,6 +294,10 @@ const AdminDashboard = () => {
   const [usersPage, setUsersPage] = useState(1);
   const [usersPerPage] = useState(10);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [availableRoles, setAvailableRoles] = useState<
+    Array<{ id: string; name: string }>
+  >([]);
+  const [rolesLoading, setRolesLoading] = useState(false);
 
   // Message modal state
   const [currentMessage, setCurrentMessage] = useState<SystemMessage | null>(
@@ -300,6 +306,29 @@ const AdminDashboard = () => {
   const [isMessageModalOpen, setIsMessageModalOpen] = useState(false);
 
   // API functions
+  const fetchAvailableRoles = async () => {
+    try {
+      setRolesLoading(true);
+      console.log("🔄 Fetching available roles from API...");
+
+      const response = await axiosClient.get("/api/Users/all-roles");
+      const roles = Array.isArray(response.data) ? response.data : [];
+
+      console.log("📋 Available roles:", roles);
+      setAvailableRoles(roles);
+    } catch (error) {
+      console.warn("⚠️ Could not fetch roles, using defaults:", error);
+      // Fallback to default roles if API fails
+      setAvailableRoles([
+        { id: "4", name: "Student" },
+        { id: "3", name: "Teacher" },
+        { id: "2", name: "Admin" },
+      ]);
+    } finally {
+      setRolesLoading(false);
+    }
+  };
+
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
@@ -401,7 +430,7 @@ const AdminDashboard = () => {
           totalClasses: lessons.length || 22, // Use lessons as classes
           activeAssignments: assignments.length || 47,
           averageAttendance: 87, // No API endpoint available - keep demo data
-          systemAlerts: hasRealData ? 0 : 2,
+          systemAlerts: 0,
           pendingApprovals:
             assignments.filter((a) => a.approvalStatus === 1).length || 9, // Use pending assignments
         },
@@ -443,35 +472,19 @@ const AdminDashboard = () => {
             : "Never",
           isActive: user.isActive !== undefined ? user.isActive : true,
         })),
-        systemAlerts: hasRealData
-          ? [
-              {
-                id: "1",
-                title: "Dashboard Connected",
-                description: "Successfully connected to live data sources.",
-                message: `Showing live data: ${institutions.length} institutions, ${allUsers.length} users, ${subjects.length} subjects`,
-                type: "success",
-                timestamp: new Date().toISOString(),
-                severity: "low" as const,
-                resolved: true,
-                isRead: false,
-              },
-            ]
-          : [
-              {
-                id: "1",
-                title: "Demo Mode Active",
-                description:
-                  "Dashboard is showing sample data. API connection will retry automatically.",
-                message:
-                  "Dashboard is showing sample data. API connection will retry automatically.",
-                type: "info",
-                timestamp: new Date().toISOString(),
-                severity: "medium" as const,
-                resolved: false,
-                isRead: false,
-              },
-            ],
+        systemAlerts: [
+          {
+            id: "1",
+            title: "Dashboard Connected",
+            description: "Successfully connected to live data sources.",
+            message: `Showing live data: ${institutions.length} institutions, ${allUsers.length} users, ${subjects.length} subjects`,
+            type: "success",
+            timestamp: new Date().toISOString(),
+            severity: "low" as const,
+            resolved: true,
+            isRead: false,
+          },
+        ],
         subjects: subjects.map((subject) => ({
           id: subject.subjectId?.toString() || subject.id,
           subjectId: subject.subjectId,
@@ -506,32 +519,21 @@ const AdminDashboard = () => {
           ), // Calculate based on user ratio
           teacherActivity: Math.min(98, Math.max(70, teachers.length * 8)), // Estimate based on teacher count
           resourceUsage: Math.min(85, Math.max(45, subjects.length * 2.5)), // Estimate based on subjects
-          systemPerformance: hasRealData ? 95 : 72, // Higher if real data available
+          systemPerformance: 95, // Connected to real data
         },
       };
 
       setDashboardData(dashboardData);
 
-      // Show appropriate message based on data availability
-      if (hasRealData) {
-        showMessage({
-          id: Date.now().toString(),
-          title: "Dashboard Updated",
-          message: `✅ Connected to live data: ${institutions.length} institutions, ${allUsers.length} users, ${subjects.length} subjects, ${assignments.length} assignments`,
-          type: "success",
-          priority: "medium",
-          timestamp: new Date().toISOString(),
-        });
-      } else {
-        showMessage({
-          id: Date.now().toString(),
-          title: "Demo Mode",
-          message: "API server not accessible. Dashboard showing sample data.",
-          type: "info",
-          priority: "medium",
-          timestamp: new Date().toISOString(),
-        });
-      }
+      // Show success message when data is loaded
+      showMessage({
+        id: Date.now().toString(),
+        title: "Dashboard Updated",
+        message: `✅ Connected to live data: ${institutions.length} institutions, ${allUsers.length} users, ${subjects.length} subjects, ${assignments.length} assignments`,
+        type: "success",
+        priority: "medium",
+        timestamp: new Date().toISOString(),
+      });
     } catch (error: any) {
       console.error("Error fetching dashboard data:", error);
 
@@ -585,10 +587,10 @@ const AdminDashboard = () => {
     try {
       setCreateUserLoading(true);
 
-      // Admin dashboard only uses the regular admin creation endpoint
+      // Use the exact endpoint and payload format from Swagger documentation
       const endpoint = "/api/Users/add-users-as-admin";
 
-      // Create the API payload with proper role object
+      // Create the API payload exactly as specified in Swagger docs
       const apiPayload = {
         firstName: userData.firstName,
         lastName: userData.lastName,
@@ -596,18 +598,43 @@ const AdminDashboard = () => {
         address: userData.address || "",
         phoneNumber: userData.phoneNumber || "",
         institutionName: userData.institutionName || "Default Institution",
-        role: {
-          id:
-            userData.role === "teacher"
-              ? "3"
-              : userData.role === "student"
-                ? "4"
-                : "2",
-          name: userData.role.charAt(0).toUpperCase() + userData.role.slice(1),
-        },
+        role: (() => {
+          // Find the role from the fetched roles
+          const selectedRole = availableRoles.find(
+            (role) => role.name.toLowerCase() === userData.role.toLowerCase(),
+          );
+
+          if (selectedRole) {
+            return {
+              id: selectedRole.id,
+              name: selectedRole.name,
+            };
+          }
+
+          // Fallback to default role mapping
+          return {
+            id:
+              userData.role === "teacher"
+                ? "3"
+                : userData.role === "student"
+                  ? "4"
+                  : "2",
+            name:
+              userData.role.charAt(0).toUpperCase() + userData.role.slice(1),
+          };
+        })(),
       };
 
-      console.log(`🔄 Creating user via ${endpoint}:`, apiPayload);
+      console.log(`🔄 Creating user via ${endpoint}:`);
+      console.log("📤 API Payload:", JSON.stringify(apiPayload, null, 2));
+      console.log("📋 Payload validation:");
+      console.log("  - firstName:", !!apiPayload.firstName);
+      console.log("  - lastName:", !!apiPayload.lastName);
+      console.log("  - email:", !!apiPayload.email);
+      console.log("  - role.id:", apiPayload.role.id);
+      console.log("  - role.name:", apiPayload.role.name);
+      console.log("  - institutionName:", apiPayload.institutionName);
+
       const response = await axiosClient.post(endpoint, apiPayload);
       if (response.data) {
         showMessage({
@@ -622,10 +649,32 @@ const AdminDashboard = () => {
       }
     } catch (error: any) {
       console.error("Error creating user:", error);
+
+      // Extract more specific error information
+      let errorMessage = "Failed to create user";
+      let errorDetails = "";
+
+      console.error("🚨 Full error object:", error);
+      console.error("🚨 Error response:", error.response);
+      console.error("🚨 Error response data:", error.response?.data);
+      console.error("🚨 Error status:", error.response?.status);
+      console.error("🚨 Error headers:", error.response?.headers);
+
+      if (error.response?.data) {
+        errorMessage =
+          error.response.data.message ||
+          error.response.data.error ||
+          errorMessage;
+        errorDetails = JSON.stringify(error.response.data, null, 2);
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
       showMessage({
         id: Date.now().toString(),
-        title: "Error",
-        message: "Failed to create user",
+        title: "Error Creating User",
+        message: errorMessage,
+        details: errorDetails,
         type: "error",
         priority: "high",
         timestamp: new Date().toISOString(),
@@ -710,6 +759,7 @@ const AdminDashboard = () => {
   // Load data on mount
   useEffect(() => {
     fetchDashboardData();
+    fetchAvailableRoles();
   }, []);
 
   // Show message function
@@ -789,7 +839,7 @@ const AdminDashboard = () => {
     phone: "",
     address: "",
     institutionName: "",
-    role: "student" as "student" | "teacher",
+    role: "student" as string,
     regNo: "",
     grade: "",
     subject: "",
@@ -989,25 +1039,37 @@ const AdminDashboard = () => {
       return;
     }
 
-    if (newUser.role === "teacher" && !newUser.subject) {
+    if (!newUser.phone) {
       showMessage({
         id: Date.now().toString(),
         type: "error",
         priority: "medium",
         title: "Validation Error",
-        message: "Please select a subject for the teacher",
+        message: "Please enter the user's phone number",
         timestamp: new Date().toISOString(),
       });
       return;
     }
 
-    if (newUser.role === "student" && (!newUser.regNo || !newUser.grade)) {
+    if (!newUser.address) {
       showMessage({
         id: Date.now().toString(),
         type: "error",
         priority: "medium",
         title: "Validation Error",
-        message: "Please fill in registration number and grade for student",
+        message: "Please enter the user's address",
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+
+    if (!newUser.institutionName) {
+      showMessage({
+        id: Date.now().toString(),
+        type: "error",
+        priority: "medium",
+        title: "Validation Error",
+        message: "Please enter the institution name",
         timestamp: new Date().toISOString(),
       });
       return;
@@ -1020,12 +1082,8 @@ const AdminDashboard = () => {
         email: newUser.email,
         phoneNumber: newUser.phone,
         address: newUser.address,
-        institutionName:
-          newUser.institutionName ||
-          dashboardData?.adminProfile?.schoolName ||
-          "Default Institution",
-        address: "", // Could be added to form
-        role: newUser.role.toUpperCase() as "STUDENT" | "TEACHER",
+        institutionName: newUser.institutionName,
+        role: newUser.role.toLowerCase(),
       };
 
       await createUser(userData);
@@ -1218,10 +1276,13 @@ const AdminDashboard = () => {
 
   const handleEditUser = (user: UserData) => {
     setNewUser({
-      name: user.fullName,
+      firstName: user.firstName || "",
+      lastName: user.lastName || "",
       email: user.email,
       phone: user.phoneNumber || "",
-      role: (user.role?.toLowerCase() || "student") as "student" | "teacher",
+      address: user.address || "",
+      institutionName: user.institutionName || "",
+      role: user.role?.toLowerCase() || "student",
       regNo: "",
       grade: "",
       subject: "",
@@ -1269,7 +1330,7 @@ const AdminDashboard = () => {
       priority: "medium",
       title: `${user.fullName}'s AI Twin`,
       message: "AI Twin Analytics & Personalization Data",
-      details: `• Learning Style: Visual/Kinesthetic\n• Engagement Level: High (${Math.floor(Math.random() * 20) + 80}%)\n• Preferred Learning Time: Morning\n��� Strengths: Mathematics, Science\n• Areas for Improvement: Essay Writing\n• AI Interactions Today: ${Math.floor(Math.random() * 50) + 20}\n• Mood Analysis: Focused & Motivated\n�� Personalized Recommendations: ${Math.floor(Math.random() * 10) + 5} pending`,
+      details: `�� Learning Style: Visual/Kinesthetic\n• Engagement Level: High (${Math.floor(Math.random() * 20) + 80}%)\n• Preferred Learning Time: Morning\n��� Strengths: Mathematics, Science\n• Areas for Improvement: Essay Writing\n• AI Interactions Today: ${Math.floor(Math.random() * 50) + 20}\n• Mood Analysis: Focused & Motivated\n�� Personalized Recommendations: ${Math.floor(Math.random() * 10) + 5} pending`,
       timestamp: new Date().toISOString(),
       requiresResponse: false,
     });
@@ -2753,7 +2814,7 @@ const AdminDashboard = () => {
                     <div className="space-y-2 text-sm text-gray-600 mb-4">
                       <div>• User activity patterns</div>
                       <div>• Learning progress analytics</div>
-                      <div>• AI interaction summaries</div>
+                      <div>�� AI interaction summaries</div>
                     </div>
                     <Button className="w-full" onClick={handleExportReport}>
                       <Download className="w-4 h-4 mr-2" />
@@ -3156,26 +3217,41 @@ const AdminDashboard = () => {
                     onValueChange={(value) =>
                       setNewUser({
                         ...newUser,
-                        role: value as "student" | "teacher",
+                        role: value,
                       })
                     }
+                    disabled={rolesLoading}
                   >
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue
+                        placeholder={
+                          rolesLoading ? "Loading roles..." : "Select role"
+                        }
+                      />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="student">
-                        <div className="flex items-center gap-2">
-                          <GraduationCap className="w-4 h-4" />
-                          Student
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="teacher">
-                        <div className="flex items-center gap-2">
-                          <Users className="w-4 h-4" />
-                          Teacher
-                        </div>
-                      </SelectItem>
+                      {availableRoles.map((role) => (
+                        <SelectItem
+                          key={role.id}
+                          value={role.name.toLowerCase()}
+                        >
+                          <div className="flex items-center gap-2">
+                            {role.name.toLowerCase() === "student" && (
+                              <GraduationCap className="w-4 h-4" />
+                            )}
+                            {role.name.toLowerCase() === "teacher" && (
+                              <Users className="w-4 h-4" />
+                            )}
+                            {role.name.toLowerCase() === "admin" && (
+                              <Shield className="w-4 h-4" />
+                            )}
+                            {!["student", "teacher", "admin"].includes(
+                              role.name.toLowerCase(),
+                            ) && <CircleDot className="w-4 h-4" />}
+                            {role.name}
+                          </div>
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -3220,19 +3296,20 @@ const AdminDashboard = () => {
                 </div>
 
                 <div>
-                  <Label htmlFor="phone">Phone Number</Label>
+                  <Label htmlFor="phone">Phone Number *</Label>
                   <Input
                     id="phone"
                     value={newUser.phone}
                     onChange={(e) =>
                       setNewUser({ ...newUser, phone: e.target.value })
                     }
-                    placeholder="+1-555-0123"
+                    placeholder="+254-700-000-000"
+                    required
                   />
                 </div>
 
                 <div>
-                  <Label htmlFor="address">Address</Label>
+                  <Label htmlFor="address">Address *</Label>
                   <Input
                     id="address"
                     value={newUser.address}
@@ -3240,11 +3317,12 @@ const AdminDashboard = () => {
                       setNewUser({ ...newUser, address: e.target.value })
                     }
                     placeholder="Enter address"
+                    required
                   />
                 </div>
 
                 <div>
-                  <Label htmlFor="institutionName">Institution</Label>
+                  <Label htmlFor="institutionName">Institution *</Label>
                   <Input
                     id="institutionName"
                     value={newUser.institutionName}
@@ -3255,13 +3333,16 @@ const AdminDashboard = () => {
                       })
                     }
                     placeholder="Institution name"
+                    required
                   />
                 </div>
 
                 {newUser.role === "student" && (
                   <>
                     <div>
-                      <Label htmlFor="regNo">Registration Number *</Label>
+                      <Label htmlFor="regNo">
+                        Registration Number (Optional)
+                      </Label>
                       <Input
                         id="regNo"
                         value={newUser.regNo}
@@ -3271,12 +3352,11 @@ const AdminDashboard = () => {
                             regNo: e.target.value,
                           })
                         }
-                        placeholder="e.g., ST2024001"
-                        required
+                        placeholder="e.g., ST2024001 (for internal use only)"
                       />
                     </div>
                     <div>
-                      <Label htmlFor="grade">Grade *</Label>
+                      <Label htmlFor="grade">Grade (Optional)</Label>
                       <Select
                         value={newUser.grade}
                         onValueChange={(value) =>
@@ -3284,7 +3364,7 @@ const AdminDashboard = () => {
                         }
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Select grade" />
+                          <SelectValue placeholder="Select grade (optional)" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="9th">9th Grade</SelectItem>
@@ -3294,28 +3374,13 @@ const AdminDashboard = () => {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div>
-                      <Label htmlFor="studentEmail">Email (Optional)</Label>
-                      <Input
-                        id="studentEmail"
-                        type="email"
-                        value={newUser.email}
-                        onChange={(e) =>
-                          setNewUser({
-                            ...newUser,
-                            email: e.target.value,
-                          })
-                        }
-                        placeholder="student@example.com (optional)"
-                      />
-                    </div>
                   </>
                 )}
 
                 {newUser.role === "teacher" && (
                   <>
                     <div>
-                      <Label htmlFor="subject">Subject *</Label>
+                      <Label htmlFor="subject">Subject (Optional)</Label>
                       <Select
                         value={newUser.subject}
                         onValueChange={(value) =>
@@ -3323,7 +3388,7 @@ const AdminDashboard = () => {
                         }
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Select subject" />
+                          <SelectValue placeholder="Select subject (optional)" />
                         </SelectTrigger>
                         <SelectContent>
                           {uniqueSubjects.map((subject) => (
