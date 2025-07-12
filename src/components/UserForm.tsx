@@ -72,6 +72,15 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel }) => {
       setRoles(rolesData);
     } catch (error) {
       console.error("Failed to fetch roles:", error);
+      // Fallback to hardcoded roles if API is not available
+      const fallbackRoles = [
+        { id: "1", name: "SuperAdmin" },
+        { id: "2", name: "Admin" },
+        { id: "3", name: "Teacher" },
+        { id: "4", name: "Student" },
+      ];
+      setRoles(fallbackRoles);
+      console.log("📋 Using fallback roles:", fallbackRoles);
     }
   };
 

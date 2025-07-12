@@ -36,7 +36,7 @@ const SchoolLogin = () => {
   usePageTitle("School Login");
 
   const [formData, setFormData] = useState({
-    userId: "",
+    email: "",
     password: "",
   });
   const [showPassword, setShowPassword] = useState(false);
@@ -90,21 +90,24 @@ const SchoolLogin = () => {
     setError("");
 
     try {
-      if (!formData.userId || !formData.password) {
+      if (!formData.email || !formData.password) {
         setError("Please fill in all fields.");
         setIsLoading(false);
         return;
       }
 
       // Check if it's super admin trying to login here
-      if (formData.userId.includes("SUP-ADM")) {
+      if (
+        formData.email.includes("superadmin") ||
+        formData.email.includes("admin@education")
+      ) {
         setError("Super administrators should use the Super Admin portal.");
         setIsLoading(false);
         return;
       }
 
       const loginData = {
-        email: formData.userId,
+        email: formData.email,
         password: formData.password,
       };
 
@@ -115,7 +118,7 @@ const SchoolLogin = () => {
         localStorage.setItem("authToken", response.data.token || "");
         localStorage.setItem("anansi_token", response.data.token || "");
         localStorage.setItem("userRole", response.data.role || "student");
-        localStorage.setItem("userEmail", formData.userId);
+        localStorage.setItem("userEmail", formData.email);
 
         // Navigate based on user role
         const role = response.data.role?.toUpperCase() || "STUDENT";
@@ -138,9 +141,7 @@ const SchoolLogin = () => {
     } catch (err: any) {
       console.error("Login error:", err);
       if (err.response?.status === 401) {
-        setError(
-          "Invalid credentials. Please check your User ID and password.",
-        );
+        setError("Invalid credentials. Please check your email and password.");
       } else if (err.response?.data?.message) {
         setError(err.response.data.message);
       } else {
@@ -230,25 +231,29 @@ const SchoolLogin = () => {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label
-                  htmlFor="userId"
+                  htmlFor="email"
                   className="text-secondary-700 font-medium"
                 >
-                  School User ID
+                  Email Address
                 </Label>
                 <Input
-                  id="userId"
-                  name="userId"
-                  type="text"
-                  placeholder="LHS-STU-001 or LHS-TCH-001"
-                  value={formData.userId}
+                  id="email"
+                  name="email"
+                  type="email"
+                  placeholder="your-email@school.ac.ke"
+                  value={formData.email}
                   onChange={handleInputChange}
                   className="input-field"
                   required
                 />
                 <div className="text-xs text-secondary-500 space-y-1">
-                  <p>Format: SCHOOL-ROLE-NUMBER</p>
-                  <p>Roles: STU (Student), TCH (Teacher), ADM (School Admin)</p>
-                  <p>Example: LHS-STU-001, WES-TCH-005</p>
+                  <p>
+                    <strong>Super Admin:</strong> admin@education.go.ke
+                  </p>
+                  <p>
+                    <strong>Teachers/Students:</strong> user@school.ac.ke
+                  </p>
+                  <p>Use your institutional email address</p>
                 </div>
               </div>
 

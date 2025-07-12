@@ -1,11 +1,18 @@
 // Simple Axios Client - Direct API Integration
 import axios from "axios";
 
-// Force HTTP for IP address - IP addresses cannot have valid SSL certificates
+// Dynamically determine the best API URL based on current page protocol
 const getOptimalApiUrl = () => {
-  // IP addresses cannot obtain valid SSL certificates, so always use HTTP
-  // Note: This will cause mixed content warnings on HTTPS sites, but it's the only way
-  return "http://13.60.98.134/anansiai";
+  const isHttps = window.location.protocol === "https:";
+
+  if (isHttps) {
+    // If we're on HTTPS, try HTTPS first for the API
+    // Note: This may fail if the API server doesn't have a valid SSL certificate
+    return "https://13.60.98.134/anansiai";
+  } else {
+    // If we're on HTTP, use HTTP for the API (no mixed content issues)
+    return "http://13.60.98.134/anansiai";
+  }
 };
 
 const API_BASE_URL = getOptimalApiUrl();
@@ -17,8 +24,8 @@ console.log("🔧 Protocol Selection:", {
   selectedApiUrl: API_BASE_URL,
   reason:
     window.location.protocol === "https:"
-      ? "HTTPS required (mixed content)"
-      : "HTTP preferred (development)",
+      ? "HTTPS used to avoid mixed content warnings"
+      : "HTTP used for development",
 });
 
 // Create axios instance with base configuration

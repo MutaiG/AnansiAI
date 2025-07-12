@@ -130,8 +130,26 @@ const UsersManagement: React.FC<UsersManagementProps> = ({ onShowMessage }) => {
 
       // Combine all user data from different roles
       const allUsersData = responses.reduce((acc, response) => {
-        const userData = response.data?.data || response.data || [];
-        return acc.concat(Array.isArray(userData) ? userData : []);
+        // Handle different possible response structures
+        let userData = response.data;
+
+        // If response.data is already an array, use it directly
+        if (Array.isArray(userData)) {
+          return acc.concat(userData);
+        }
+
+        // If response.data has a 'data' property, use that
+        if (userData && userData.data && Array.isArray(userData.data)) {
+          return acc.concat(userData.data);
+        }
+
+        // If response.data is a single object, wrap it in an array
+        if (userData && typeof userData === "object") {
+          return acc.concat([userData]);
+        }
+
+        // If nothing valid, skip this response
+        return acc;
       }, []);
 
       // Transform API data to match UI expectations
