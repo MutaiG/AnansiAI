@@ -242,6 +242,7 @@ import { MessageModal, type SystemMessage } from "@/components/MessageModal";
 import usePageTitle from "@/hooks/usePageTitle";
 import { toast } from "@/hooks/use-toast";
 import { Mood } from "@/types/education";
+import UnifiedCurriculumManagement from "@/components/UnifiedCurriculumManagement";
 
 // Lazy load AI components for better performance
 const LazyBehaviorAnalytics = lazy(() =>
@@ -1872,7 +1873,7 @@ const AdminDashboard = () => {
 
           {/* Main Dashboard Tabs */}
           <Tabs value={selectedTab} onValueChange={setSelectedTab}>
-            <TabsList className="grid w-full grid-cols-7">
+            <TabsList className="grid w-full grid-cols-6">
               <TabsTrigger value="overview" className="flex items-center gap-2">
                 <BarChart3 className="w-4 h-4" />
                 Overview
@@ -1881,9 +1882,12 @@ const AdminDashboard = () => {
                 <Users className="w-4 h-4" />
                 Users
               </TabsTrigger>
-              <TabsTrigger value="subjects" className="flex items-center gap-2">
-                <BookOpen className="w-4 h-4" />
-                Subjects
+              <TabsTrigger
+                value="curriculum-management"
+                className="flex items-center gap-2"
+              >
+                <GraduationCap className="w-4 h-4" />
+                Curriculum
               </TabsTrigger>
               <TabsTrigger
                 value="ai-insights"
@@ -2608,127 +2612,8 @@ const AdminDashboard = () => {
               </Card>
             </TabsContent>
 
-            <TabsContent value="subjects" className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-xl font-semibold text-gray-800">
-                    Subject Management
-                  </h3>
-                  <p className="text-sm text-gray-600">
-                    Manage school subjects • {filteredSubjects.length} of{" "}
-                    {subjects.length} subjects • AI-powered content generation
-                    enabled
-                  </p>
-                </div>
-                <Button onClick={() => setIsAddSubjectOpen(true)}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Subject
-                </Button>
-              </div>
-
-              {/* Subject Search */}
-              <Card>
-                <CardContent className="p-6">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <Input
-                      placeholder="Search subjects by name or description..."
-                      value={subjectSearchQuery}
-                      onChange={(e) => setSubjectSearchQuery(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Enhanced Subjects Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredSubjects.length === 0 ? (
-                  <Card className="col-span-full">
-                    <CardContent className="p-8 text-center">
-                      <BookOpen className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                      <p className="text-gray-500">
-                        {subjectSearchQuery
-                          ? "No subjects match your search"
-                          : "No subjects found"}
-                      </p>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  filteredSubjects.map((subject) => (
-                    <Card
-                      key={subject.subjectId || subject.id}
-                      className="hover:shadow-md transition-shadow"
-                    >
-                      <CardHeader>
-                        <div className="flex items-center justify-between">
-                          <CardTitle className="text-lg flex items-center gap-2">
-                            <BookOpen className="w-5 h-5 text-blue-600" />
-                            {subject.name ||
-                              subject.subjectName ||
-                              "Unnamed Subject"}
-                          </CardTitle>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm">
-                                <MoreHorizontal className="w-4 h-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem
-                                onClick={() => handleViewSubject(subject)}
-                              >
-                                <Eye className="w-4 h-4 mr-2" />
-                                View Details
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => handleEditSubject(subject)}
-                              >
-                                <Edit className="w-4 h-4 mr-2" />
-                                Edit Subject
-                              </DropdownMenuItem>
-                              <DropdownMenuItem>
-                                <Brain className="w-4 h-4 mr-2" />
-                                AI Content
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                className="text-red-600"
-                                onClick={() => handleDeleteSubject(subject)}
-                              >
-                                <Trash2 className="w-4 h-4 mr-2" />
-                                Delete Subject
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-sm text-gray-600 mb-4">
-                          {subject.description}
-                        </p>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-500">
-                            ID: {subject.subjectId}
-                          </span>
-                          <div className="flex items-center gap-2">
-                            <Badge className="bg-purple-100 text-purple-700">
-                              <Brain className="w-3 h-3 mr-1" />
-                              AI Enhanced
-                            </Badge>
-                            <Badge
-                              variant="outline"
-                              className="bg-green-50 text-green-700"
-                            >
-                              Active
-                            </Badge>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))
-                )}
-              </div>
+            <TabsContent value="curriculum-management" className="space-y-6">
+              <UnifiedCurriculumManagement onDataChange={fetchDashboardData} />
             </TabsContent>
 
             <TabsContent value="ai-insights" className="space-y-6">
