@@ -62,8 +62,6 @@ import {
   MoreHorizontal,
   Award,
   Filter,
-  Download,
-  Upload,
   BookOpen,
   Calendar,
   Trophy,
@@ -519,14 +517,6 @@ const GoalManagement: React.FC<GoalManagementProps> = ({ onGoalChange }) => {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline" size="sm">
-            <Upload className="w-4 h-4 mr-2" />
-            Import
-          </Button>
-          <Button variant="outline" size="sm">
-            <Download className="w-4 h-4 mr-2" />
-            Export
-          </Button>
           <Button onClick={() => openAddDialog()}>
             <Plus className="w-4 h-4 mr-2" />
             Add Goal
@@ -931,7 +921,7 @@ const GoalManagement: React.FC<GoalManagementProps> = ({ onGoalChange }) => {
                           </SelectItem>
                         ))
                     ) : (
-                      <SelectItem value="" disabled>
+                      <SelectItem value="no-curriculum" disabled>
                         Please select a curriculum first
                       </SelectItem>
                     )}
@@ -1055,7 +1045,7 @@ const GoalManagement: React.FC<GoalManagementProps> = ({ onGoalChange }) => {
                           </SelectItem>
                         ))
                     ) : (
-                      <SelectItem value="" disabled>
+                      <SelectItem value="no-curriculum" disabled>
                         Please select a curriculum first
                       </SelectItem>
                     )}

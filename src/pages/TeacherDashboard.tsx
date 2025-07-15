@@ -49,6 +49,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Milestone, Goal } from "@/types/curriculum";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -284,6 +285,8 @@ interface TeacherDashboardData {
   aiTwinInsights: AITwinInsight[];
   recentActivity: RecentActivity[];
   lessonContent: LessonContent[];
+  milestones: Milestone[];
+  goals: Goal[];
   loading: boolean;
   error: string | null;
 }
@@ -1122,6 +1125,73 @@ export default function TeacherDashboard() {
             averageScore: 0,
             estimatedDuration: 30,
             description: "Assessment on normal and binomial distributions",
+          },
+        ],
+        milestones: [
+          {
+            id: "1",
+            curriculumId: "1",
+            subjectId: "1",
+            term: "Term 1",
+            milestone:
+              "Introduction to algebra concepts, linear equations, and basic geometry shapes",
+            isActive: true,
+            createdAt: "2024-01-15T10:00:00Z",
+            updatedAt: "2024-01-15T10:00:00Z",
+          },
+          {
+            id: "2",
+            curriculumId: "1",
+            subjectId: "1",
+            term: "Term 2",
+            milestone:
+              "Advanced algebra, quadratic equations, and geometric calculations",
+            isActive: true,
+            createdAt: "2024-01-16T10:00:00Z",
+            updatedAt: "2024-01-16T10:00:00Z",
+          },
+          {
+            id: "3",
+            curriculumId: "1",
+            subjectId: "1",
+            term: "Term 3",
+            milestone:
+              "Advanced calculus concepts, derivatives and integrals for university preparation",
+            isActive: true,
+            createdAt: "2024-01-17T10:00:00Z",
+            updatedAt: "2024-01-17T10:00:00Z",
+          },
+        ],
+        goals: [
+          {
+            id: "1",
+            curriculumId: "1",
+            subjectId: "1",
+            term: "Term 1",
+            goal: "Students should be able to solve linear equations and understand basic geometric principles with 80% accuracy",
+            isActive: true,
+            createdAt: "2024-01-15T10:00:00Z",
+            updatedAt: "2024-01-15T10:00:00Z",
+          },
+          {
+            id: "2",
+            curriculumId: "1",
+            subjectId: "1",
+            term: "Term 2",
+            goal: "Students should master quadratic equations and apply geometric calculations in real-world scenarios with 85% accuracy",
+            isActive: true,
+            createdAt: "2024-01-16T10:00:00Z",
+            updatedAt: "2024-01-16T10:00:00Z",
+          },
+          {
+            id: "3",
+            curriculumId: "1",
+            subjectId: "1",
+            term: "Term 3",
+            goal: "Students should demonstrate mastery of calculus concepts and be ready for advanced university mathematics with 90% accuracy",
+            isActive: true,
+            createdAt: "2024-01-17T10:00:00Z",
+            updatedAt: "2024-01-17T10:00:00Z",
           },
         ],
         loading: false,
@@ -2910,7 +2980,7 @@ AI Recommendations:
           onValueChange={setActiveTab}
           className="space-y-6"
         >
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger
               value="overview"
               className="flex items-center space-x-2"
@@ -2953,10 +3023,25 @@ AI Recommendations:
               <Target className="h-4 w-4" />
               <span>Analytics</span>
             </TabsTrigger>
+            <TabsTrigger
+              value="curriculum"
+              className="flex items-center space-x-2"
+            >
+              <Award className="h-4 w-4" />
+              <span>Curriculum</span>
+            </TabsTrigger>
           </TabsList>
 
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-6">
+            {/* Header */}
+            <div>
+              <h2 className="text-2xl font-bold">Dashboard Overview</h2>
+              <p className="text-gray-600">
+                Monitor your teaching performance and student engagement
+              </p>
+            </div>
+
             {/* Quick Stats */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <Card>
@@ -3402,6 +3487,14 @@ AI Recommendations:
 
           {/* Students Tab with AI Twin Insights */}
           <TabsContent value="students" className="space-y-6">
+            {/* Header */}
+            <div>
+              <h2 className="text-2xl font-bold">Student Management</h2>
+              <p className="text-gray-600">
+                Monitor student progress and AI-powered insights
+              </p>
+            </div>
+
             <div className="flex flex-col sm:flex-row gap-4">
               <div className="flex-1">
                 <div className="relative">
@@ -4362,6 +4455,234 @@ AI Recommendations:
                   </div>
                 </CardContent>
               </Card>
+            </div>
+          </TabsContent>
+
+          {/* Curriculum Tab - Milestones & Goals */}
+          <TabsContent value="curriculum" className="space-y-8">
+            {/* Header */}
+            <div>
+              <h2 className="text-2xl font-bold">Curriculum Overview</h2>
+              <p className="text-gray-600">
+                Stay aligned with curriculum standards and track progress
+                against learning objectives
+              </p>
+            </div>
+
+            {/* Stats Overview */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-xl border border-purple-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-purple-600 text-sm font-medium">
+                      Content Milestones
+                    </p>
+                    <p className="text-2xl font-bold text-purple-800">
+                      {dashboardData?.milestones?.length || 0}
+                    </p>
+                  </div>
+                  <Target className="w-8 h-8 text-purple-600" />
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-6 rounded-xl border border-orange-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-orange-600 text-sm font-medium">
+                      Learning Goals
+                    </p>
+                    <p className="text-2xl font-bold text-orange-800">
+                      {dashboardData?.goals?.length || 0}
+                    </p>
+                  </div>
+                  <Award className="w-8 h-8 text-orange-600" />
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-xl border border-green-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-green-600 text-sm font-medium">
+                      Active Items
+                    </p>
+                    <p className="text-2xl font-bold text-green-800">
+                      {(dashboardData?.milestones?.filter((m) => m.isActive)
+                        .length || 0) +
+                        (dashboardData?.goals?.filter((g) => g.isActive)
+                          .length || 0)}
+                    </p>
+                  </div>
+                  <CheckCircle className="w-8 h-8 text-green-600" />
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-xl border border-blue-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-blue-600 text-sm font-medium">
+                      Current Term
+                    </p>
+                    <p className="text-lg font-bold text-blue-800">Term 2</p>
+                    <p className="text-xs text-blue-600">In Progress</p>
+                  </div>
+                  <Calendar className="w-8 h-8 text-blue-600" />
+                </div>
+              </div>
+            </div>
+
+            {/* Main Content - Split Layout */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Milestones Section */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="bg-purple-100 p-3 rounded-lg">
+                    <Target className="w-6 h-6 text-purple-600" />
+                  </div>
+                  <div>
+                    <h4 className="text-xl font-bold text-gray-800">
+                      Content Milestones
+                    </h4>
+                    <p className="text-gray-600 text-sm">
+                      What content should be covered
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
+                  {dashboardData?.milestones?.map((milestone, index) => (
+                    <div
+                      key={milestone.id}
+                      className="group relative bg-white border border-gray-200 rounded-xl p-5 hover:shadow-lg hover:border-purple-300 transition-all duration-200"
+                    >
+                      <div className="absolute top-4 right-4">
+                        <Badge
+                          variant={milestone.isActive ? "default" : "secondary"}
+                          className={
+                            milestone.isActive
+                              ? "bg-purple-100 text-purple-700 border-purple-200"
+                              : ""
+                          }
+                        >
+                          {milestone.isActive ? "Active" : "Inactive"}
+                        </Badge>
+                      </div>
+
+                      <div className="mb-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 font-bold text-sm">
+                            {index + 1}
+                          </div>
+                          <Badge
+                            variant="outline"
+                            className="border-purple-200 text-purple-700"
+                          >
+                            {milestone.term}
+                          </Badge>
+                        </div>
+                      </div>
+
+                      <p className="text-gray-700 leading-relaxed mb-3 pr-16">
+                        {milestone.milestone}
+                      </p>
+
+                      <div className="text-xs text-gray-500 flex items-center gap-2">
+                        <Clock className="w-3 h-3" />
+                        {new Date(milestone.createdAt).toLocaleDateString()}
+                      </div>
+                    </div>
+                  ))}
+
+                  {(!dashboardData?.milestones ||
+                    dashboardData.milestones.length === 0) && (
+                    <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300">
+                      <Target className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                      <h5 className="font-semibold text-gray-700 mb-2">
+                        No Milestones Set
+                      </h5>
+                      <p className="text-gray-500 text-sm max-w-sm mx-auto">
+                        Your administrator hasn't set up content milestones for
+                        your subjects yet.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Goals Section */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="bg-orange-100 p-3 rounded-lg">
+                    <Award className="w-6 h-6 text-orange-600" />
+                  </div>
+                  <div>
+                    <h4 className="text-xl font-bold text-gray-800">
+                      Learning Goals
+                    </h4>
+                    <p className="text-gray-600 text-sm">
+                      What students should achieve
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
+                  {dashboardData?.goals?.map((goal, index) => (
+                    <div
+                      key={goal.id}
+                      className="group relative bg-white border border-gray-200 rounded-xl p-5 hover:shadow-lg hover:border-orange-300 transition-all duration-200"
+                    >
+                      <div className="absolute top-4 right-4">
+                        <Badge
+                          variant={goal.isActive ? "default" : "secondary"}
+                          className={
+                            goal.isActive
+                              ? "bg-orange-100 text-orange-700 border-orange-200"
+                              : ""
+                          }
+                        >
+                          {goal.isActive ? "Active" : "Inactive"}
+                        </Badge>
+                      </div>
+
+                      <div className="mb-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center text-orange-600 font-bold text-sm">
+                            {index + 1}
+                          </div>
+                          <Badge
+                            variant="outline"
+                            className="border-orange-200 text-orange-700"
+                          >
+                            {goal.term}
+                          </Badge>
+                        </div>
+                      </div>
+
+                      <p className="text-gray-700 leading-relaxed mb-3 pr-16">
+                        {goal.goal}
+                      </p>
+
+                      <div className="text-xs text-gray-500 flex items-center gap-2">
+                        <Clock className="w-3 h-3" />
+                        {new Date(goal.createdAt).toLocaleDateString()}
+                      </div>
+                    </div>
+                  ))}
+
+                  {(!dashboardData?.goals ||
+                    dashboardData.goals.length === 0) && (
+                    <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300">
+                      <Award className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                      <h5 className="font-semibold text-gray-700 mb-2">
+                        No Goals Set
+                      </h5>
+                      <p className="text-gray-500 text-sm max-w-sm mx-auto">
+                        Your administrator hasn't defined learning goals for
+                        your subjects yet.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </TabsContent>
         </Tabs>

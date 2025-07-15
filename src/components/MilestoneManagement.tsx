@@ -62,8 +62,6 @@ import {
   MoreHorizontal,
   Target,
   Filter,
-  Download,
-  Upload,
   BookOpen,
   Calendar,
 } from "lucide-react";
@@ -502,14 +500,6 @@ const MilestoneManagement: React.FC<MilestoneManagementProps> = ({
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline" size="sm">
-            <Upload className="w-4 h-4 mr-2" />
-            Import
-          </Button>
-          <Button variant="outline" size="sm">
-            <Download className="w-4 h-4 mr-2" />
-            Export
-          </Button>
           <Button onClick={() => openAddDialog()}>
             <Plus className="w-4 h-4 mr-2" />
             Add Milestone
@@ -810,7 +800,7 @@ const MilestoneManagement: React.FC<MilestoneManagementProps> = ({
                           </SelectItem>
                         ))
                     ) : (
-                      <SelectItem value="" disabled>
+                      <SelectItem value="no-curriculum" disabled>
                         Please select a curriculum first
                       </SelectItem>
                     )}
@@ -934,7 +924,7 @@ const MilestoneManagement: React.FC<MilestoneManagementProps> = ({
                           </SelectItem>
                         ))
                     ) : (
-                      <SelectItem value="" disabled>
+                      <SelectItem value="no-curriculum" disabled>
                         Please select a curriculum first
                       </SelectItem>
                     )}

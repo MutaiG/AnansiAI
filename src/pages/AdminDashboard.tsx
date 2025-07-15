@@ -292,7 +292,7 @@ const AdminDashboard = () => {
 
   const [selectedTab, setSelectedTab] = useState("overview");
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
-  const [isAddSubjectOpen, setIsAddSubjectOpen] = useState(false);
+
   const [isEditSubjectOpen, setIsEditSubjectOpen] = useState(false);
   const [isViewSubjectOpen, setIsViewSubjectOpen] = useState(false);
   const [selectedSubject, setSelectedSubject] = useState<SubjectData | null>(
@@ -1216,49 +1216,6 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleAddSubject = async () => {
-    if (!newSubject.name || !newSubject.description) {
-      toast({
-        variant: "destructive",
-        title: "Validation Error",
-        description: "Please fill in both subject name and description",
-      });
-      return;
-    }
-
-    try {
-      await createSubject({
-        name: newSubject.name,
-        description: newSubject.description,
-      });
-
-      // Success is handled within createSubject function
-      if (true) {
-        toast({
-          title: "Subject Created Successfully",
-          description: `Subject "${newSubject.name}" has been added to the system. AI will automatically generate personalized content.`,
-        });
-
-        setIsAddSubjectOpen(false);
-        setNewSubject({ name: "", description: "", category: "" });
-        reload();
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Subject Creation Failed",
-          description: "Failed to create subject. Please try again.",
-        });
-      }
-    } catch (error) {
-      console.error("Error creating subject:", error);
-      toast({
-        variant: "destructive",
-        title: "System Error",
-        description: "An unexpected error occurred while creating the subject.",
-      });
-    }
-  };
-
   const handleEditSubject = (subject: SubjectData) => {
     setSelectedSubject(subject);
     setNewSubject({
@@ -1873,7 +1830,7 @@ const AdminDashboard = () => {
 
           {/* Main Dashboard Tabs */}
           <Tabs value={selectedTab} onValueChange={setSelectedTab}>
-            <TabsList className="grid w-full grid-cols-6">
+            <TabsList className="grid w-full grid-cols-7">
               <TabsTrigger value="overview" className="flex items-center gap-2">
                 <BarChart3 className="w-4 h-4" />
                 Overview
@@ -2028,10 +1985,10 @@ const AdminDashboard = () => {
                     <Button
                       variant="outline"
                       className="w-full"
-                      onClick={() => setIsAddSubjectOpen(true)}
+                      onClick={() => setSelectedTab("curriculum-management")}
                     >
-                      <PlusCircle className="w-4 h-4 mr-2" />
-                      Add Subject
+                      <GraduationCap className="w-4 h-4 mr-2" />
+                      Manage Curriculum
                     </Button>
 
                     <Button
@@ -3523,109 +3480,6 @@ const AdminDashboard = () => {
                     <>
                       <UserPlus className="w-4 h-4 mr-2" />
                       Create User
-                    </>
-                  )}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-
-          {/* Add Subject Dialog */}
-          <Dialog open={isAddSubjectOpen} onOpenChange={setIsAddSubjectOpen}>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <BookOpen className="w-5 h-5" />
-                  Add New Subject
-                </DialogTitle>
-                <DialogDescription>
-                  Create a new subject with AI-powered content generation
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="subjectName">Subject Name *</Label>
-                  <Input
-                    id="subjectName"
-                    value={newSubject.name}
-                    onChange={(e) =>
-                      setNewSubject({ ...newSubject, name: e.target.value })
-                    }
-                    placeholder="e.g., Advanced Mathematics"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="subjectDescription">Description *</Label>
-                  <Textarea
-                    id="subjectDescription"
-                    value={newSubject.description}
-                    onChange={(e) =>
-                      setNewSubject({
-                        ...newSubject,
-                        description: e.target.value,
-                      })
-                    }
-                    placeholder="Brief description of the subject..."
-                    rows={3}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="subjectCategory">Category (Optional)</Label>
-                  <Select
-                    value={newSubject.category}
-                    onValueChange={(value) =>
-                      setNewSubject({ ...newSubject, category: value })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="science">Science</SelectItem>
-                      <SelectItem value="mathematics">Mathematics</SelectItem>
-                      <SelectItem value="languages">Languages</SelectItem>
-                      <SelectItem value="social-studies">
-                        Social Studies
-                      </SelectItem>
-                      <SelectItem value="arts">Arts</SelectItem>
-                      <SelectItem value="physical-education">
-                        Physical Education
-                      </SelectItem>
-                      <SelectItem value="technology">Technology</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <Alert>
-                  <Brain className="h-4 w-4" />
-                  <AlertTitle>AI Enhancement</AlertTitle>
-                  <AlertDescription>
-                    AI will automatically generate personalized content,
-                    assessments, and learning paths for this subject.
-                  </AlertDescription>
-                </Alert>
-              </div>
-              <DialogFooter>
-                <Button
-                  variant="outline"
-                  onClick={() => setIsAddSubjectOpen(false)}
-                  disabled={createSubjectLoading}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleAddSubject}
-                  disabled={createSubjectLoading}
-                >
-                  {createSubjectLoading ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                      Creating...
-                    </>
-                  ) : (
-                    <>
-                      <PlusCircle className="w-4 h-4 mr-2" />
-                      Create Subject
                     </>
                   )}
                 </Button>

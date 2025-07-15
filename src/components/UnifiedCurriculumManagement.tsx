@@ -137,18 +137,7 @@ const UnifiedCurriculumManagement: React.FC<
             </TabsList>
 
             <TabsContent value="curriculums" className="mt-6">
-              <div className="space-y-4">
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <h4 className="font-semibold text-blue-800 mb-2">
-                    📚 Education Systems
-                  </h4>
-                  <p className="text-blue-700 text-sm">
-                    Define the foundational education systems (CBC, IGCSE, IB,
-                    etc.) that will be used throughout your institution.
-                  </p>
-                </div>
-                <CurriculumManagement onCurriculumChange={handleDataChange} />
-              </div>
+              <CurriculumManagement onCurriculumChange={handleDataChange} />
             </TabsContent>
 
             <TabsContent value="subjects" className="mt-6">
@@ -156,74 +145,13 @@ const UnifiedCurriculumManagement: React.FC<
             </TabsContent>
 
             <TabsContent value="milestones" className="mt-6">
-              <div className="space-y-4">
-                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                  <h4 className="font-semibold text-purple-800 mb-2">
-                    🎯 Content Milestones
-                  </h4>
-                  <p className="text-purple-700 text-sm">
-                    Define what content should be covered for subjects that were
-                    added to curriculums. Select curriculum first, then choose
-                    from available subjects.
-                  </p>
-                </div>
-                <MilestoneManagement onMilestoneChange={handleDataChange} />
-              </div>
+              <MilestoneManagement onMilestoneChange={handleDataChange} />
             </TabsContent>
 
             <TabsContent value="goals" className="mt-6">
-              <div className="space-y-4">
-                <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                  <h4 className="font-semibold text-orange-800 mb-2">
-                    🏆 Learning Goals
-                  </h4>
-                  <p className="text-orange-700 text-sm">
-                    Set achievement targets for subjects that were created and
-                    assigned to curriculums. Goals reference the subjects and
-                    milestones already established.
-                  </p>
-                </div>
-                <GoalManagement onGoalChange={handleDataChange} />
-              </div>
+              <GoalManagement onGoalChange={handleDataChange} />
             </TabsContent>
           </Tabs>
-        </CardContent>
-      </Card>
-
-      {/* Quick Actions Footer */}
-      <Card className="bg-gradient-to-r from-primary-50 to-accent-50">
-        <CardContent className="pt-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h4 className="font-semibold text-gray-800">
-                Need help getting started?
-              </h4>
-              <p className="text-sm text-gray-600">
-                Follow our curriculum planning workflow for best results
-              </p>
-            </div>
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              <span className="flex items-center gap-1">
-                <Globe className="w-4 h-4 text-blue-600" />
-                1. Curriculums
-              </span>
-              <span>→</span>
-              <span className="flex items-center gap-1">
-                <BookOpen className="w-4 h-4 text-green-600" />
-                2. Subjects
-              </span>
-              <span>→</span>
-              <span className="flex items-center gap-1">
-                <Target className="w-4 h-4 text-purple-600" />
-                3. Milestones
-              </span>
-              <span>→</span>
-              <span className="flex items-center gap-1">
-                <Award className="w-4 h-4 text-orange-600" />
-                4. Goals
-              </span>
-            </div>
-          </div>
         </CardContent>
       </Card>
     </div>
