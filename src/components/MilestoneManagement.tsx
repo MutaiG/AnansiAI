@@ -73,6 +73,8 @@ import {
   MilestoneFilter,
   TERM_OPTIONS,
 } from "@/types/curriculum";
+import { AdminApiService } from "@/services/adminApiService";
+import { useToast } from "@/hooks/use-toast";
 
 interface MilestoneManagementProps {
   onMilestoneChange?: () => void;
@@ -81,6 +83,9 @@ interface MilestoneManagementProps {
 const MilestoneManagement: React.FC<MilestoneManagementProps> = ({
   onMilestoneChange,
 }) => {
+  const { toast } = useToast();
+  const adminApiService = AdminApiService.getInstance();
+
   // State management
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [curriculums, setCurriculums] = useState<Curriculum[]>([]);
@@ -115,63 +120,47 @@ const MilestoneManagement: React.FC<MilestoneManagementProps> = ({
   const loadMilestones = async () => {
     setLoading(true);
     try {
-      // Always use mock data for now to avoid API issues
-      const mockMilestones: Milestone[] = [
-        {
-          id: "1",
-          curriculumId: "1",
-          subjectId: "1",
-          term: "Term 1",
-          milestone:
-            "Introduction to algebra concepts, linear equations, and basic geometry shapes",
-          isActive: true,
-          createdAt: "2024-01-15T10:00:00Z",
-          updatedAt: "2024-01-15T10:00:00Z",
-        },
-        {
-          id: "2",
-          curriculumId: "1",
-          subjectId: "1",
-          term: "Term 2",
-          milestone:
-            "Advanced algebra, quadratic equations, and geometric calculations",
-          isActive: true,
-          createdAt: "2024-01-16T10:00:00Z",
-          updatedAt: "2024-01-16T10:00:00Z",
-        },
-        {
-          id: "3",
-          curriculumId: "1",
-          subjectId: "2",
-          term: "Term 1",
-          milestone:
-            "Reading comprehension, basic grammar, and creative writing introduction",
-          isActive: true,
-          createdAt: "2024-01-17T10:00:00Z",
-          updatedAt: "2024-01-17T10:00:00Z",
-        },
-        {
-          id: "4",
-          curriculumId: "2",
-          subjectId: "1",
-          term: "Semester 1",
-          milestone:
-            "IGCSE Mathematics syllabus covering Number, Algebra, and Geometry",
-          isActive: true,
-          createdAt: "2024-01-18T10:00:00Z",
-          updatedAt: "2024-01-18T10:00:00Z",
-        },
-      ];
+      console.log("🔄 Loading milestones from API...");
+      const apiMilestones = await adminApiService.getMilestones();
 
-      setMilestones(mockMilestones);
-      console.log(
-        "✅ Loaded milestones (using fallback data):",
-        mockMilestones.length,
+      // Convert API format to component format
+      const convertedMilestones: Milestone[] = apiMilestones.map(
+        (milestone) => ({
+          id: milestone.milestoneId.toString(),
+          curriculumId: milestone.curriculumId.toString(),
+          subjectId: milestone.subjectId.toString(),
+          term: milestone.termId.toString(), // You may want to fetch term names
+          milestone: milestone.description,
+          isActive: !milestone.isDeleted,
+          createdAt: milestone.createdDate || new Date().toISOString(),
+          updatedAt: milestone.modifiedDate || new Date().toISOString(),
+        }),
       );
+
+      setMilestones(convertedMilestones);
+      console.log("✅ Loaded milestones from API:", convertedMilestones.length);
     } catch (error) {
-      console.error("❌ Error loading milestones:", error);
-      // Set empty array as fallback
-      setMilestones([]);
+      console.error("❌ Error loading milestones from API:", error);
+
+      // Show specific error message for connection issues
+      const isConnectionError =
+        error instanceof Error &&
+        (error.message.includes("Network Error") ||
+          error.message.includes("Mixed Content") ||
+          error.message.includes("timeout"));
+
+      toast({
+        variant: "destructive",
+        title: "Error Loading Milestones",
+        description: isConnectionError
+          ? "Unable to connect to API server. Check connection and try again."
+          : "Failed to load milestones from API",
+      });
+
+      // Don't set empty array on error - leave existing data if any
+      if (milestones.length === 0) {
+        setMilestones([]);
+      }
     } finally {
       setLoading(false);
     }
@@ -179,79 +168,57 @@ const MilestoneManagement: React.FC<MilestoneManagementProps> = ({
 
   const loadCurriculums = async () => {
     try {
-      // Always use mock data for now to avoid API issues
-      const mockCurriculums: Curriculum[] = [
-        {
-          id: "1",
-          name: "CBC (Competency Based Curriculum)",
-          description: "Kenya's current education system",
-          code: "CBC",
-          isActive: true,
-          createdAt: "2024-01-15T10:00:00Z",
-          updatedAt: "2024-01-15T10:00:00Z",
-        },
-        {
-          id: "2",
-          name: "IGCSE",
-          description: "Cambridge International curriculum",
-          code: "IGCSE",
-          isActive: true,
-          createdAt: "2024-01-16T10:00:00Z",
-          updatedAt: "2024-01-16T10:00:00Z",
-        },
-      ];
+      console.log("🔄 Loading curriculums from API for milestones...");
+      const apiCurriculums = await adminApiService.getCurriculums();
 
-      setCurriculums(mockCurriculums);
+      // Convert API format to component format
+      const convertedCurriculums: Curriculum[] = apiCurriculums.map((curr) => ({
+        id: curr.curriculumId.toString(),
+        name: curr.name,
+        description: curr.description,
+        // Generate code from name if not provided by API
+        code: (curr as any).code || curr.name.substring(0, 3).toUpperCase(),
+        isActive: !curr.isDeleted,
+        createdAt: curr.createdDate || new Date().toISOString(),
+        updatedAt: curr.modifiedDate || new Date().toISOString(),
+      }));
+
+      setCurriculums(convertedCurriculums);
       console.log(
-        "✅ Loaded curriculums (using fallback data):",
-        mockCurriculums.length,
+        "✅ Loaded curriculums from API for milestones:",
+        convertedCurriculums.length,
       );
     } catch (error) {
-      console.error("❌ Error loading curriculums:", error);
+      console.error("❌ Error loading curriculums from API:", error);
       setCurriculums([]);
     }
   };
 
   const loadSubjects = async () => {
     try {
-      // Always use mock data for now to avoid API issues
-      const mockSubjects: Subject[] = [
-        {
-          id: "1",
-          name: "Mathematics",
-          description: "Core mathematics",
-          code: "MATH",
-          isActive: true,
-          createdAt: "2024-01-15T10:00:00Z",
-          updatedAt: "2024-01-15T10:00:00Z",
-        },
-        {
-          id: "2",
-          name: "English Language",
-          description: "English language and literature",
-          code: "ENG",
-          isActive: true,
-          createdAt: "2024-01-16T10:00:00Z",
-          updatedAt: "2024-01-16T10:00:00Z",
-        },
-        {
-          id: "3",
-          name: "Science",
-          description: "Integrated science",
-          code: "SCI",
-          isActive: true,
-          createdAt: "2024-01-17T10:00:00Z",
-          updatedAt: "2024-01-17T10:00:00Z",
-        },
-      ];
+      console.log("🔄 Loading subjects from API for milestones...");
+      const apiSubjects = await adminApiService.getSubjects();
 
-      setSubjects(mockSubjects);
+      // Convert API format to component format
+      const convertedSubjects: Subject[] = apiSubjects.map((subj) => ({
+        id: subj.subjectId.toString(),
+        name: subj.subjectName, // API uses subjectName instead of name
+        description: subj.description,
+        // Generate code from name if not provided by API
+        code:
+          (subj as any).code || subj.subjectName.substring(0, 3).toUpperCase(),
+        isActive: !subj.isDeleted,
+        createdAt: subj.createdDate || new Date().toISOString(),
+        updatedAt: subj.modifiedDate || new Date().toISOString(),
+      }));
+
+      setSubjects(convertedSubjects);
       console.log(
-        "✅ Loaded subjects (using fallback data):",
-        mockSubjects.length,
+        "✅ Loaded subjects from API for milestones:",
+        convertedSubjects.length,
       );
     } catch (error) {
-      console.error("❌ Error loading subjects:", error);
+      console.error("❌ Error loading subjects from API:", error);
       setSubjects([]);
     }
   };

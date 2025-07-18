@@ -71,6 +71,8 @@ import {
   CurriculumFilter,
   COMMON_CURRICULUMS,
 } from "@/types/curriculum";
+import { AdminApiService } from "@/services/adminApiService";
+import { useToast } from "@/hooks/use-toast";
 
 interface CurriculumManagementProps {
   onCurriculumChange?: () => void;
@@ -79,6 +81,9 @@ interface CurriculumManagementProps {
 const CurriculumManagement: React.FC<CurriculumManagementProps> = ({
   onCurriculumChange,
 }) => {
+  const { toast } = useToast();
+  const adminApiService = AdminApiService.getInstance();
+
   // State management
   const [curriculums, setCurriculums] = useState<Curriculum[]>([]);
   const [loading, setLoading] = useState(false);
@@ -105,49 +110,48 @@ const CurriculumManagement: React.FC<CurriculumManagementProps> = ({
   const loadCurriculums = async () => {
     setLoading(true);
     try {
-      // Mock data for now - will be replaced with API calls
-      const mockData: Curriculum[] = [
-        {
-          id: "1",
-          name: "CBC (Competency Based Curriculum)",
-          description:
-            "Kenya's current education system focusing on competency-based learning",
-          code: "CBC",
-          isActive: true,
-          createdAt: "2024-01-15T10:00:00Z",
-          updatedAt: "2024-01-15T10:00:00Z",
-        },
-        {
-          id: "2",
-          name: "IGCSE (International General Certificate of Secondary Education)",
-          description:
-            "Cambridge International curriculum for students aged 14-16",
-          code: "IGCSE",
-          isActive: true,
-          createdAt: "2024-01-16T10:00:00Z",
-          updatedAt: "2024-01-16T10:00:00Z",
-        },
-        {
-          id: "3",
-          name: "8-4-4 System",
-          description:
-            "Former Kenyan education system with 8 years primary, 4 years secondary, 4 years university",
-          code: "8-4-4",
-          isActive: false,
-          createdAt: "2024-01-17T10:00:00Z",
-          updatedAt: "2024-01-17T10:00:00Z",
-        },
-      ];
+      console.log("🔄 Loading curriculums from API...");
+      const apiCurriculums = await adminApiService.getCurriculums();
 
-      setCurriculums(mockData);
-      console.log("✅ Loaded curriculums:", mockData.length);
+      // Convert API format to component format
+      const convertedCurriculums: Curriculum[] = apiCurriculums.map((curr) => ({
+        id: curr.curriculumId.toString(),
+        name: curr.name,
+        description: curr.description,
+        // Generate code from name if not provided by API
+        code: (curr as any).code || curr.name.substring(0, 3).toUpperCase(),
+        isActive: !curr.isDeleted,
+        createdAt: curr.createdDate || new Date().toISOString(),
+        updatedAt: curr.modifiedDate || new Date().toISOString(),
+      }));
+
+      setCurriculums(convertedCurriculums);
+      console.log(
+        "✅ Loaded curriculums from API:",
+        convertedCurriculums.length,
+      );
     } catch (error) {
-      console.error("❌ Error loading curriculums:", error);
+      console.error("❌ Error loading curriculums from API:", error);
+
+      // Show specific error message for connection issues
+      const isConnectionError =
+        error instanceof Error &&
+        (error.message.includes("Network Error") ||
+          error.message.includes("Mixed Content") ||
+          error.message.includes("timeout"));
+
       toast({
         variant: "destructive",
-        title: "Error",
-        description: "Failed to load curriculums",
+        title: "Error Loading Curriculums",
+        description: isConnectionError
+          ? "Unable to connect to API server. Check connection and try again."
+          : "Failed to load curriculums from API",
       });
+
+      // Don't set empty array on error - leave existing data if any
+      if (curriculums.length === 0) {
+        setCurriculums([]);
+      }
     } finally {
       setLoading(false);
     }
@@ -176,26 +180,40 @@ const CurriculumManagement: React.FC<CurriculumManagementProps> = ({
       return;
     }
 
-    const newCurriculum: Curriculum = {
-      id: Date.now().toString(),
-      name: formData.name,
-      description: formData.description,
-      code: formData.code || formData.name.substring(0, 3).toUpperCase(),
-      isActive: true,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    try {
+      console.log("🔄 Creating curriculum via API...");
 
-    setCurriculums([...curriculums, newCurriculum]);
-    setIsAddDialogOpen(false);
-    resetForm();
+      const createData = {
+        name: formData.name,
+        description: formData.description,
+        code: formData.code || formData.name.substring(0, 3).toUpperCase(),
+      };
 
-    toast({
-      title: "Success",
-      description: "Curriculum created successfully",
-    });
+      const createdCurriculum =
+        await adminApiService.createCurriculum(createData);
 
-    onCurriculumChange?.();
+      console.log("✅ Curriculum created successfully:", createdCurriculum);
+
+      // Reload curriculums to get the latest data
+      await loadCurriculums();
+
+      setIsAddDialogOpen(false);
+      resetForm();
+
+      toast({
+        title: "Success",
+        description: "Curriculum created successfully",
+      });
+
+      onCurriculumChange?.();
+    } catch (error) {
+      console.error("❌ Error creating curriculum:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to create curriculum. Please try again.",
+      });
+    }
   };
 
   const handleEdit = async () => {
@@ -223,44 +241,77 @@ const CurriculumManagement: React.FC<CurriculumManagementProps> = ({
       return;
     }
 
-    const updatedCurriculum: Curriculum = {
-      ...selectedCurriculum,
-      name: formData.name,
-      description: formData.description,
-      code: formData.code || formData.name.substring(0, 3).toUpperCase(),
-      updatedAt: new Date().toISOString(),
-    };
+    try {
+      console.log("🔄 Updating curriculum via API...");
 
-    setCurriculums(
-      curriculums.map((c) =>
-        c.id === selectedCurriculum.id ? updatedCurriculum : c,
-      ),
-    );
-    setIsEditDialogOpen(false);
-    setSelectedCurriculum(null);
-    resetForm();
+      const updateData = {
+        name: formData.name,
+        description: formData.description,
+        code: formData.code || formData.name.substring(0, 3).toUpperCase(),
+      };
 
-    toast({
-      title: "Success",
-      description: "Curriculum updated successfully",
-    });
+      const curriculumId = parseInt(selectedCurriculum.id);
+      const updatedCurriculum = await adminApiService.updateCurriculum(
+        curriculumId,
+        updateData,
+      );
 
-    onCurriculumChange?.();
+      console.log("✅ Curriculum updated successfully:", updatedCurriculum);
+
+      // Reload curriculums to get the latest data
+      await loadCurriculums();
+
+      setIsEditDialogOpen(false);
+      setSelectedCurriculum(null);
+      resetForm();
+
+      toast({
+        title: "Success",
+        description: "Curriculum updated successfully",
+      });
+
+      onCurriculumChange?.();
+    } catch (error) {
+      console.error("❌ Error updating curriculum:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to update curriculum. Please try again.",
+      });
+    }
   };
 
   const handleDelete = async () => {
     if (!selectedCurriculum) return;
 
-    setCurriculums(curriculums.filter((c) => c.id !== selectedCurriculum.id));
-    setIsDeleteDialogOpen(false);
-    setSelectedCurriculum(null);
+    try {
+      console.log("🔄 Deleting curriculum via API...");
 
-    toast({
-      title: "Success",
-      description: "Curriculum deleted successfully",
-    });
+      const curriculumId = parseInt(selectedCurriculum.id);
+      await adminApiService.deleteCurriculum(curriculumId);
 
-    onCurriculumChange?.();
+      console.log("✅ Curriculum deleted successfully");
+
+      // Reload curriculums to get the latest data
+      await loadCurriculums();
+
+      setIsDeleteDialogOpen(false);
+      setSelectedCurriculum(null);
+
+      toast({
+        title: "Success",
+        description: "Curriculum deleted successfully",
+      });
+
+      onCurriculumChange?.();
+    } catch (error) {
+      console.error("❌ Error deleting curriculum:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to delete curriculum. Please try again.",
+      });
+    }
   };
 
   const resetForm = () => {

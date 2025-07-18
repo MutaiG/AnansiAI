@@ -74,6 +74,8 @@ import {
   SubjectFilter,
   SubjectCurriculumRelation,
 } from "@/types/curriculum";
+import { AdminApiService } from "@/services/adminApiService";
+import { useToast } from "@/hooks/use-toast";
 
 interface SubjectManagementProps {
   onSubjectChange?: () => void;
@@ -82,6 +84,9 @@ interface SubjectManagementProps {
 const SubjectManagement: React.FC<SubjectManagementProps> = ({
   onSubjectChange,
 }) => {
+  const { toast } = useToast();
+  const adminApiService = AdminApiService.getInstance();
+
   // State management
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [curriculums, setCurriculums] = useState<Curriculum[]>([]);
@@ -113,57 +118,46 @@ const SubjectManagement: React.FC<SubjectManagementProps> = ({
   const loadSubjects = async () => {
     setLoading(true);
     try {
-      // Mock data - will be replaced with API calls
-      const mockSubjects: Subject[] = [
-        {
-          id: "1",
-          name: "Mathematics",
-          description:
-            "Core mathematics covering algebra, geometry, and calculus",
-          code: "MATH",
-          isActive: true,
-          createdAt: "2024-01-15T10:00:00Z",
-          updatedAt: "2024-01-15T10:00:00Z",
-        },
-        {
-          id: "2",
-          name: "English Language",
-          description: "English language and literature studies",
-          code: "ENG",
-          isActive: true,
-          createdAt: "2024-01-16T10:00:00Z",
-          updatedAt: "2024-01-16T10:00:00Z",
-        },
-        {
-          id: "3",
-          name: "Science",
-          description:
-            "Integrated science covering physics, chemistry, and biology",
-          code: "SCI",
-          isActive: true,
-          createdAt: "2024-01-17T10:00:00Z",
-          updatedAt: "2024-01-17T10:00:00Z",
-        },
-        {
-          id: "4",
-          name: "History",
-          description: "World and regional history studies",
-          code: "HIST",
-          isActive: false,
-          createdAt: "2024-01-18T10:00:00Z",
-          updatedAt: "2024-01-18T10:00:00Z",
-        },
-      ];
+      console.log("🔄 Loading subjects from API...");
+      const apiSubjects = await adminApiService.getSubjects();
 
-      setSubjects(mockSubjects);
-      console.log("✅ Loaded subjects:", mockSubjects.length);
+      // Convert API format to component format
+      const convertedSubjects: Subject[] = apiSubjects.map((subj) => ({
+        id: subj.subjectId.toString(),
+        name: subj.subjectName, // API uses subjectName instead of name
+        description: subj.description,
+        // Generate code from name if not provided by API
+        code:
+          (subj as any).code || subj.subjectName.substring(0, 3).toUpperCase(),
+        isActive: !subj.isDeleted,
+        createdAt: subj.createdDate || new Date().toISOString(),
+        updatedAt: subj.modifiedDate || new Date().toISOString(),
+      }));
+
+      setSubjects(convertedSubjects);
+      console.log("✅ Loaded subjects from API:", convertedSubjects.length);
     } catch (error) {
-      console.error("❌ Error loading subjects:", error);
+      console.error("❌ Error loading subjects from API:", error);
+
+      // Show specific error message for connection issues
+      const isConnectionError =
+        error instanceof Error &&
+        (error.message.includes("Network Error") ||
+          error.message.includes("Mixed Content") ||
+          error.message.includes("timeout"));
+
       toast({
         variant: "destructive",
-        title: "Error",
-        description: "Failed to load subjects",
+        title: "Error Loading Subjects",
+        description: isConnectionError
+          ? "Unable to connect to API server. Check connection and try again."
+          : "Failed to load subjects from API",
       });
+
+      // Don't set empty array on error - leave existing data if any
+      if (subjects.length === 0) {
+        setSubjects([]);
+      }
     } finally {
       setLoading(false);
     }
@@ -171,40 +165,29 @@ const SubjectManagement: React.FC<SubjectManagementProps> = ({
 
   const loadCurriculums = async () => {
     try {
-      // Mock curriculum data
-      const mockCurriculums: Curriculum[] = [
-        {
-          id: "1",
-          name: "CBC (Competency Based Curriculum)",
-          description: "Kenya's current education system",
-          code: "CBC",
-          isActive: true,
-          createdAt: "2024-01-15T10:00:00Z",
-          updatedAt: "2024-01-15T10:00:00Z",
-        },
-        {
-          id: "2",
-          name: "IGCSE",
-          description: "Cambridge International curriculum",
-          code: "IGCSE",
-          isActive: true,
-          createdAt: "2024-01-16T10:00:00Z",
-          updatedAt: "2024-01-16T10:00:00Z",
-        },
-        {
-          id: "3",
-          name: "8-4-4 System",
-          description: "Former Kenyan education system",
-          code: "8-4-4",
-          isActive: false,
-          createdAt: "2024-01-17T10:00:00Z",
-          updatedAt: "2024-01-17T10:00:00Z",
-        },
-      ];
+      console.log("🔄 Loading curriculums from API for subjects...");
+      const apiCurriculums = await adminApiService.getCurriculums();
 
-      setCurriculums(mockCurriculums);
+      // Convert API format to component format
+      const convertedCurriculums: Curriculum[] = apiCurriculums.map((curr) => ({
+        id: curr.curriculumId.toString(),
+        name: curr.name,
+        description: curr.description,
+        // Generate code from name if not provided by API
+        code: (curr as any).code || curr.name.substring(0, 3).toUpperCase(),
+        isActive: !curr.isDeleted,
+        createdAt: curr.createdDate || new Date().toISOString(),
+        updatedAt: curr.modifiedDate || new Date().toISOString(),
+      }));
+
+      setCurriculums(convertedCurriculums);
+      console.log(
+        "✅ Loaded curriculums from API for subjects:",
+        convertedCurriculums.length,
+      );
     } catch (error) {
-      console.error("❌ Error loading curriculums:", error);
+      console.error("❌ Error loading curriculums from API:", error);
+      setCurriculums([]);
     }
   };
 
@@ -283,38 +266,44 @@ const SubjectManagement: React.FC<SubjectManagementProps> = ({
       return;
     }
 
-    const newSubject: Subject = {
-      id: Date.now().toString(),
-      name: formData.name,
-      description: formData.description,
-      code: formData.code || formData.name.substring(0, 3).toUpperCase(),
-      isActive: true,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    try {
+      console.log("🔄 Creating subject via API...");
 
-    setSubjects([...subjects, newSubject]);
+      // Note: API only supports one curriculum per subject, using the first selected
+      const curriculumId = parseInt(formData.curriculumIds[0]);
 
-    // Create curriculum relationships
-    if (formData.curriculumIds && formData.curriculumIds.length > 0) {
-      const newRelations = formData.curriculumIds.map((curriculumId) => ({
-        id: `${newSubject.id}_${curriculumId}_${Date.now()}`,
-        subjectId: newSubject.id,
-        curriculumId,
-        createdAt: new Date().toISOString(),
-      }));
-      setRelations([...relations, ...newRelations]);
+      const createData = {
+        institutionId: 1, // Default institution ID - you may want to make this configurable
+        subjectName: formData.name,
+        description: formData.description,
+        isActive: true,
+        curriculumId: curriculumId,
+      };
+
+      const createdSubject = await adminApiService.createSubject(createData);
+
+      console.log("✅ Subject created successfully:", createdSubject);
+
+      // Reload subjects to get the latest data from API
+      await loadSubjects();
+
+      setIsAddDialogOpen(false);
+      resetForm();
+
+      toast({
+        title: "Success",
+        description: "Subject created successfully",
+      });
+
+      onSubjectChange?.();
+    } catch (error) {
+      console.error("❌ Error creating subject:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to create subject. Please try again.",
+      });
     }
-
-    setIsAddDialogOpen(false);
-    resetForm();
-
-    toast({
-      title: "Success",
-      description: "Subject created successfully",
-    });
-
-    onSubjectChange?.();
   };
 
   const handleEdit = async () => {
@@ -342,57 +331,81 @@ const SubjectManagement: React.FC<SubjectManagementProps> = ({
       return;
     }
 
-    const updatedSubject: Subject = {
-      ...selectedSubject,
-      name: formData.name,
-      description: formData.description,
-      code: formData.code || formData.name.substring(0, 3).toUpperCase(),
-      updatedAt: new Date().toISOString(),
-    };
+    try {
+      console.log("🔄 Updating subject via API...");
 
-    setSubjects(
-      subjects.map((s) => (s.id === selectedSubject.id ? updatedSubject : s)),
-    );
+      // Note: API only supports one curriculum per subject, using the first selected
+      const curriculumId = parseInt(formData.curriculumIds?.[0] || "1");
 
-    // Update curriculum relationships
-    const existingRelations = relations.filter(
-      (r) => r.subjectId !== selectedSubject.id,
-    );
-    const newRelations = (formData.curriculumIds || []).map((curriculumId) => ({
-      id: `${selectedSubject.id}_${curriculumId}_${Date.now()}`,
-      subjectId: selectedSubject.id,
-      curriculumId,
-      createdAt: new Date().toISOString(),
-    }));
-    setRelations([...existingRelations, ...newRelations]);
+      const updateData = {
+        subjectName: formData.name,
+        description: formData.description,
+        isActive: true,
+        curriculumId: curriculumId,
+      };
 
-    setIsEditDialogOpen(false);
-    setSelectedSubject(null);
-    resetForm();
+      const subjectId = parseInt(selectedSubject.id);
+      const updatedSubject = await adminApiService.updateSubject(
+        subjectId,
+        updateData,
+      );
 
-    toast({
-      title: "Success",
-      description: "Subject updated successfully",
-    });
+      console.log("✅ Subject updated successfully:", updatedSubject);
 
-    onSubjectChange?.();
+      // Reload subjects to get the latest data from API
+      await loadSubjects();
+
+      setIsEditDialogOpen(false);
+      setSelectedSubject(null);
+      resetForm();
+
+      toast({
+        title: "Success",
+        description: "Subject updated successfully",
+      });
+
+      onSubjectChange?.();
+    } catch (error) {
+      console.error("❌ Error updating subject:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to update subject. Please try again.",
+      });
+    }
   };
 
   const handleDelete = async () => {
     if (!selectedSubject) return;
 
-    setSubjects(subjects.filter((s) => s.id !== selectedSubject.id));
-    // Remove associated relations
-    setRelations(relations.filter((r) => r.subjectId !== selectedSubject.id));
-    setIsDeleteDialogOpen(false);
-    setSelectedSubject(null);
+    try {
+      console.log("🔄 Deleting subject via API...");
 
-    toast({
-      title: "Success",
-      description: "Subject deleted successfully",
-    });
+      const subjectId = parseInt(selectedSubject.id);
+      await adminApiService.deleteSubject(subjectId);
 
-    onSubjectChange?.();
+      console.log("✅ Subject deleted successfully");
+
+      // Reload subjects to get the latest data from API
+      await loadSubjects();
+
+      setIsDeleteDialogOpen(false);
+      setSelectedSubject(null);
+
+      toast({
+        title: "Success",
+        description: "Subject deleted successfully",
+      });
+
+      onSubjectChange?.();
+    } catch (error) {
+      console.error("❌ Error deleting subject:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to delete subject. Please try again.",
+      });
+    }
   };
 
   const resetForm = () => {

@@ -1,18 +1,26 @@
 // Simple Axios Client - Direct API Integration
 import axios from "axios";
 
-// Dynamically determine the best API URL based on current page protocol
+// Smart protocol selection to handle mixed content issues
 const getOptimalApiUrl = () => {
   const isHttps = window.location.protocol === "https:";
+  const isDevelopment =
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1";
 
-  if (isHttps) {
-    // If we're on HTTPS, try HTTPS first for the API
-    // Note: This may fail if the API server doesn't have a valid SSL certificate
-    return "https://13.60.98.134/anansiai";
-  } else {
-    // If we're on HTTP, use HTTP for the API (no mixed content issues)
-    return "http://13.60.98.134/anansiai";
-  }
+  // Always use HTTP for the API since the server doesn't support HTTPS
+  // Note: This will cause mixed content issues on HTTPS deployments,
+  // but it's the only way to connect to the API server
+  console.log("🔧 API Configuration:", {
+    currentProtocol: window.location.protocol,
+    hostname: window.location.hostname,
+    isDevelopment,
+    isHttps,
+    selectedApiUrl: "http://13.60.98.134/anansiai",
+    note: "Using HTTP for API - may cause mixed content warnings",
+  });
+
+  return "http://13.60.98.134/anansiai";
 };
 
 const API_BASE_URL = getOptimalApiUrl();
@@ -22,10 +30,7 @@ console.log("🔧 API Base URL:", API_BASE_URL);
 console.log("🔧 Protocol Selection:", {
   currentProtocol: window.location.protocol,
   selectedApiUrl: API_BASE_URL,
-  reason:
-    window.location.protocol === "https:"
-      ? "HTTPS used to avoid mixed content warnings"
-      : "HTTP used for development",
+  reason: "HTTP forced for development - API server doesn't support HTTPS",
 });
 
 // Create axios instance with base configuration
@@ -79,7 +84,7 @@ axiosClient.interceptors.response.use(
       console.error("🚫 Network Error - Most likely HTTPS certificate issue");
       console.error("• Trying to connect to:", API_BASE_URL);
       console.error(
-        "• Issue: IP address",
+        "�� Issue: IP address",
         API_BASE_URL.replace(/https?:\/\//, "").split("/")[0],
         "may not have valid HTTPS certificate",
       );
@@ -96,15 +101,27 @@ axiosClient.interceptors.response.use(
 
 // Connection test function to help diagnose issues
 export const testApiConnection = async () => {
-  const protocols = ["https", "http"];
   const baseUrl = "13.60.98.134/anansiai";
+  const isHttps = window.location.protocol === "https:";
+
+  // Test order: prioritize HTTPS if we're on HTTPS, otherwise HTTP first
+  const protocols = isHttps ? ["https", "http"] : ["http", "https"];
 
   console.log("🔍 Testing API connection with different protocols...");
+  console.log(`🌐 Current page protocol: ${window.location.protocol}`);
 
   for (const protocol of protocols) {
     const testUrl = `${protocol}://${baseUrl}/api/Institutions`;
     try {
       console.log(`🧪 Testing ${protocol.toUpperCase()}:`, testUrl);
+
+      // For mixed content scenarios, we need to handle differently
+      if (isHttps && protocol === "http") {
+        console.log("⚠️ Mixed content detected - HTTPS page trying HTTP API");
+        console.log("💡 This will be blocked by browser security policy");
+        continue; // Skip HTTP test when on HTTPS to avoid blocked requests
+      }
+
       const response = await axios.get(testUrl, {
         timeout: 10000,
         headers: { Accept: "application/json" },
@@ -119,7 +136,33 @@ export const testApiConnection = async () => {
       }
     } catch (error: any) {
       console.log(`❌ ${protocol.toUpperCase()} failed:`, error.message);
+
+      // Provide specific guidance for mixed content errors
+      if (isHttps && protocol === "http") {
+        console.log(
+          "🚫 Mixed Content Error: HTTPS pages cannot access HTTP APIs",
+        );
+        console.log("💡 Solutions:");
+        console.log("  1. Configure SSL certificate on your API server");
+        console.log("  2. Use a reverse proxy with HTTPS");
+        console.log("  3. Deploy frontend on HTTP for development");
+      }
     }
+  }
+
+  // Special handling for mixed content scenarios
+  if (isHttps) {
+    console.log("🔄 Mixed content detected - suggesting fallback solutions");
+    console.log("💡 Fallback options:");
+    console.log("  1. Configure API server with HTTPS support");
+    console.log("  2. Use a CORS proxy service");
+    console.log("  3. Deploy this app on HTTP for development");
+    return {
+      success: false,
+      mixedContent: true,
+      suggestion:
+        "Configure HTTPS on API server or use HTTP deployment for development",
+    };
   }
 
   console.log("❌ All protocols failed - API server may be down");

@@ -74,12 +74,17 @@ import {
   GoalFilter,
   TERM_OPTIONS,
 } from "@/types/curriculum";
+import { AdminApiService } from "@/services/adminApiService";
+import { useToast } from "@/hooks/use-toast";
 
 interface GoalManagementProps {
   onGoalChange?: () => void;
 }
 
 const GoalManagement: React.FC<GoalManagementProps> = ({ onGoalChange }) => {
+  const { toast } = useToast();
+  const adminApiService = AdminApiService.getInstance();
+
   // State management
   const [goals, setGoals] = useState<Goal[]>([]);
   const [curriculums, setCurriculums] = useState<Curriculum[]>([]);
@@ -112,65 +117,45 @@ const GoalManagement: React.FC<GoalManagementProps> = ({ onGoalChange }) => {
   const loadGoals = async () => {
     setLoading(true);
     try {
-      // Always use mock data for now to avoid API issues
-      const mockGoals: Goal[] = [
-        {
-          id: "1",
-          curriculumId: "1",
-          subjectId: "1",
-          term: "Term 1",
-          goal: "Students should be able to solve linear equations and understand basic geometric principles",
-          isActive: true,
-          createdAt: "2024-01-15T10:00:00Z",
-          updatedAt: "2024-01-15T10:00:00Z",
-        },
-        {
-          id: "2",
-          curriculumId: "1",
-          subjectId: "1",
-          term: "Term 2",
-          goal: "Students should master quadratic equations and apply geometric calculations in real-world scenarios",
-          isActive: true,
-          createdAt: "2024-01-16T10:00:00Z",
-          updatedAt: "2024-01-16T10:00:00Z",
-        },
-        {
-          id: "3",
-          curriculumId: "1",
-          subjectId: "2",
-          term: "Term 1",
-          goal: "Students should demonstrate improved reading comprehension and produce coherent written work",
-          isActive: true,
-          createdAt: "2024-01-17T10:00:00Z",
-          updatedAt: "2024-01-17T10:00:00Z",
-        },
-        {
-          id: "4",
-          curriculumId: "2",
-          subjectId: "1",
-          term: "Semester 1",
-          goal: "Students should achieve IGCSE Mathematics grade C or above in core topics",
-          isActive: true,
-          createdAt: "2024-01-18T10:00:00Z",
-          updatedAt: "2024-01-18T10:00:00Z",
-        },
-        {
-          id: "5",
-          curriculumId: "1",
-          subjectId: "3",
-          term: "Term 1",
-          goal: "Students should understand scientific method and conduct basic experiments",
-          isActive: true,
-          createdAt: "2024-01-19T10:00:00Z",
-          updatedAt: "2024-01-19T10:00:00Z",
-        },
-      ];
+      console.log("🔄 Loading goals from API...");
+      const apiGoals = await adminApiService.getGoals();
 
-      setGoals(mockGoals);
-      console.log("✅ Loaded goals (using fallback data):", mockGoals.length);
+      // Convert API format to component format
+      const convertedGoals: Goal[] = apiGoals.map((goal) => ({
+        id: goal.goalId.toString(),
+        curriculumId: goal.curriculumId.toString(),
+        subjectId: goal.subjectId.toString(),
+        term: goal.termId.toString(), // You may want to fetch term names
+        goal: goal.description,
+        isActive: !goal.isDeleted,
+        createdAt: goal.createdDate || new Date().toISOString(),
+        updatedAt: goal.modifiedDate || new Date().toISOString(),
+      }));
+
+      setGoals(convertedGoals);
+      console.log("✅ Loaded goals from API:", convertedGoals.length);
     } catch (error) {
-      console.error("❌ Error loading goals:", error);
-      setGoals([]);
+      console.error("❌ Error loading goals from API:", error);
+
+      // Show specific error message for connection issues
+      const isConnectionError =
+        error instanceof Error &&
+        (error.message.includes("Network Error") ||
+          error.message.includes("Mixed Content") ||
+          error.message.includes("timeout"));
+
+      toast({
+        variant: "destructive",
+        title: "Error Loading Goals",
+        description: isConnectionError
+          ? "Unable to connect to API server. Check connection and try again."
+          : "Failed to load goals from API",
+      });
+
+      // Don't set empty array on error - leave existing data if any
+      if (goals.length === 0) {
+        setGoals([]);
+      }
     } finally {
       setLoading(false);
     }
@@ -178,79 +163,56 @@ const GoalManagement: React.FC<GoalManagementProps> = ({ onGoalChange }) => {
 
   const loadCurriculums = async () => {
     try {
-      // Always use mock data for now to avoid API issues
-      const mockCurriculums: Curriculum[] = [
-        {
-          id: "1",
-          name: "CBC (Competency Based Curriculum)",
-          description: "Kenya's current education system",
-          code: "CBC",
-          isActive: true,
-          createdAt: "2024-01-15T10:00:00Z",
-          updatedAt: "2024-01-15T10:00:00Z",
-        },
-        {
-          id: "2",
-          name: "IGCSE",
-          description: "Cambridge International curriculum",
-          code: "IGCSE",
-          isActive: true,
-          createdAt: "2024-01-16T10:00:00Z",
-          updatedAt: "2024-01-16T10:00:00Z",
-        },
-      ];
+      console.log("🔄 Loading curriculums from API for goals...");
+      const apiCurriculums = await adminApiService.getCurriculums();
 
-      setCurriculums(mockCurriculums);
+      // Convert API format to component format
+      const convertedCurriculums: Curriculum[] = apiCurriculums.map((curr) => ({
+        id: curr.curriculumId.toString(),
+        name: curr.name,
+        description: curr.description,
+        code: curr.code || "",
+        isActive: !curr.isDeleted,
+        createdAt: curr.createdDate || new Date().toISOString(),
+        updatedAt: curr.modifiedDate || new Date().toISOString(),
+      }));
+
+      setCurriculums(convertedCurriculums);
       console.log(
-        "✅ Loaded curriculums (using fallback data):",
-        mockCurriculums.length,
+        "✅ Loaded curriculums from API for goals:",
+        convertedCurriculums.length,
       );
     } catch (error) {
-      console.error("❌ Error loading curriculums:", error);
+      console.error("❌ Error loading curriculums from API:", error);
       setCurriculums([]);
     }
   };
 
   const loadSubjects = async () => {
     try {
-      // Always use mock data for now to avoid API issues
-      const mockSubjects: Subject[] = [
-        {
-          id: "1",
-          name: "Mathematics",
-          description: "Core mathematics",
-          code: "MATH",
-          isActive: true,
-          createdAt: "2024-01-15T10:00:00Z",
-          updatedAt: "2024-01-15T10:00:00Z",
-        },
-        {
-          id: "2",
-          name: "English Language",
-          description: "English language and literature",
-          code: "ENG",
-          isActive: true,
-          createdAt: "2024-01-16T10:00:00Z",
-          updatedAt: "2024-01-16T10:00:00Z",
-        },
-        {
-          id: "3",
-          name: "Science",
-          description: "Integrated science",
-          code: "SCI",
-          isActive: true,
-          createdAt: "2024-01-17T10:00:00Z",
-          updatedAt: "2024-17T10:00:00Z",
-        },
-      ];
+      console.log("🔄 Loading subjects from API for goals...");
+      const apiSubjects = await adminApiService.getSubjects();
 
-      setSubjects(mockSubjects);
+      // Convert API format to component format
+      const convertedSubjects: Subject[] = apiSubjects.map((subj) => ({
+        id: subj.subjectId.toString(),
+        name: subj.subjectName, // API uses subjectName instead of name
+        description: subj.description,
+        // Generate code from name if not provided by API
+        code:
+          (subj as any).code || subj.subjectName.substring(0, 3).toUpperCase(),
+        isActive: !subj.isDeleted,
+        createdAt: subj.createdDate || new Date().toISOString(),
+        updatedAt: subj.modifiedDate || new Date().toISOString(),
+      }));
+
+      setSubjects(convertedSubjects);
       console.log(
-        "✅ Loaded subjects (using fallback data):",
-        mockSubjects.length,
+        "✅ Loaded subjects from API for goals:",
+        convertedSubjects.length,
       );
     } catch (error) {
-      console.error("❌ Error loading subjects:", error);
+      console.error("❌ Error loading subjects from API:", error);
       setSubjects([]);
     }
   };

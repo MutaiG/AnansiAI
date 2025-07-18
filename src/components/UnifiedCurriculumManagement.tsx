@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -12,6 +12,7 @@ import CurriculumManagement from "@/components/CurriculumManagement";
 import SubjectManagement from "@/components/SubjectManagement";
 import MilestoneManagement from "@/components/MilestoneManagement";
 import GoalManagement from "@/components/GoalManagement";
+import { AdminApiService } from "@/services/adminApiService";
 
 interface UnifiedCurriculumManagementProps {
   onDataChange?: () => void;
@@ -21,8 +22,58 @@ const UnifiedCurriculumManagement: React.FC<
   UnifiedCurriculumManagementProps
 > = ({ onDataChange }) => {
   const [activeSubTab, setActiveSubTab] = useState("curriculums");
+  const [counts, setCounts] = useState({
+    curriculums: 0,
+    subjects: 0,
+    milestones: 0,
+    goals: 0,
+  });
+  const [loading, setLoading] = useState(true);
+
+  const adminApiService = AdminApiService.getInstance();
+
+  // Load data counts on component mount
+  useEffect(() => {
+    loadDataCounts();
+  }, []);
+
+  const loadDataCounts = async () => {
+    setLoading(true);
+    try {
+      console.log("🔄 Loading curriculum data counts...");
+
+      // Fetch all data in parallel
+      const [curriculums, subjects, milestones, goals] =
+        await Promise.allSettled([
+          adminApiService.getCurriculums(),
+          adminApiService.getSubjects(),
+          adminApiService.getMilestones(),
+          adminApiService.getGoals(),
+        ]);
+
+      // Extract counts from settled promises
+      const newCounts = {
+        curriculums:
+          curriculums.status === "fulfilled" ? curriculums.value.length : 0,
+        subjects: subjects.status === "fulfilled" ? subjects.value.length : 0,
+        milestones:
+          milestones.status === "fulfilled" ? milestones.value.length : 0,
+        goals: goals.status === "fulfilled" ? goals.value.length : 0,
+      };
+
+      setCounts(newCounts);
+      console.log("✅ Loaded curriculum data counts:", newCounts);
+    } catch (error) {
+      console.error("❌ Error loading curriculum data counts:", error);
+      // Keep default counts of 0 on error
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleDataChange = () => {
+    // Reload counts when data changes
+    loadDataCounts();
     onDataChange?.();
   };
 
@@ -52,7 +103,9 @@ const UnifiedCurriculumManagement: React.FC<
             <Globe className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">3</div>
+            <div className="text-2xl font-bold text-blue-600">
+              {loading ? "..." : counts.curriculums}
+            </div>
             <p className="text-xs text-gray-600">Education systems</p>
           </CardContent>
         </Card>
@@ -66,7 +119,9 @@ const UnifiedCurriculumManagement: React.FC<
             <BookOpen className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">12</div>
+            <div className="text-2xl font-bold text-green-600">
+              {loading ? "..." : counts.subjects}
+            </div>
             <p className="text-xs text-gray-600">Academic subjects</p>
           </CardContent>
         </Card>
@@ -80,7 +135,9 @@ const UnifiedCurriculumManagement: React.FC<
             <Target className="h-4 w-4 text-purple-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-purple-600">24</div>
+            <div className="text-2xl font-bold text-purple-600">
+              {loading ? "..." : counts.milestones}
+            </div>
             <p className="text-xs text-gray-600">Content milestones</p>
           </CardContent>
         </Card>
@@ -94,7 +151,9 @@ const UnifiedCurriculumManagement: React.FC<
             <Award className="h-4 w-4 text-orange-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600">18</div>
+            <div className="text-2xl font-bold text-orange-600">
+              {loading ? "..." : counts.goals}
+            </div>
             <p className="text-xs text-gray-600">Learning goals</p>
           </CardContent>
         </Card>

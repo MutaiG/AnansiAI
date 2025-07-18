@@ -20,7 +20,7 @@ const DevelopmentBanner = () => {
   const [isVisible, setIsVisible] = useState(true);
   const [showCorsHelper, setShowCorsHelper] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
-  const baseURL = "http://13.60.98.134/anansiai";
+  const baseURL = axiosClient.defaults.baseURL;
   const isProduction = process.env.NODE_ENV === "production";
   const isSecure = window.location.protocol === "https:";
 

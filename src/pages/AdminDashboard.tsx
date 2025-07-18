@@ -56,6 +56,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import MixedContentResolver from "@/components/MixedContentResolver";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -155,6 +156,14 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import axiosClient from "@/services/axiosClient";
+import {
+  adminApiService,
+  type Institution,
+  type Subject,
+  type Lesson,
+  type Assignment,
+  type EnumsResponse,
+} from "@/services/adminApiService";
 
 // Types for AdminDashboard
 interface AdminDashboardData {
@@ -328,17 +337,15 @@ const AdminDashboard = () => {
   );
   const [isMessageModalOpen, setIsMessageModalOpen] = useState(false);
 
-  // API functions
+  // API functions using the new comprehensive service
   const fetchAvailableRoles = async () => {
     try {
       setRolesLoading(true);
       console.log("🔄 Fetching available roles from API...");
 
-      const response = await axiosClient.get("/api/Users/all-roles");
-      const roles = Array.isArray(response.data) ? response.data : [];
-
+      const roles = await adminApiService.getAllRoles();
       console.log("📋 Available roles:", roles);
-      setAvailableRoles(roles);
+      setAvailableRoles(Array.isArray(roles) ? roles : []);
     } catch (error) {
       console.warn("⚠️ Could not fetch roles, using defaults:", error);
       // Fallback to default roles if API fails
@@ -355,85 +362,43 @@ const AdminDashboard = () => {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      console.log("🔄 Fetching admin dashboard data from available APIs...");
+      console.log(
+        "🔄 Fetching admin dashboard data using comprehensive API service...",
+      );
 
-      // Fetch data from all available endpoints
-      const [
-        institutionsResponse,
-        teachersResponse,
-        studentsResponse,
-        adminsResponse,
-        subjectsResponse,
-        lessonsResponse,
-        assignmentsResponse,
-        rolesResponse,
-      ] = await Promise.all([
-        axiosClient.get("/api/Institutions").catch(() => ({ data: [] })),
-        axiosClient
-          .get("/api/Users/get-users-by-role?roleName=Teacher")
-          .catch(() => ({ data: [] })),
-        axiosClient
-          .get("/api/Users/get-users-by-role?roleName=Student")
-          .catch(() => ({ data: [] })),
-        axiosClient
-          .get("/api/Users/get-users-by-role?roleName=Admin")
-          .catch(() => ({ data: [] })),
-        axiosClient
-          .get("/api/subjects/all-subjects")
-          .catch(() => ({ data: [] })),
-        axiosClient.get("/api/lessons/all-lessons").catch(() => ({ data: [] })),
-        axiosClient
-          .get("/api/assignments/all-assignments")
-          .catch(() => ({ data: [] })),
-        axiosClient.get("/api/Users/all-roles").catch(() => ({ data: [] })),
-      ]);
+      // Use the new comprehensive API service
+      const dashboardData = await adminApiService.getDashboardData();
+
+      const {
+        institutions: institutionsData = [],
+        subjects: subjectsData = [],
+        lessons: lessonsData = [],
+        assignments: assignmentsData = [],
+        users: { teachers = [], students = [], admins = [] } = {},
+        enums = { Success: false, data: {} },
+        stats = {},
+      } = dashboardData;
 
       console.log("📊 API Response Summary:");
+      console.log(`  🏫 Institutions: ${institutionsData.length}`);
+      console.log(`  👨‍🏫 Teachers: ${teachers.length}`);
+      console.log(`  👨‍🎓 Students: ${students.length}`);
+      console.log(`  👨‍💼 Admins: ${admins.length}`);
       console.log(
-        `  🏫 Institutions: ${Array.isArray(institutionsResponse.data) ? institutionsResponse.data.length : 0}`,
+        `  📚 Subjects: ${Array.isArray(subjectsData) ? subjectsData.length : 0}`,
       );
       console.log(
-        `  👨‍🏫 Teachers: ${Array.isArray(teachersResponse.data) ? teachersResponse.data.length : 0}`,
+        `  📖 Lessons: ${Array.isArray(lessonsData) ? lessonsData.length : 0}`,
       );
       console.log(
-        `  👨‍🎓 Students: ${Array.isArray(studentsResponse.data) ? studentsResponse.data.length : 0}`,
-      );
-      console.log(
-        `  👨‍💼 Admins: ${Array.isArray(adminsResponse.data) ? adminsResponse.data.length : 0}`,
-      );
-      console.log(
-        `  ��� Subjects: ${Array.isArray(subjectsResponse.data) ? subjectsResponse.data.length : 0}`,
-      );
-      console.log(
-        `  📖 Lessons: ${Array.isArray(lessonsResponse.data) ? lessonsResponse.data.length : 0}`,
-      );
-      console.log(
-        `  📝 Assignments: ${Array.isArray(assignmentsResponse.data) ? assignmentsResponse.data.length : 0}`,
+        `  📝 Assignments: ${Array.isArray(assignmentsData) ? assignmentsData.length : 0}`,
       );
 
-      // Extract and clean data
-      const institutions = Array.isArray(institutionsResponse.data)
-        ? institutionsResponse.data
-        : [];
-      const teachers = Array.isArray(teachersResponse.data)
-        ? teachersResponse.data
-        : [];
-      const students = Array.isArray(studentsResponse.data)
-        ? studentsResponse.data
-        : [];
-      const admins = Array.isArray(adminsResponse.data)
-        ? adminsResponse.data
-        : [];
-      const subjects = Array.isArray(subjectsResponse.data)
-        ? subjectsResponse.data
-        : [];
-      const lessons = Array.isArray(lessonsResponse.data)
-        ? lessonsResponse.data
-        : [];
-      const assignments = Array.isArray(assignmentsResponse.data)
-        ? assignmentsResponse.data
-        : [];
-      const roles = Array.isArray(rolesResponse.data) ? rolesResponse.data : [];
+      // Data is already available from destructuring above
+      const institutions = institutionsData;
+      const subjects = subjectsData;
+      const lessons = lessonsData;
+      const assignments = assignmentsData;
 
       // Combine all users for recent users list
       const allUsers = [...teachers, ...students, ...admins];
@@ -445,17 +410,17 @@ const AdminDashboard = () => {
         students.length > 0 ||
         subjects.length > 0;
 
-      const dashboardData: AdminDashboardData = {
+      const processedDashboardData: AdminDashboardData = {
         stats: {
-          totalStudents: students.length || 156, // Use real data or fallback
-          totalTeachers: teachers.length || 28,
-          totalSubjects: subjects.length || 34,
-          totalClasses: lessons.length || 22, // Use lessons as classes
-          activeAssignments: assignments.length || 47,
-          averageAttendance: 87, // No API endpoint available - keep demo data
+          totalStudents: students.length,
+          totalTeachers: teachers.length,
+          totalSubjects: subjects.length,
+          totalClasses: lessons.length,
+          activeAssignments: assignments.length,
+          averageAttendance: 0, // Will be calculated from real data when available
           systemAlerts: 0,
-          pendingApprovals:
-            assignments.filter((a) => a.approvalStatus === 1).length || 9, // Use pending assignments
+          pendingApprovals: assignments.filter((a) => a.approvalStatus === 1)
+            .length,
         },
         adminProfile:
           hasRealData && admins.length > 0
@@ -463,7 +428,7 @@ const AdminDashboard = () => {
                 fullName:
                   `${admins[0].firstName || ""} ${admins[0].lastName || ""}`.trim() ||
                   "School Administrator",
-                schoolName: institutions[0]?.name || "Demo School",
+                schoolName: institutions[0]?.name || "School",
                 lastLogin: new Date(
                   admins[0].lastLogin || Date.now(),
                 ).toLocaleDateString(),
@@ -550,51 +515,13 @@ const AdminDashboard = () => {
         },
       };
 
-      setDashboardData(dashboardData);
+      setDashboardData(processedDashboardData);
     } catch (error: any) {
       console.error("Error fetching dashboard data:", error);
 
-      // Complete fallback if everything fails
-      const fallbackData: AdminDashboardData = {
-        stats: {
-          totalStudents: 156,
-          totalTeachers: 28,
-          totalSubjects: 34,
-          totalClasses: 22,
-          activeAssignments: 47,
-          averageAttendance: 89,
-          systemAlerts: 3,
-          pendingApprovals: 9,
-        },
-        recentUsers: [],
-        systemAlerts: [
-          {
-            id: "1",
-            title: "Offline Mode",
-            description:
-              "Unable to connect to API. All data shown is for demonstration purposes.",
-            message:
-              "Unable to connect to API. All data shown is for demonstration purposes.",
-            type: "warning",
-            timestamp: new Date().toISOString(),
-            severity: "high" as const,
-            resolved: false,
-            isRead: false,
-          },
-        ],
-        subjects: [],
-        classes: [],
-        assignments: [],
-        analytics: {
-          studentEngagement: 78,
-          teacherActivity: 91,
-          resourceUsage: 63,
-          systemPerformance: 88,
-        },
-      };
-
-      setDashboardData(fallbackData);
-      setError("API connection failed - showing demo data");
+      // If API fails, throw the error instead of using fallback data
+      console.error("Failed to fetch dashboard data from API:", error);
+      setError(`API connection failed: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -673,7 +600,7 @@ const AdminDashboard = () => {
 
       console.error("🚨 Full error object:", error);
       console.error("🚨 Error response:", error.response);
-      console.error("🚨 Error response data:", error.response?.data);
+      console.error("��� Error response data:", error.response?.data);
       console.error("🚨 Error status:", error.response?.status);
       console.error("🚨 Error headers:", error.response?.headers);
 
@@ -1023,37 +950,37 @@ const AdminDashboard = () => {
   }, [adminInfo.school, adminInfo.name, adminInfo.department]);
 
   const schoolStats = {
-    totalStudents: dashboardData?.schoolStats?.totalStudents ?? 1247,
-    totalTeachers: dashboardData?.schoolStats?.totalTeachers ?? 89,
-    totalClasses: 34, // Not in interface, using fallback
-    totalSubjects: dashboardData?.schoolStats?.totalSubjects ?? 12,
-    avgPerformance: dashboardData?.schoolStats?.avgPerformance ?? 87,
-    systemUptime: dashboardData?.schoolStats?.systemUptime ?? 99.8,
-    dataStorage: dashboardData?.schoolStats?.dataStorage ?? 45.2,
-    activeUsers: dashboardData?.schoolStats?.activeUsers ?? 234,
-    dailyLogins: dashboardData?.schoolStats?.dailyLogins ?? 456,
-    coursesCreated: 28, // Not in interface, using fallback
-    assignmentsCompleted: 1847, // Not in interface, using fallback
-    aiInteractions: 892, // Not in interface, using fallback
-    behaviorAlerts: 15, // Not in interface, using fallback
-    avgEngagement: 78, // Not in interface, using fallback
-    achievementsEarned: 156, // Not in interface, using fallback
+    totalStudents: dashboardData?.stats?.totalStudents || 0,
+    totalTeachers: dashboardData?.stats?.totalTeachers || 0,
+    totalClasses: dashboardData?.stats?.totalClasses || 0,
+    totalSubjects: dashboardData?.stats?.totalSubjects || 0,
+    avgPerformance: dashboardData?.schoolStats?.avgPerformance || 0,
+    systemUptime: dashboardData?.schoolStats?.systemUptime || 0,
+    dataStorage: dashboardData?.schoolStats?.dataStorage || 0,
+    activeUsers: dashboardData?.schoolStats?.activeUsers || 0,
+    dailyLogins: dashboardData?.schoolStats?.dailyLogins || 0,
+    coursesCreated: dashboardData?.stats?.totalClasses || 0,
+    assignmentsCompleted: dashboardData?.stats?.activeAssignments || 0,
+    aiInteractions: 0, // Will be from real API when available
+    behaviorAlerts: 0, // Will be from real API when available
+    avgEngagement: 0, // Will be from real API when available
+    achievementsEarned: 0, // Will be from real API when available
   };
 
   const systemAlerts = dashboardData?.systemAlerts || [];
   const users = dashboardData?.users || [];
   const subjects = dashboardData?.subjects || [];
 
-  // Mock AI and behavior data (would come from API in real system)
+  // AI and behavior data from API (when available)
   const aiSystemStats = {
-    totalInteractions: 8924,
-    activeAITwins: 892,
-    avgAccuracy: 94.2,
-    behaviorAlertsToday: 12,
-    moodAnalysisActive: 1156,
-    personalizedRecommendations: 2341,
-    studentEngagementUp: 15.3,
-    averageSessionTime: "24 min",
+    totalInteractions: 0,
+    activeAITwins: dashboardData?.stats?.totalStudents || 0,
+    avgAccuracy: 0,
+    behaviorAlertsToday: 0,
+    moodAnalysisActive: 0,
+    personalizedRecommendations: 0,
+    studentEngagementUp: 0,
+    averageSessionTime: "0 min",
   };
 
   const recentBehaviorAlerts = [
@@ -1240,7 +1167,7 @@ const AdminDashboard = () => {
   };
 
   const handleDeleteSubject = (subject: SubjectData) => {
-    console.log("🗑️ Delete subject called with:", subject);
+    console.log("����️ Delete subject called with:", subject);
     console.log(
       "Subject ID:",
       subject.subjectId,
@@ -1389,9 +1316,16 @@ const AdminDashboard = () => {
   };
 
   const handleLogout = () => {
+    // Clear all authentication data
+    localStorage.removeItem("authToken");
     localStorage.removeItem("userRole");
     localStorage.removeItem("userId");
     localStorage.removeItem("userName");
+    localStorage.removeItem("userEmail");
+
+    console.log("🔄 User logged out, redirecting to login...");
+
+    // Navigate to login page
     navigate("/login");
   };
 
@@ -1631,22 +1565,39 @@ const AdminDashboard = () => {
 
   // Error state
   if (error) {
+    // Check if this is a mixed content error
+    const isMixedContentError =
+      error.includes("Mixed Content") ||
+      error.includes("Network Error") ||
+      error.includes("HTTPS->HTTP blocked");
+
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Card className="max-w-md">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-red-500" />
-              Error Loading Dashboard
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-gray-600">{error}</p>
-            <Button onClick={reload} className="w-full">
-              Try Again
-            </Button>
-          </CardContent>
-        </Card>
+      <div className="flex items-center justify-center min-h-screen p-4">
+        <div className="max-w-4xl w-full space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-red-500" />
+                Dashboard Connection Error
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Alert className="border-red-200 bg-red-50">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription className="text-red-800">
+                  {error}
+                </AlertDescription>
+              </Alert>
+              <Button onClick={reload} className="w-full">
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Try Again
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Show mixed content resolver if this appears to be a mixed content issue */}
+          {isMixedContentError && <MixedContentResolver onResolved={reload} />}
+        </div>
       </div>
     );
   }
@@ -2880,7 +2831,7 @@ const AdminDashboard = () => {
                   <CardContent>
                     <div className="space-y-2 text-sm text-gray-600 mb-4">
                       <div>• Grade distributions</div>
-                      <div>��� Subject performance</div>
+                      <div>���� Subject performance</div>
                       <div>• Achievement statistics</div>
                     </div>
                     <Button className="w-full" onClick={handleExportReport}>
