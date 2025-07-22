@@ -7,11 +7,19 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Globe, BookOpen, Target, Award, GraduationCap } from "lucide-react";
+import {
+  Globe,
+  BookOpen,
+  Target,
+  Award,
+  GraduationCap,
+  Calendar,
+} from "lucide-react";
 import CurriculumManagement from "@/components/CurriculumManagement";
 import SubjectManagement from "@/components/SubjectManagement";
 import MilestoneManagement from "@/components/MilestoneManagement";
 import GoalManagement from "@/components/GoalManagement";
+import TermManagement from "@/components/TermManagement";
 import { AdminApiService } from "@/services/adminApiService";
 
 interface UnifiedCurriculumManagementProps {
@@ -27,6 +35,7 @@ const UnifiedCurriculumManagement: React.FC<
     subjects: 0,
     milestones: 0,
     goals: 0,
+    terms: 0,
   });
   const [loading, setLoading] = useState(true);
 
@@ -43,12 +52,13 @@ const UnifiedCurriculumManagement: React.FC<
       console.log("🔄 Loading curriculum data counts...");
 
       // Fetch all data in parallel
-      const [curriculums, subjects, milestones, goals] =
+      const [curriculums, subjects, milestones, goals, terms] =
         await Promise.allSettled([
           adminApiService.getCurriculums(),
           adminApiService.getSubjects(),
           adminApiService.getMilestones(),
           adminApiService.getGoals(),
+          adminApiService.getTerms(),
         ]);
 
       // Extract counts from settled promises
@@ -59,6 +69,7 @@ const UnifiedCurriculumManagement: React.FC<
         milestones:
           milestones.status === "fulfilled" ? milestones.value.length : 0,
         goals: goals.status === "fulfilled" ? goals.value.length : 0,
+        terms: terms.status === "fulfilled" ? terms.value.length : 0,
       };
 
       setCounts(newCounts);
@@ -93,7 +104,7 @@ const UnifiedCurriculumManagement: React.FC<
       </div>
 
       {/* Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         <Card
           className="border-l-4 border-l-blue-500 hover:shadow-md transition-shadow cursor-pointer"
           onClick={() => setActiveSubTab("curriculums")}
@@ -107,6 +118,22 @@ const UnifiedCurriculumManagement: React.FC<
               {loading ? "..." : counts.curriculums}
             </div>
             <p className="text-xs text-gray-600">Education systems</p>
+          </CardContent>
+        </Card>
+
+        <Card
+          className="border-l-4 border-l-cyan-500 hover:shadow-md transition-shadow cursor-pointer"
+          onClick={() => setActiveSubTab("terms")}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Terms</CardTitle>
+            <Calendar className="h-4 w-4 text-cyan-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-cyan-600">
+              {loading ? "..." : counts.terms}
+            </div>
+            <p className="text-xs text-gray-600">Academic terms</p>
           </CardContent>
         </Card>
 
@@ -170,13 +197,17 @@ const UnifiedCurriculumManagement: React.FC<
         </CardHeader>
         <CardContent>
           <Tabs value={activeSubTab} onValueChange={setActiveSubTab}>
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger
                 value="curriculums"
                 className="flex items-center gap-2"
               >
                 <Globe className="w-4 h-4" />
                 Curriculums
+              </TabsTrigger>
+              <TabsTrigger value="terms" className="flex items-center gap-2">
+                <Calendar className="w-4 h-4" />
+                Terms
               </TabsTrigger>
               <TabsTrigger value="subjects" className="flex items-center gap-2">
                 <BookOpen className="w-4 h-4" />
@@ -197,6 +228,10 @@ const UnifiedCurriculumManagement: React.FC<
 
             <TabsContent value="curriculums" className="mt-6">
               <CurriculumManagement onCurriculumChange={handleDataChange} />
+            </TabsContent>
+
+            <TabsContent value="terms" className="mt-6">
+              <TermManagement onTermChange={handleDataChange} />
             </TabsContent>
 
             <TabsContent value="subjects" className="mt-6">

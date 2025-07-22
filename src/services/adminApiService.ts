@@ -295,7 +295,6 @@ export interface Term {
 }
 
 export interface CreateTermDto {
-  termId?: number;
   termName: string;
   institutionId: number;
 }
@@ -443,7 +442,7 @@ export class AdminApiService {
         hasMixedContent: true,
         errorMessage: this.mixedContentHelper.getMixedContentErrorMessage(),
         solutions: [
-          "Configure SSL certificate on your API server (13.60.98.134)",
+                    "Configure SSL certificate on your API server (13.61.2.251)",
           "Deploy this application on HTTP for development",
           "Use a reverse proxy with HTTPS support",
         ],

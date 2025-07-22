@@ -82,7 +82,7 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
   } | null>(null);
   const [testingConnection, setTestingConnection] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
-  const baseURL = "http://13.60.98.134/anansiai";
+  const baseURL = "http://13.60.38.213/anansiai";
 
   // Check API connection
   const checkConnection = async () => {
@@ -281,7 +281,7 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
       const newInstitution = institutionResponse.data;
       setSelectedInstitution(newInstitution);
       console.log(
-        "✅ Auto-selected newly created institution:",
+        "��� Auto-selected newly created institution:",
         newInstitution,
       );
 

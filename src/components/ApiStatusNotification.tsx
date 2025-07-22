@@ -9,7 +9,7 @@ const ApiStatusNotification: React.FC = () => {
   const [hasShownConnected, setHasShownConnected] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [retrying, setRetrying] = useState(false);
-  const baseURL = "http://13.60.98.134/anansiai";
+  const baseURL = "http://13.60.38.213/anansiai";
 
   const checkConnection = async () => {
     try {

@@ -86,11 +86,50 @@ const MilestoneManagement: React.FC<MilestoneManagementProps> = ({
   const { toast } = useToast();
   const adminApiService = AdminApiService.getInstance();
 
+  // Helper function to extract curriculum info from term name
+  const extractCurriculumFromTermName = (termName: string) => {
+    const match = termName.match(/^\[([^\]]+)\]/);
+    if (match) {
+      const curriculumCode = match[1];
+      return {
+        curriculumCode,
+        cleanTermName: termName.replace(/^\[[^\]]+\]\s*/, ""),
+        hasPrefix: true,
+      };
+    }
+    return {
+      curriculumCode: null,
+      cleanTermName: termName,
+      hasPrefix: false,
+    };
+  };
+
+  // Helper function to get terms for a specific curriculum
+  const getTermsForCurriculum = (curriculumId: string) => {
+    const curriculum = curriculums.find((c) => c.id === curriculumId);
+    if (!curriculum) return [];
+
+    return terms.filter((term) => {
+      const termInfo = extractCurriculumFromTermName(term.termName);
+      return termInfo.hasPrefix && termInfo.curriculumCode === curriculum.code;
+    });
+    };
+
+  // Helper function to get term name from term ID
+  const getTermNameById = (termId: string) => {
+    const term = terms.find((t) => t.termId.toString() === termId);
+    if (!term) return `Term ID: ${termId}`;
+
+    const termInfo = extractCurriculumFromTermName(term.termName);
+    return termInfo.cleanTermName;
+  };
+
   // State management
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [curriculums, setCurriculums] = useState<Curriculum[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [relations, setRelations] = useState<any[]>([]);
+  const [terms, setTerms] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -115,6 +154,7 @@ const MilestoneManagement: React.FC<MilestoneManagementProps> = ({
     loadCurriculums();
     loadSubjects();
     loadRelations();
+    loadTerms();
   }, []);
 
   const loadMilestones = async () => {
@@ -225,21 +265,89 @@ const MilestoneManagement: React.FC<MilestoneManagementProps> = ({
 
   const loadRelations = async () => {
     try {
-      // Always use mock data for now to avoid API issues
-      const mockRelations = [
-        { id: "r1", subjectId: "1", curriculumId: "1" },
-        { id: "r2", subjectId: "1", curriculumId: "2" },
-        { id: "r3", subjectId: "2", curriculumId: "1" },
-        { id: "r4", subjectId: "3", curriculumId: "1" },
-      ];
-      setRelations(mockRelations);
       console.log(
-        "✅ Loaded relations (using fallback data):",
-        mockRelations.length,
+        "🔄 Building relations from API subject data for milestones...",
+      );
+
+      // Create relations from the subjects data we already have
+      // Each subject contains a curriculumId, so we can build the relations
+      const apiSubjects = await adminApiService.getSubjects();
+
+      const apiRelations = apiSubjects
+        .filter((subj) => subj.curriculumId) // Only subjects with curriculum assignments
+        .map((subj, index) => ({
+          id: `r${subj.subjectId}`,
+          subjectId: subj.subjectId.toString(),
+          curriculumId: subj.curriculumId.toString(),
+          createdAt: subj.createdDate || new Date().toISOString(),
+        }));
+
+      setRelations(apiRelations);
+      console.log(
+        "✅ Built relations from API data for milestones:",
+        apiRelations.length,
       );
     } catch (error) {
       console.error("❌ Error loading relations:", error);
+      // Fall back to empty relations if API fails
       setRelations([]);
+    }
+  };
+
+  const loadTerms = async () => {
+    try {
+      console.log("🔄 Loading terms from API for milestones...");
+      const apiTerms = await adminApiService.getTerms();
+      setTerms(apiTerms);
+      console.log("✅ Loaded terms from API for milestones:", apiTerms.length);
+
+      // If no terms exist, create default terms
+      if (apiTerms.length === 0) {
+        console.log("🔄 No terms found, creating default terms...");
+        await createDefaultTerms();
+      }
+    } catch (error) {
+      console.error("❌ Error loading terms:", error);
+      // Try to create default terms if loading fails
+      console.log("🔄 Creating default terms due to load error...");
+      await createDefaultTerms();
+    }
+  };
+
+  const createDefaultTerms = async () => {
+    const defaultTerms = [
+      { termName: "Term 1", institutionId: 1 },
+      { termName: "Term 2", institutionId: 1 },
+      { termName: "Term 3", institutionId: 1 },
+      { termName: "Quarter 1", institutionId: 1 },
+      { termName: "Quarter 2", institutionId: 1 },
+      { termName: "Quarter 3", institutionId: 1 },
+      { termName: "Quarter 4", institutionId: 1 },
+      { termName: "Semester 1", institutionId: 1 },
+      { termName: "Semester 2", institutionId: 1 },
+      { termName: "Full Year", institutionId: 1 },
+    ];
+
+    try {
+      const createdTerms = [];
+      for (const termData of defaultTerms) {
+        try {
+          const createdTerm = await adminApiService.createTerm(termData);
+          createdTerms.push(createdTerm);
+          console.log(`✅ Created term: ${termData.termName}`);
+        } catch (error) {
+          console.log(
+            `⚠️ Term ${termData.termName} might already exist, skipping...`,
+          );
+        }
+      }
+
+      // Reload terms after creation
+      const allTerms = await adminApiService.getTerms();
+      setTerms(allTerms);
+      console.log("✅ Default terms created and loaded:", allTerms.length);
+    } catch (error) {
+      console.error("❌ Error creating default terms:", error);
     }
   };
 
@@ -275,27 +383,55 @@ const MilestoneManagement: React.FC<MilestoneManagementProps> = ({
       return;
     }
 
-    const newMilestone: Milestone = {
-      id: Date.now().toString(),
-      curriculumId: formData.curriculumId,
-      subjectId: formData.subjectId,
-      term: formData.term,
-      milestone: formData.milestone,
-      isActive: true,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    try {
+      console.log("🔄 Creating milestone via API...");
 
-    setMilestones([...milestones, newMilestone]);
-    setIsAddDialogOpen(false);
-    resetForm();
+      // Get real term ID from loaded terms
+      const getTermId = (termName: string): number => {
+        const foundTerm = terms.find((term) => term.termName === termName);
+        if (foundTerm) {
+          return foundTerm.termId;
+        }
 
-    toast({
-      title: "Success",
-      description: "Milestone created successfully",
-    });
+        console.warn(
+          `⚠️ Term "${termName}" not found in loaded terms, using fallback ID 1`,
+        );
+        return 1; // Fallback if term not found
+      };
 
-    onMilestoneChange?.();
+      const createData = {
+        description: formData.milestone,
+        curriculumId: parseInt(formData.curriculumId),
+        subjectId: parseInt(formData.subjectId),
+        termId: getTermId(formData.term),
+        institutionId: 1, // Default institution ID - you may want to make this configurable
+      };
+
+      console.log("📤 API Payload for milestone:", createData);
+      const createdMilestone =
+        await adminApiService.createMilestone(createData);
+      console.log("✅ Milestone created successfully:", createdMilestone);
+
+      // Reload milestones to get the latest data from API
+      await loadMilestones();
+
+      setIsAddDialogOpen(false);
+      resetForm();
+
+      toast({
+        title: "Success",
+        description: "Milestone created successfully",
+      });
+
+      onMilestoneChange?.();
+    } catch (error) {
+      console.error("❌ Error creating milestone:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to create milestone. Please try again.",
+      });
+    }
   };
 
   const handleEdit = async () => {
@@ -567,9 +703,9 @@ const MilestoneManagement: React.FC<MilestoneManagementProps> = ({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Terms</SelectItem>
-                  {TERM_OPTIONS.map((term) => (
-                    <SelectItem key={term} value={term}>
-                      {term}
+                  {terms.map((term) => (
+                    <SelectItem key={term.termId} value={term.termName}>
+                      {term.termName}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -634,8 +770,8 @@ const MilestoneManagement: React.FC<MilestoneManagementProps> = ({
                       <TableCell className="font-medium">
                         {getSubjectName(milestone.subjectId)}
                       </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary">{milestone.term}</Badge>
+                                            <TableCell>
+                        <Badge variant="secondary">{getTermNameById(milestone.term)}</Badge>
                       </TableCell>
                       <TableCell className="max-w-md">
                         <p className="truncate" title={milestone.milestone}>
@@ -801,13 +937,31 @@ const MilestoneManagement: React.FC<MilestoneManagementProps> = ({
                   <SelectValue placeholder="Select term/duration" />
                 </SelectTrigger>
                 <SelectContent>
-                  {TERM_OPTIONS.map((term) => (
-                    <SelectItem key={term} value={term}>
-                      {term}
+                  {formData.curriculumId ? (
+                    getTermsForCurriculum(formData.curriculumId).map((term) => {
+                      const termInfo = extractCurriculumFromTermName(
+                        term.termName,
+                      );
+                      return (
+                        <SelectItem key={term.termId} value={term.termName}>
+                          {termInfo.cleanTermName}
+                        </SelectItem>
+                      );
+                    })
+                  ) : (
+                    <SelectItem value="no-curriculum" disabled>
+                      Please select a curriculum first
                     </SelectItem>
-                  ))}
+                  )}
                 </SelectContent>
               </Select>
+              {formData.curriculumId &&
+                getTermsForCurriculum(formData.curriculumId).length === 0 && (
+                  <p className="text-sm text-orange-600 mt-2">
+                    ⚠️ No terms found for this curriculum. Please add terms to
+                    this curriculum first.
+                  </p>
+                )}
             </div>
             <div>
               <Label htmlFor="milestone">Milestone Content *</Label>
@@ -911,11 +1065,22 @@ const MilestoneManagement: React.FC<MilestoneManagementProps> = ({
                   <SelectValue placeholder="Select term/duration" />
                 </SelectTrigger>
                 <SelectContent>
-                  {TERM_OPTIONS.map((term) => (
-                    <SelectItem key={term} value={term}>
-                      {term}
+                  {formData.curriculumId ? (
+                    getTermsForCurriculum(formData.curriculumId).map((term) => {
+                      const termInfo = extractCurriculumFromTermName(
+                        term.termName,
+                      );
+                      return (
+                        <SelectItem key={term.termId} value={term.termName}>
+                          {termInfo.cleanTermName}
+                        </SelectItem>
+                      );
+                    })
+                  ) : (
+                    <SelectItem value="no-curriculum" disabled>
+                      Please select a curriculum first
                     </SelectItem>
-                  ))}
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -968,8 +1133,8 @@ const MilestoneManagement: React.FC<MilestoneManagementProps> = ({
                 </div>
               </div>
               <div>
-                <Label>Term</Label>
-                <Badge variant="secondary">{selectedMilestone.term}</Badge>
+                                <Label>Term</Label>
+                <Badge variant="secondary">{getTermNameById(selectedMilestone.term)}</Badge>
               </div>
               <div>
                 <Label>Milestone Content</Label>

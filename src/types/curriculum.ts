@@ -33,7 +33,7 @@ export interface Milestone {
   id: string;
   curriculumId: string;
   subjectId: string;
-  term: string; // e.g., "Term 1", "Quarter 1", "Semester 1"
+  term: string; // e.g., "Term 1", "Quarter 1", "Semester 1" (clean name)
   milestone: string; // Description of what content is to be covered
   isActive: boolean;
   createdAt: string;
@@ -41,13 +41,17 @@ export interface Milestone {
   // Related entities for UI display
   curriculum?: Curriculum;
   subject?: Subject;
+  // Additional fields for teacher dashboard
+  curriculumName?: string;
+  subjectName?: string;
+  termFull?: string; // Full term name with curriculum prefix
 }
 
 export interface Goal {
   id: string;
   curriculumId: string;
   subjectId: string;
-  term: string; // e.g., "Term 1", "Quarter 1", "Semester 1"
+  term: string; // e.g., "Term 1", "Quarter 1", "Semester 1" (clean name)
   goal: string; // Description of what learners should achieve
   isActive: boolean;
   createdAt: string;
@@ -55,6 +59,10 @@ export interface Goal {
   // Related entities for UI display
   curriculum?: Curriculum;
   subject?: Subject;
+  // Additional fields for teacher dashboard
+  curriculumName?: string;
+  subjectName?: string;
+  termFull?: string; // Full term name with curriculum prefix
 }
 
 // Common options for terms/durations

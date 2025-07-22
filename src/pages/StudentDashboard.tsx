@@ -53,9 +53,12 @@ import {
   Zap,
   Filter,
   Search,
-  RefreshCw,
+    RefreshCw,
   Plus,
   Eye,
+  StopCircle,
+  Timer,
+  Pause,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import axiosClient from "@/services/axiosClient";
@@ -69,9 +72,35 @@ import {
   Subject,
   Lesson,
 } from "@/services/educationService";
+import {
+  lessonSessionService,
+  LessonSession as APILessonSession,
+  LessonSessionRequest,
+  EndLessonSessionRequest,
+} from "@/services/lessonSessionService";
+import { authService } from "@/services/authService";
 
 // API Configuration
-const API_BASE_URL = "http://13.60.98.134/anansiai";
+const API_BASE_URL = "http://13.61.2.251/anansiai";
+
+// Lesson timing interfaces
+interface LessonSession {
+  lessonId: number;
+  startTime: Date;
+  pausedTime?: number; // Total paused time in ms
+  isPaused: boolean;
+  subject: string;
+  lessonTitle: string;
+  // API session tracking
+  apiSessionId?: number;
+  apiSession?: APILessonSession;
+}
+
+interface LessonStats {
+  totalTime: number; // in seconds
+  pausedTime: number; // in seconds
+  effectiveTime: number; // total - paused
+}
 
 // Import AI components directly
 import { Suspense, lazy } from "react";
@@ -295,15 +324,298 @@ const StudentDashboard = () => {
   const [courses, setCourses] = useState<Course[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [educationLoading, setEducationLoading] = useState(false);
-  const [lessonsApiError, setLessonsApiError] = useState<string | null>(null);
+    const [lessonsApiError, setLessonsApiError] = useState<string | null>(null);
+  const [lessonSessionError, setLessonSessionError] = useState<string | null>(null);
 
-  // Auto-clear action feedback after 3 seconds
+  // Lesson timing state
+  const [activeLessonSession, setActiveLessonSession] = useState<LessonSession | null>(null);
+  const [lessonTimer, setLessonTimer] = useState<number>(0); // seconds since start
+  const [pauseStartTime, setPauseStartTime] = useState<Date | null>(null);
+
+    // Auto-clear action feedback after 3 seconds
   useEffect(() => {
     if (lastAction) {
       const timer = setTimeout(() => setLastAction(null), 3000);
       return () => clearTimeout(timer);
     }
   }, [lastAction]);
+
+  // Lesson timer effect
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+
+    if (activeLessonSession && !activeLessonSession.isPaused) {
+      interval = setInterval(() => {
+        const now = new Date();
+        const elapsed = Math.floor((now.getTime() - activeLessonSession.startTime.getTime()) / 1000);
+        const pausedTime = activeLessonSession.pausedTime || 0;
+        setLessonTimer(elapsed - Math.floor(pausedTime / 1000));
+      }, 1000);
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [activeLessonSession]);
+
+  // Behavior tracking effects
+  useEffect(() => {
+    if (!activeLessonSession?.apiSessionId) return;
+
+    let idleTimer: NodeJS.Timeout;
+    let lastActivity = Date.now();
+
+    // Track user activity
+    const resetIdleTimer = () => {
+      lastActivity = Date.now();
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        if (activeLessonSession?.apiSessionId) {
+          lessonSessionService.logUserActivity(
+            activeLessonSession.lessonId,
+            activeLessonSession.apiSessionId,
+            "student_001", // TODO: Get from auth context
+            1, // TODO: Get from auth context
+            "idle",
+            "User has been idle for 30 seconds"
+          );
+        }
+      }, 30000); // 30 seconds idle time
+    };
+
+    // Track focus loss
+    const handleVisibilityChange = () => {
+      if (document.hidden && activeLessonSession?.apiSessionId) {
+        lessonSessionService.logUserActivity(
+          activeLessonSession.lessonId,
+          activeLessonSession.apiSessionId,
+          "student_001", // TODO: Get from auth context
+          1, // TODO: Get from auth context
+          "focus_loss",
+          "User switched away from the application"
+        );
+      }
+    };
+
+    // Track tab switching
+    const handleBeforeUnload = () => {
+      if (activeLessonSession?.apiSessionId) {
+        lessonSessionService.logUserActivity(
+          activeLessonSession.lessonId,
+          activeLessonSession.apiSessionId,
+          "student_001", // TODO: Get from auth context
+          1, // TODO: Get from auth context
+          "tab_switch",
+          "User is leaving the lesson page"
+        );
+      }
+    };
+
+    // Activity event listeners
+    const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
+    activityEvents.forEach(event => {
+      document.addEventListener(event, resetIdleTimer, true);
+    });
+
+    // Focus/visibility event listeners
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    // Initialize idle timer
+    resetIdleTimer();
+
+    return () => {
+      clearTimeout(idleTimer);
+      activityEvents.forEach(event => {
+        document.removeEventListener(event, resetIdleTimer, true);
+      });
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [activeLessonSession?.apiSessionId]);
+
+  // Lesson timing functions
+  const startLesson = async (lesson: any, subject: Subject | undefined) => {
+    try {
+      // Start API session
+      const sessionRequest: LessonSessionRequest = {
+        lessonId: lesson.id,
+        studentId: "student_001", // TODO: Get from auth context
+        institutionId: 1, // TODO: Get from auth context
+      };
+
+      const apiResponse = await lessonSessionService.startLessonSession(sessionRequest);
+
+      if (!apiResponse.success) {
+        console.error("Failed to start lesson session:", apiResponse.error);
+        setLessonSessionError(apiResponse.error || "Failed to start lesson session");
+        setLastAction(`Error starting lesson: ${apiResponse.error}`);
+        return;
+      }
+
+      // Clear any previous errors
+      setLessonSessionError(null);
+
+      const newSession: LessonSession = {
+        lessonId: lesson.id,
+        startTime: new Date(),
+        pausedTime: 0,
+        isPaused: false,
+        subject: subject?.name || "Unknown Subject",
+        lessonTitle: lesson.title,
+        apiSessionId: apiResponse.data.lessonSessionId,
+        apiSession: apiResponse.data,
+      };
+
+      setActiveLessonSession(newSession);
+      setLessonTimer(0);
+      setLastAction(`Started lesson: ${lesson.title}`);
+
+      // Log lesson start behavior
+      if (newSession.apiSessionId) {
+        await lessonSessionService.logLessonAction(
+          lesson.id,
+          newSession.apiSessionId,
+          sessionRequest.studentId,
+          sessionRequest.institutionId,
+          "start",
+          `Started lesson: ${lesson.title}`
+        );
+      }
+
+      // Navigate to lesson content
+      navigate("/lesson-content", {
+        state: {
+          type: "lesson",
+          lesson: lesson,
+          subject: subject?.name || "Unknown Subject",
+          lessonId: lesson.id,
+          sessionStartTime: newSession.startTime,
+          apiSessionId: newSession.apiSessionId,
+        },
+      });
+    } catch (error) {
+      console.error("Failed to start lesson session:", error);
+      setLastAction(`Failed to start lesson: ${error}`);
+    }
+  };
+
+  const pauseLesson = async () => {
+    if (activeLessonSession && !activeLessonSession.isPaused) {
+      setPauseStartTime(new Date());
+      setActiveLessonSession({
+        ...activeLessonSession,
+        isPaused: true,
+      });
+      setLastAction(`Paused lesson: ${activeLessonSession.lessonTitle}`);
+
+      // Log pause behavior
+      if (activeLessonSession.apiSessionId) {
+        await lessonSessionService.logLessonAction(
+          activeLessonSession.lessonId,
+          activeLessonSession.apiSessionId,
+          "student_001", // TODO: Get from auth context
+          1, // TODO: Get from auth context
+          "pause",
+          `Paused lesson: ${activeLessonSession.lessonTitle}`
+        );
+      }
+    }
+  };
+
+  const resumeLesson = async () => {
+    if (activeLessonSession && activeLessonSession.isPaused && pauseStartTime) {
+      const pauseDuration = new Date().getTime() - pauseStartTime.getTime();
+      setActiveLessonSession({
+        ...activeLessonSession,
+        isPaused: false,
+        pausedTime: (activeLessonSession.pausedTime || 0) + pauseDuration,
+      });
+      setPauseStartTime(null);
+      setLastAction(`Resumed lesson: ${activeLessonSession.lessonTitle}`);
+
+      // Log resume behavior
+      if (activeLessonSession.apiSessionId) {
+        await lessonSessionService.logLessonAction(
+          activeLessonSession.lessonId,
+          activeLessonSession.apiSessionId,
+          "student_001", // TODO: Get from auth context
+          1, // TODO: Get from auth context
+          "resume",
+          `Resumed lesson: ${activeLessonSession.lessonTitle}`
+        );
+      }
+    }
+  };
+
+  const endLesson = async () => {
+    if (activeLessonSession) {
+      const endTime = new Date();
+      const totalTime = Math.floor((endTime.getTime() - activeLessonSession.startTime.getTime()) / 1000);
+      const pausedTime = Math.floor((activeLessonSession.pausedTime || 0) / 1000);
+      const effectiveTime = totalTime - pausedTime;
+
+      try {
+        // End API session
+        if (activeLessonSession.apiSessionId) {
+          const endRequest: EndLessonSessionRequest = {
+            endTime: endTime.toISOString(),
+            isActive: false,
+          };
+
+          const apiResponse = await lessonSessionService.endLessonSession(
+            activeLessonSession.apiSessionId,
+            endRequest
+          );
+
+          if (!apiResponse.success) {
+            console.error("Failed to end lesson session:", apiResponse.error);
+          }
+
+          // Log lesson end behavior
+          await lessonSessionService.logLessonAction(
+            activeLessonSession.lessonId,
+            activeLessonSession.apiSessionId,
+            "student_001", // TODO: Get from auth context
+            1, // TODO: Get from auth context
+            "end",
+            `Completed lesson: ${activeLessonSession.lessonTitle} in ${Math.floor(effectiveTime / 60)}m ${effectiveTime % 60}s`
+          );
+        }
+
+        setLastAction(
+          `Completed lesson: ${activeLessonSession.lessonTitle} (${Math.floor(effectiveTime / 60)}m ${effectiveTime % 60}s)`
+        );
+
+        console.log("Lesson completed:", {
+          lessonId: activeLessonSession.lessonId,
+          totalTime,
+          pausedTime,
+          effectiveTime,
+          subject: activeLessonSession.subject,
+          apiSessionId: activeLessonSession.apiSessionId,
+        });
+
+        setActiveLessonSession(null);
+        setLessonTimer(0);
+        setPauseStartTime(null);
+      } catch (error) {
+        console.error("Failed to end lesson session:", error);
+        setLastAction(`Error ending lesson: ${error}`);
+        // Still clear the local session even if API call fails
+        setActiveLessonSession(null);
+        setLessonTimer(0);
+        setPauseStartTime(null);
+      }
+    }
+  };
+
+  // Format time helper
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
   const [showNotifications, setShowNotifications] = useState(false);
   const [dashboardData, setDashboardData] =
     useState<StudentDashboardData | null>(null);
@@ -315,6 +627,10 @@ const StudentDashboard = () => {
       try {
         setLoading(true);
         setAssignmentsLoading(true);
+
+        // Ensure user is authenticated before making API calls
+        console.log("🔐 Checking authentication...");
+        await authService.ensureAuthenticated();
 
         // Load educational data (subjects, courses, assignments)
         setEducationLoading(true);
@@ -1079,6 +1395,8 @@ const StudentDashboard = () => {
             </div>
 
             <div className="flex items-center gap-4">
+
+
               {/* Mood Indicator */}
               <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-full">
                 <span className="text-lg">
@@ -1370,7 +1688,64 @@ const StudentDashboard = () => {
                       </div>
                     </CardContent>
                   </Card>
-                </div>
+                                </div>
+
+                {/* Current Lesson Status */}
+                {activeLessonSession && (
+                  <Card className="border-blue-200 bg-blue-50/50">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-lg">
+                        <Timer className="w-5 h-5 text-blue-600" />
+                        Current Lesson Session
+                        {activeLessonSession.apiSessionId && (
+                          <Badge variant="secondary" className="bg-green-100 text-green-700 text-xs ml-auto">
+                            Active
+                          </Badge>
+                        )}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h3 className="font-semibold text-lg text-gray-900">
+                              {activeLessonSession.lessonTitle}
+                            </h3>
+                            <p className="text-sm text-gray-600">
+                              {activeLessonSession.subject}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-2xl font-mono font-bold text-blue-600">
+                              {formatTime(lessonTimer)}
+                            </div>
+                            <p className="text-xs text-gray-500">
+                              {activeLessonSession.isPaused ? "Paused" : "Active"}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-2">
+                          {activeLessonSession.isPaused ? (
+                            <Button size="sm" onClick={resumeLesson} className="flex-1">
+                              <Play className="w-4 h-4 mr-2" />
+                              Resume
+                            </Button>
+                          ) : (
+                            <Button size="sm" variant="outline" onClick={pauseLesson} className="flex-1">
+                              <Pause className="w-4 h-4 mr-2" />
+                              Pause
+                            </Button>
+                          )}
+                          <Button size="sm" variant="destructive" onClick={endLesson} className="flex-1">
+                            <StopCircle className="w-4 h-4 mr-2" />
+                            End Lesson
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
 
                 {/* Learning Milestones - Responsive */}
                 <Card className="bg-gradient-to-br from-purple-50 to-blue-50 border-purple-200">
@@ -1996,52 +2371,50 @@ const StudentDashboard = () => {
                   </div>
                 )}
 
+                {/* Lesson Session Error Display */}
+                {lessonSessionError && (
+                  <div className="mb-6 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="w-5 h-5 text-orange-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <h4 className="font-medium text-orange-900">Unable to Start Lesson</h4>
+                        <p className="text-sm text-orange-700 mt-1">
+                          There was a problem starting your lesson session. Please try again.
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setLessonSessionError(null)}
+                        className="ml-auto"
+                      >
+                        Dismiss
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+
+
                 {/* Loading State */}
                 {educationLoading && (
                   <div className="text-center py-12">
                     <div className="w-8 h-8 mx-auto mb-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                    <p className="text-gray-600">Loading lessons from API...</p>
-                    <p className="text-sm text-gray-500 mt-2">
-                      Connecting to {API_BASE_URL}/api/lessons
-                    </p>
+                    <p className="text-gray-600">Loading your lessons...</p>
                   </div>
                 )}
 
-                {/* API Connection Error State */}
+                {/* Connection Error State - Simplified for users */}
                 {!educationLoading && lessonsApiError && (
                   <div className="text-center py-12">
                     <div className="max-w-md mx-auto">
-                      <AlertTriangle className="w-16 h-16 mx-auto mb-4 text-red-500" />
+                      <AlertTriangle className="w-16 h-16 mx-auto mb-4 text-orange-500" />
                       <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                        API Connection Error
+                        Unable to Load Lessons
                       </h3>
-                      <p className="text-gray-600 mb-4">
-                        Unable to connect to the lessons API. This may be due
-                        to:
+                      <p className="text-gray-600 mb-6">
+                        We're having trouble connecting to the server. Please try again in a moment.
                       </p>
-                      <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4 text-left">
-                        <div className="text-sm text-red-700 space-y-1">
-                          <div>• HTTPS → HTTP mixed content blocking</div>
-                          <div>• API server temporarily unavailable</div>
-                          <div>• Network connectivity issues</div>
-                        </div>
-                      </div>
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
-                        <h4 className="font-medium text-blue-900 mb-2">
-                          API Endpoint:
-                        </h4>
-                        <code className="text-sm text-blue-700 break-all">
-                          {API_BASE_URL}/api/lessons
-                        </code>
-                      </div>
-                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mt-4 text-left">
-                        <h4 className="font-medium text-gray-900 mb-2">
-                          Error Details:
-                        </h4>
-                        <code className="text-sm text-gray-700">
-                          {lessonsApiError}
-                        </code>
-                      </div>
                       <Button
                         onClick={() => {
                           setEducationLoading(true);
@@ -2068,7 +2441,7 @@ const StudentDashboard = () => {
                   </div>
                 )}
 
-                {/* No Lessons Available State (API successful but no data) */}
+                {/* No Lessons Available State */}
                 {!educationLoading &&
                   !lessonsApiError &&
                   lessons.length === 0 && (
@@ -2079,18 +2452,10 @@ const StudentDashboard = () => {
                           No Lessons Available
                         </h3>
                         <p className="text-gray-600 mb-4">
-                          The API connection is working, but no lessons have
-                          been created yet.
+                          Your lessons will appear here once they've been added to your curriculum.
                         </p>
-                        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4 text-left">
-                          <div className="text-sm text-green-700">
-                            ✅ API connected successfully to {API_BASE_URL}
-                            /api/lessons
-                          </div>
-                        </div>
                         <p className="text-sm text-gray-500">
-                          Contact your instructor or administrator to add
-                          lessons to your curriculum.
+                          Contact your instructor if you believe you should have access to lessons.
                         </p>
                       </div>
                     </div>
@@ -2120,7 +2485,7 @@ const StudentDashboard = () => {
                       };
                       return (
                         <Card
-                          key={courseDisplay.id}
+                          key={`lesson-${lesson.id}`}
                           className={`hover:shadow-lg transition-shadow ${
                             courseDisplay.isCompleted
                               ? "border-green-200 bg-green-50/30"
@@ -2214,38 +2579,104 @@ const StudentDashboard = () => {
                                 <span>{lesson.duration} min duration</span>
                               </div>
 
+                                                            {/* Lesson timing display for active lesson */}
+                              {activeLessonSession && activeLessonSession.lessonId === lesson.id && (
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <Timer className="w-4 h-4 text-blue-600" />
+                                      <span className="text-sm font-medium text-blue-700">
+                                        {activeLessonSession.isPaused ? "Paused" : "Active"}
+                                      </span>
+                                    </div>
+                                    <div className="text-lg font-mono font-bold text-blue-700">
+                                      {formatTime(lessonTimer)}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
                               <div className="flex gap-2">
-                                <Button
-                                  size="sm"
-                                  className="flex-1 hover:bg-blue-700 transition-colors"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setLastAction(
-                                      `${courseDisplay.isCompleted ? "Reviewing" : "Starting"} ${courseDisplay.title}`,
-                                    );
-                                    navigate("/lesson-content", {
-                                      state: {
-                                        type: "lesson",
-                                        lesson: lesson,
-                                        subject:
-                                          subject?.name || "Unknown Subject",
-                                        lessonId: lesson.id,
-                                      },
-                                    });
-                                  }}
-                                >
-                                  {courseDisplay.isCompleted ? (
-                                    <>
-                                      <Eye className="w-4 h-4 mr-2" />
-                                      Review
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Play className="w-4 h-4 mr-2" />
-                                      Start Lesson
-                                    </>
-                                  )}
-                                </Button>
+                                {/* Show different buttons based on lesson state */}
+                                {activeLessonSession && activeLessonSession.lessonId === lesson.id ? (
+                                  // Active lesson controls
+                                  <>
+                                    {activeLessonSession.isPaused ? (
+                                      <Button
+                                        size="sm"
+                                        variant="default"
+                                        className="flex-1"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          resumeLesson();
+                                        }}
+                                      >
+                                        <Play className="w-4 h-4 mr-2" />
+                                        Resume
+                                      </Button>
+                                    ) : (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="flex-1"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          pauseLesson();
+                                        }}
+                                      >
+                                        <Pause className="w-4 h-4 mr-2" />
+                                        Pause
+                                      </Button>
+                                    )}
+                                    <Button
+                                      size="sm"
+                                      variant="destructive"
+                                      className="flex-1"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        endLesson();
+                                      }}
+                                    >
+                                      <StopCircle className="w-4 h-4 mr-2" />
+                                      End Lesson
+                                    </Button>
+                                  </>
+                                ) : courseDisplay.isCompleted ? (
+                                  // Completed lesson
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="flex-1"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setLastAction(`Reviewing ${courseDisplay.title}`);
+                                      navigate("/lesson-content", {
+                                        state: {
+                                          type: "lesson",
+                                          lesson: lesson,
+                                          subject: subject?.name || "Unknown Subject",
+                                          lessonId: lesson.id,
+                                        },
+                                      });
+                                    }}
+                                  >
+                                    <Eye className="w-4 h-4 mr-2" />
+                                    Review
+                                  </Button>
+                                ) : (
+                                  // Start new lesson
+                                  <Button
+                                    size="sm"
+                                    className="flex-1 hover:bg-blue-700 transition-colors"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      startLesson(lesson, subject);
+                                    }}
+                                  >
+                                    <Play className="w-4 h-4 mr-2" />
+                                    Start Lesson
+                                  </Button>
+                                )}
                               </div>
                             </div>
                           </CardContent>

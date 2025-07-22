@@ -24,7 +24,7 @@ const CorsErrorHelper: React.FC<CorsErrorHelperProps> = ({
   if (!isVisible) return null;
 
   const frontendUrl = window.location.origin;
-  const apiUrl = "http://13.60.98.134/anansiai";
+  const apiUrl = "http://13.60.38.213/anansiai";
   const isMixedContent =
     frontendUrl.startsWith("https:") && apiUrl.startsWith("http:");
 
@@ -167,7 +167,7 @@ app.UseCors("AllowFrontend");`;
                 Configure SSL certificate for your API server and change the API
                 URL to:
                 <code className="bg-gray-200 px-1 rounded ml-1">
-                  https://13.60.98.134/anansiai
+                  https://13.60.38.213/anansiai
                 </code>
               </p>
             </div>

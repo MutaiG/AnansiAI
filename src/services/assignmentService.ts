@@ -1,7 +1,7 @@
 // Assignment Service - Integrates with available assignment endpoints
 import axios, { AxiosInstance } from "axios";
 
-const API_BASE_URL = "http://13.60.98.134/anansiai";
+const API_BASE_URL = "http://13.61.2.251/anansiai";
 
 // Assignment Types based on API schema
 export interface Assignment {
@@ -84,9 +84,7 @@ class AssignmentService {
     try {
       console.log("📚 Fetching all assignments from API...");
 
-      const response = await this.client.get(
-        "/api/assignments/all-assignments",
-      );
+      const response = await this.client.get("/api/assignments");
 
       if (response.data) {
         const assignments = Array.isArray(response.data)

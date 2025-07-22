@@ -560,7 +560,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [createSchoolLoading, setCreateSchoolLoading] = useState(false);
   const [superAdminInfo, setSuperAdminInfo] = useState(null);
-  const baseURL = "http://13.60.98.134/anansiai";
+  const baseURL = "http://13.60.38.213/anansiai";
   const isProduction = true;
 
   // Direct API calls following user's preferred pattern

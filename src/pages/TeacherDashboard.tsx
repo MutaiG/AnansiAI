@@ -98,6 +98,25 @@ import DevelopmentBanner from "@/components/DevelopmentBanner";
 import usePageTitle from "@/hooks/usePageTitle";
 import axiosClient from "@/services/axiosClient";
 import { toast } from "@/hooks/use-toast";
+import { AdminApiService } from "@/services/adminApiService";
+
+// Helper function to extract curriculum info from term name
+const extractCurriculumFromTermName = (termName: string) => {
+  const match = termName.match(/^\[([^\]]+)\]/);
+  if (match) {
+    const curriculumCode = match[1];
+    return {
+      curriculumCode,
+      cleanTermName: termName.replace(/^\[[^\]]+\]\s*/, ""),
+      hasPrefix: true,
+    };
+  }
+  return {
+    curriculumCode: null,
+    cleanTermName: termName,
+    hasPrefix: false,
+  };
+};
 
 // Types for the teacher dashboard
 interface TeacherProfile {
@@ -326,6 +345,14 @@ export default function TeacherDashboard() {
     message: string;
   } | null>(null);
 
+  // Curriculum state
+  const [milestones, setMilestones] = useState<Milestone[]>([]);
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [curriculumLoading, setCurriculumLoading] = useState(false);
+
+  // API service instance
+  const adminApiService = AdminApiService.getInstance();
+
   // Form states
   const [classForm, setClassForm] = useState({
     name: "",
@@ -385,21 +412,171 @@ export default function TeacherDashboard() {
     getMessageById,
   } = useNotifications();
 
-  // Subjects CRUD Functions
+    // Subjects CRUD Functions
   const fetchSubjects = async () => {
     try {
       setSubjectsLoading(true);
-      const response = await axiosClient.get("/api/subjects/all-subjects");
-      setSubjects(Array.isArray(response.data) ? response.data : []);
+      console.log("🔄 Fetching teacher's assigned subjects...");
+
+      // TODO: Replace with actual teacher ID from authentication
+      const teacherId = 1; // This should come from authentication context
+
+      // Get teacher's assigned subjects only
+      const response = await axiosClient.get(`/api/teachers/${teacherId}/subjects`);
+      const teacherSubjects = Array.isArray(response.data) ? response.data : [];
+
+      setSubjects(teacherSubjects);
+      console.log(`✅ Loaded ${teacherSubjects.length} assigned subjects for teacher`);
     } catch (error) {
-      console.error("Error fetching subjects:", error);
+      console.error("❌ Error fetching teacher's subjects:", error);
+
+      // Fallback: try to get all subjects and filter later (temporary)
+      try {
+        console.log("🔄 Fallback: fetching all subjects...");
+        const fallbackResponse = await axiosClient.get("/api/subjects/all-subjects");
+        const allSubjects = Array.isArray(fallbackResponse.data) ? fallbackResponse.data : [];
+        setSubjects(allSubjects);
+        console.log(`⚠️ Using fallback: loaded ${allSubjects.length} subjects`);
+      } catch (fallbackError) {
+        console.error("❌ Fallback also failed:", fallbackError);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to fetch subjects",
+        });
+      }
+    } finally {
+      setSubjectsLoading(false);
+    }
+  };
+
+    // Curriculum CRUD Functions
+  const fetchCurriculumData = async () => {
+    try {
+      setCurriculumLoading(true);
+      console.log("🔄 Fetching curriculum data for teacher...");
+
+      // Get the teacher's assigned subjects first
+      if (subjects.length === 0) {
+        console.log(
+          "⚠️ No subjects found for teacher, fetching subjects first...",
+        );
+        await fetchSubjects();
+      }
+
+      // Get all data needed for curriculum display
+      const [apiMilestones, apiGoals, apiTerms, apiCurriculums] = await Promise.all([
+        adminApiService.getMilestones(),
+        adminApiService.getGoals(),
+        adminApiService.getTerms(),
+        adminApiService.getCurriculums(),
+      ]);
+
+      // Filter milestones and goals by teacher's subjects
+      const teacherSubjectIds = subjects.map((s) => s.subjectId.toString());
+
+      // Create lookup maps
+      const termMap = apiTerms.reduce(
+        (map, term) => {
+          const termInfo = extractCurriculumFromTermName(term.termName);
+          map[term.termId.toString()] = {
+            id: term.termId.toString(),
+            fullName: term.termName,
+            cleanName: termInfo.cleanTermName,
+            curriculumCode: termInfo.curriculumCode,
+          };
+          return map;
+        },
+        {} as Record<string, any>,
+      );
+
+      const curriculumMap = apiCurriculums.reduce(
+        (map, curriculum) => {
+          map[curriculum.curriculumId.toString()] = {
+            id: curriculum.curriculumId.toString(),
+            name: curriculum.name,
+            code: (curriculum as any).code || curriculum.name.substring(0, 3).toUpperCase(),
+          };
+          return map;
+        },
+        {} as Record<string, any>,
+      );
+
+      const subjectMap = subjects.reduce(
+        (map, subject) => {
+          map[subject.subjectId.toString()] = subject.subjectName;
+          return map;
+        },
+        {} as Record<string, string>,
+      );
+
+      const filteredMilestones = apiMilestones
+        .filter((milestone) =>
+          teacherSubjectIds.includes(milestone.subjectId.toString()),
+        )
+        .map((milestone) => {
+          const term = termMap[milestone.termId.toString()];
+          const curriculum = curriculumMap[milestone.curriculumId.toString()];
+          const subject = subjectMap[milestone.subjectId.toString()];
+
+          return {
+            id: milestone.milestoneId.toString(),
+            curriculumId: milestone.curriculumId.toString(),
+            curriculumName: curriculum?.name || "Unknown Curriculum",
+            subjectId: milestone.subjectId.toString(),
+            subjectName: subject || "Unknown Subject",
+            term: term?.cleanName || `Term ${milestone.termId}`,
+            termFull: term?.fullName || `Term ${milestone.termId}`,
+            milestone: milestone.description,
+            isActive: !milestone.isDeleted,
+            createdAt: milestone.createdDate || new Date().toISOString(),
+            updatedAt: milestone.modifiedDate || new Date().toISOString(),
+          };
+        });
+
+      const filteredGoals = apiGoals
+        .filter((goal) => teacherSubjectIds.includes(goal.subjectId.toString()))
+        .map((goal) => {
+          const term = termMap[goal.termId.toString()];
+          const curriculum = curriculumMap[goal.curriculumId.toString()];
+          const subject = subjectMap[goal.subjectId.toString()];
+
+          return {
+            id: goal.goalId.toString(),
+            curriculumId: goal.curriculumId.toString(),
+            curriculumName: curriculum?.name || "Unknown Curriculum",
+            subjectId: goal.subjectId.toString(),
+            subjectName: subject || "Unknown Subject",
+            term: term?.cleanName || `Term ${goal.termId}`,
+            termFull: term?.fullName || `Term ${goal.termId}`,
+            goal: goal.description,
+            isActive: !goal.isDeleted,
+            createdAt: goal.createdDate || new Date().toISOString(),
+            updatedAt: goal.modifiedDate || new Date().toISOString(),
+          };
+        });
+
+      setMilestones(filteredMilestones);
+      setGoals(filteredGoals);
+
+      console.log("✅ Curriculum data loaded successfully:");
+      console.log(`  📋 Milestones: ${filteredMilestones.length}`);
+      console.log(`  🎯 Goals: ${filteredGoals.length}`);
+      console.log(`  📚 Teacher subjects: ${teacherSubjectIds.length}`);
+      console.log(`  📖 Available curriculums: ${Object.keys(curriculumMap).length}`);
+    } catch (error) {
+      console.error("❌ Error fetching curriculum data:", error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to fetch subjects",
+        description: "Failed to fetch curriculum data",
       });
+
+      // Fall back to empty arrays
+      setMilestones([]);
+      setGoals([]);
     } finally {
-      setSubjectsLoading(false);
+      setCurriculumLoading(false);
     }
   };
 
@@ -627,6 +804,44 @@ export default function TeacherDashboard() {
     fetchAssignments();
     fetchSubjects();
   }, []);
+
+    // Load curriculum data when subjects are loaded
+  useEffect(() => {
+    if (subjects.length > 0) {
+      fetchCurriculumData();
+    }
+  }, [subjects]);
+
+  // Auto-refresh curriculum data periodically (every 5 minutes)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!curriculumLoading && subjects.length > 0) {
+        console.log("🔄 Auto-refreshing curriculum data...");
+        fetchCurriculumData();
+      }
+    }, 5 * 60 * 1000); // 5 minutes
+
+    return () => clearInterval(interval);
+  }, [curriculumLoading, subjects.length]);
+
+  // Enhanced refresh function that also refetches subjects
+  const handleFullRefresh = async () => {
+    try {
+      console.log("🔄 Full refresh of teacher dashboard data...");
+      await fetchSubjects(); // This will trigger curriculum data refresh via useEffect
+      toast({
+        title: "Refreshed",
+        description: "Dashboard data has been updated",
+      });
+    } catch (error) {
+      console.error("❌ Error during full refresh:", error);
+      toast({
+        variant: "destructive",
+        title: "Refresh Failed",
+        description: "Failed to refresh dashboard data",
+      });
+    }
+  };
 
   // Load dashboard data
   const loadDashboardData = async () => {
@@ -1127,73 +1342,8 @@ export default function TeacherDashboard() {
             description: "Assessment on normal and binomial distributions",
           },
         ],
-        milestones: [
-          {
-            id: "1",
-            curriculumId: "1",
-            subjectId: "1",
-            term: "Term 1",
-            milestone:
-              "Introduction to algebra concepts, linear equations, and basic geometry shapes",
-            isActive: true,
-            createdAt: "2024-01-15T10:00:00Z",
-            updatedAt: "2024-01-15T10:00:00Z",
-          },
-          {
-            id: "2",
-            curriculumId: "1",
-            subjectId: "1",
-            term: "Term 2",
-            milestone:
-              "Advanced algebra, quadratic equations, and geometric calculations",
-            isActive: true,
-            createdAt: "2024-01-16T10:00:00Z",
-            updatedAt: "2024-01-16T10:00:00Z",
-          },
-          {
-            id: "3",
-            curriculumId: "1",
-            subjectId: "1",
-            term: "Term 3",
-            milestone:
-              "Advanced calculus concepts, derivatives and integrals for university preparation",
-            isActive: true,
-            createdAt: "2024-01-17T10:00:00Z",
-            updatedAt: "2024-01-17T10:00:00Z",
-          },
-        ],
-        goals: [
-          {
-            id: "1",
-            curriculumId: "1",
-            subjectId: "1",
-            term: "Term 1",
-            goal: "Students should be able to solve linear equations and understand basic geometric principles with 80% accuracy",
-            isActive: true,
-            createdAt: "2024-01-15T10:00:00Z",
-            updatedAt: "2024-01-15T10:00:00Z",
-          },
-          {
-            id: "2",
-            curriculumId: "1",
-            subjectId: "1",
-            term: "Term 2",
-            goal: "Students should master quadratic equations and apply geometric calculations in real-world scenarios with 85% accuracy",
-            isActive: true,
-            createdAt: "2024-01-16T10:00:00Z",
-            updatedAt: "2024-01-16T10:00:00Z",
-          },
-          {
-            id: "3",
-            curriculumId: "1",
-            subjectId: "1",
-            term: "Term 3",
-            goal: "Students should demonstrate mastery of calculus concepts and be ready for advanced university mathematics with 90% accuracy",
-            isActive: true,
-            createdAt: "2024-01-17T10:00:00Z",
-            updatedAt: "2024-01-17T10:00:00Z",
-          },
-        ],
+        milestones: milestones, // Use real milestones from API filtered by teacher's subjects
+        goals: goals, // Use real goals from API filtered by teacher's subjects
         loading: false,
         error: null,
       };
@@ -2412,7 +2562,7 @@ Learning Effectiveness:
 • Content Difficulty: ${content.difficulty}
 • Student Engagement: High
 • Time to Complete: ${content.estimatedDuration} min avg
-�� Improvement Areas: None identified
+���� Improvement Areas: None identified
 
 AI Recommendations:
 • Content is well-suited for current difficulty level
@@ -3043,7 +3193,7 @@ AI Recommendations:
             </div>
 
             {/* Quick Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">
@@ -3062,7 +3212,7 @@ AI Recommendations:
                 </CardContent>
               </Card>
 
-              <Card>
+                            <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">
                     Active Classes
@@ -3075,6 +3225,23 @@ AI Recommendations:
                   </div>
                   <p className="text-xs text-muted-foreground">
                     Across all grade levels
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">
+                    Assigned Subjects
+                  </CardTitle>
+                  <BookOpen className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {subjects.length}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {subjects.length > 0 ? subjects.map(s => s.subjectName).join(", ").substring(0, 40) + (subjects.map(s => s.subjectName).join(", ").length > 40 ? "..." : "") : "No subjects assigned"}
                   </p>
                 </CardContent>
               </Card>
@@ -4461,12 +4628,34 @@ AI Recommendations:
           {/* Curriculum Tab - Milestones & Goals */}
           <TabsContent value="curriculum" className="space-y-8">
             {/* Header */}
-            <div>
-              <h2 className="text-2xl font-bold">Curriculum Overview</h2>
-              <p className="text-gray-600">
-                Stay aligned with curriculum standards and track progress
-                against learning objectives
-              </p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold">Curriculum Overview</h2>
+                <p className="text-gray-600">
+                  Stay aligned with curriculum standards and track progress
+                  against learning objectives
+                </p>
+              </div>
+                            <div className="flex items-center gap-3">
+                {/* Status indicator */}
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <div className={`w-2 h-2 rounded-full ${subjects.length > 0 ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                  <span>{subjects.length} subjects assigned</span>
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleFullRefresh}
+                  disabled={curriculumLoading || subjectsLoading}
+                  className="flex items-center gap-2"
+                >
+                  <RefreshCw
+                    className={`w-4 h-4 ${(curriculumLoading || subjectsLoading) ? "animate-spin" : ""}`}
+                  />
+                  {(curriculumLoading || subjectsLoading) ? "Refreshing..." : "Refresh All"}
+                </Button>
+              </div>
             </div>
 
             {/* Stats Overview */}
@@ -4478,7 +4667,9 @@ AI Recommendations:
                       Content Milestones
                     </p>
                     <p className="text-2xl font-bold text-purple-800">
-                      {dashboardData?.milestones?.length || 0}
+                      {curriculumLoading
+                        ? "..."
+                        : dashboardData?.milestones?.length || 0}
                     </p>
                   </div>
                   <Target className="w-8 h-8 text-purple-600" />
@@ -4492,7 +4683,9 @@ AI Recommendations:
                       Learning Goals
                     </p>
                     <p className="text-2xl font-bold text-orange-800">
-                      {dashboardData?.goals?.length || 0}
+                      {curriculumLoading
+                        ? "..."
+                        : dashboardData?.goals?.length || 0}
                     </p>
                   </div>
                   <Award className="w-8 h-8 text-orange-600" />
@@ -4506,10 +4699,12 @@ AI Recommendations:
                       Active Items
                     </p>
                     <p className="text-2xl font-bold text-green-800">
-                      {(dashboardData?.milestones?.filter((m) => m.isActive)
-                        .length || 0) +
-                        (dashboardData?.goals?.filter((g) => g.isActive)
-                          .length || 0)}
+                      {curriculumLoading
+                        ? "..."
+                        : (dashboardData?.milestones?.filter((m) => m.isActive)
+                            .length || 0) +
+                          (dashboardData?.goals?.filter((g) => g.isActive)
+                            .length || 0)}
                     </p>
                   </div>
                   <CheckCircle className="w-8 h-8 text-green-600" />
@@ -4567,8 +4762,8 @@ AI Recommendations:
                         </Badge>
                       </div>
 
-                      <div className="mb-3">
-                        <div className="flex items-center gap-2">
+                                            <div className="mb-3">
+                        <div className="flex items-center gap-2 mb-2">
                           <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 font-bold text-sm">
                             {index + 1}
                           </div>
@@ -4577,6 +4772,14 @@ AI Recommendations:
                             className="border-purple-200 text-purple-700"
                           >
                             {milestone.term}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <Badge variant="secondary" className="text-xs">
+                            {milestone.subjectName || "Unknown Subject"}
+                          </Badge>
+                          <Badge variant="outline" className="text-xs">
+                            {milestone.curriculumName || "Unknown Curriculum"}
                           </Badge>
                         </div>
                       </div>
@@ -4643,8 +4846,8 @@ AI Recommendations:
                         </Badge>
                       </div>
 
-                      <div className="mb-3">
-                        <div className="flex items-center gap-2">
+                                            <div className="mb-3">
+                        <div className="flex items-center gap-2 mb-2">
                           <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center text-orange-600 font-bold text-sm">
                             {index + 1}
                           </div>
@@ -4653,6 +4856,14 @@ AI Recommendations:
                             className="border-orange-200 text-orange-700"
                           >
                             {goal.term}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <Badge variant="secondary" className="text-xs">
+                            {goal.subjectName || "Unknown Subject"}
+                          </Badge>
+                          <Badge variant="outline" className="text-xs">
+                            {goal.curriculumName || "Unknown Curriculum"}
                           </Badge>
                         </div>
                       </div>

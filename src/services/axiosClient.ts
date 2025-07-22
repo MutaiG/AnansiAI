@@ -16,11 +16,11 @@ const getOptimalApiUrl = () => {
     hostname: window.location.hostname,
     isDevelopment,
     isHttps,
-    selectedApiUrl: "http://13.60.98.134/anansiai",
+        selectedApiUrl: "http://13.61.2.251/anansiai",
     note: "Using HTTP for API - may cause mixed content warnings",
   });
 
-  return "http://13.60.98.134/anansiai";
+    return "http://13.61.2.251/anansiai";
 };
 
 const API_BASE_URL = getOptimalApiUrl();
@@ -46,9 +46,16 @@ export const axiosClient = axios.create({
 // Add request interceptor for auth tokens and debugging
 axiosClient.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem("authToken");
+    // Check multiple possible token keys
+    const token = localStorage.getItem("anansi_token") ||
+                  localStorage.getItem("authToken") ||
+                  localStorage.getItem("auth_token");
+
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+      console.log("🔐 Using auth token for request");
+    } else {
+      console.warn("⚠️ No auth token found - API may return 401 Unauthorized");
     }
 
     // Debug: Log every request URL to confirm correct endpoint
@@ -101,7 +108,7 @@ axiosClient.interceptors.response.use(
 
 // Connection test function to help diagnose issues
 export const testApiConnection = async () => {
-  const baseUrl = "13.60.98.134/anansiai";
+    const baseUrl = "13.61.2.251/anansiai";
   const isHttps = window.location.protocol === "https:";
 
   // Test order: prioritize HTTPS if we're on HTTPS, otherwise HTTP first

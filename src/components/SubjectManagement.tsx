@@ -193,37 +193,27 @@ const SubjectManagement: React.FC<SubjectManagementProps> = ({
 
   const loadRelations = async () => {
     try {
-      // Mock relationship data
-      const mockRelations: SubjectCurriculumRelation[] = [
-        {
-          id: "r1",
-          subjectId: "1",
-          curriculumId: "1",
-          createdAt: "2024-01-15T10:00:00Z",
-        },
-        {
-          id: "r2",
-          subjectId: "1",
-          curriculumId: "2",
-          createdAt: "2024-01-15T10:00:00Z",
-        },
-        {
-          id: "r3",
-          subjectId: "2",
-          curriculumId: "1",
-          createdAt: "2024-01-16T10:00:00Z",
-        },
-        {
-          id: "r4",
-          subjectId: "3",
-          curriculumId: "1",
-          createdAt: "2024-01-17T10:00:00Z",
-        },
-      ];
+      console.log("🔄 Building relations from API subject data...");
 
-      setRelations(mockRelations);
+      // Create relations from the subjects data we already have
+      // Each subject contains a curriculumId, so we can build the relations
+      const apiSubjects = await adminApiService.getSubjects();
+
+      const apiRelations: SubjectCurriculumRelation[] = apiSubjects
+        .filter((subj) => subj.curriculumId) // Only subjects with curriculum assignments
+        .map((subj, index) => ({
+          id: `r${subj.subjectId}`,
+          subjectId: subj.subjectId.toString(),
+          curriculumId: subj.curriculumId.toString(),
+          createdAt: subj.createdDate || new Date().toISOString(),
+        }));
+
+      setRelations(apiRelations);
+      console.log("✅ Built relations from API data:", apiRelations.length);
     } catch (error) {
       console.error("❌ Error loading relations:", error);
+      // Fall back to empty relations if API fails
+      setRelations([]);
     }
   };
 

@@ -23,7 +23,7 @@ export function ApiStatusIndicator({
   const [isConnected, setIsConnected] = useState(false);
   const [lastChecked, setLastChecked] = useState<string | null>(null);
   const [isChecking, setIsChecking] = useState(false);
-  const baseURL = "http://13.60.98.134/anansiai";
+  const baseURL = "http://13.60.38.213/anansiai";
   const isProduction = process.env.NODE_ENV === "production";
 
   const checkConnection = async () => {
@@ -162,7 +162,7 @@ export function ApiStatusBadge({ className = "" }: { className?: string }) {
 export function ApiConnectionMonitor() {
   const [isConnected, setIsConnected] = useState(false);
   const [showAlert, setShowAlert] = useState(false);
-  const baseURL = "http://13.60.98.134/anansiai";
+  const baseURL = "http://13.60.38.213/anansiai";
   const isProduction = process.env.NODE_ENV === "production";
 
   const checkConnection = async () => {
