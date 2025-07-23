@@ -359,25 +359,80 @@ const AdminDashboard = () => {
     }
   };
 
-  const fetchLevels = async () => {
+  const fetchSubjectsForTeacher = async () => {
+    try {
+      setSubjectsLoading(true);
+      console.log("📚 Fetching subjects for teacher assignment...");
+
+      // Get the current institution ID from available institutions
+      let institutionId = null;
+
+      // Try to get institution ID from the first available institution
+      if (dashboardData?.institutions?.length > 0) {
+        institutionId = dashboardData.institutions[0].institutionId;
+      } else if (dashboardData?.adminProfile?.institutionId) {
+        institutionId = dashboardData.adminProfile.institutionId;
+      } else {
+        // Default fallback
+        institutionId = 1;
+      }
+
+      console.log("🔍 Using institution ID for subjects:", institutionId);
+
+      const subjectsData = await adminApiService.getSubjectsByInstitution(institutionId);
+
+      setTeacherSubjects(Array.isArray(subjectsData) ? subjectsData : []);
+      console.log("✅ Subjects fetched:", subjectsData);
+      console.log("📊 First subject structure:", subjectsData?.[0]);
+    } catch (error) {
+      console.error("❌ Failed to fetch subjects:", error);
+      console.error("❌ Error details:", {
+        message: error.message,
+        code: error.code,
+        response: error.response?.data
+      });
+      // Don't use fallback data - show empty list when API fails
+      setTeacherSubjects([]);
+    } finally {
+      setSubjectsLoading(false);
+    }
+  };
+
+  const fetchLevelsForTeacher = async () => {
     try {
       setLevelsLoading(true);
-      console.log("📚 Fetching levels from API...");
+      console.log("📚 Fetching levels for teacher assignment...");
 
-      // Use the correct level endpoints - either get all levels or by institution
-      const institutionId = dashboardData?.institution?.id;
-      const endpoint = institutionId
-        ? `/api/levels/by-institution?institutionId=${institutionId}`
-        : "/api/levels";
+      // Get the current institution ID from available institutions
+      let institutionId = null;
 
-      const response = await axiosClient.get(endpoint);
-      console.log("✅ Levels fetched successfully:", response.data);
-
-      if (response.data) {
-        setLevels(Array.isArray(response.data) ? response.data : [response.data]);
+      // Try to get institution ID from the first available institution
+      if (dashboardData?.institutions?.length > 0) {
+        institutionId = dashboardData.institutions[0].institutionId;
+      } else if (dashboardData?.adminProfile?.institutionId) {
+        institutionId = dashboardData.adminProfile.institutionId;
+      } else {
+        // Default fallback
+        institutionId = 1;
       }
+
+      console.log("🔍 Using institution ID for levels:", institutionId);
+
+      const levelsData = await adminApiService.getLevelsByInstitution(institutionId);
+
+      setLevels(Array.isArray(levelsData) ? levelsData : []);
+      console.log("✅ Levels fetched:", levelsData);
+      console.log("📊 First level structure:", levelsData?.[0]);
+      console.log("🔢 Total levels count:", levelsData?.length);
+      console.log("📝 Level names:", levelsData?.map(l => l.levelName));
     } catch (error) {
       console.error("❌ Failed to fetch levels:", error);
+      console.error("❌ Error details:", {
+        message: error.message,
+        code: error.code,
+        response: error.response?.data
+      });
+      // Don't use fallback data - show empty list when API fails
       setLevels([]);
     } finally {
       setLevelsLoading(false);
@@ -408,7 +463,7 @@ const AdminDashboard = () => {
       console.log(`  🏫 Institutions: ${institutionsData.length}`);
       console.log(`  👨‍🏫 Teachers: ${teachers.length}`);
       console.log(`  👨‍🎓 Students: ${students.length}`);
-      console.log(`  👨‍💼 Admins: ${admins.length}`);
+      console.log(`  ����‍💼 Admins: ${admins.length}`);
       console.log(
         `  📚 Subjects: ${Array.isArray(subjectsData) ? subjectsData.length : 0}`,
       );
@@ -526,6 +581,23 @@ const AdminDashboard = () => {
           approvalStatus: assignment.approvalStatus,
           isActive: assignment.isActive,
         })),
+        users: allUsers.map((user) => ({
+          id: user.id || user.userId,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          fullName:
+            `${user.firstName || ""} ${user.lastName || ""}`.trim() ||
+            "Unknown User",
+          email: user.email,
+          phoneNumber: user.phoneNumber,
+          role: user.role || "Student",
+          status: user.isActive ? "Active" : "Inactive",
+          lastActivity: user.lastLogin
+            ? new Date(user.lastLogin).toLocaleDateString()
+            : "Never",
+          isActive: user.isActive !== undefined ? user.isActive : true,
+          photoUrl: user.photoUrl || "",
+        })),
         analytics: {
           studentEngagement: Math.min(
             95,
@@ -575,7 +647,7 @@ const AdminDashboard = () => {
 
       console.log(`�� Creating user via ${endpoint}:`);
       console.log("📤 API Payload:", JSON.stringify(apiPayload, null, 2));
-      console.log("📋 Payload validation:");
+      console.log("��� Payload validation:");
       console.log("  - firstName:", !!apiPayload.firstName);
       console.log("  - lastName:", !!apiPayload.lastName);
       console.log("  - email:", !!apiPayload.email);
@@ -585,10 +657,43 @@ const AdminDashboard = () => {
 
       const response = await axiosClient.post(endpoint, apiPayload);
       if (response.data) {
+        // If user is a teacher and has subject/level assignments, assign them
+        if (userData.role.name.toLowerCase() === "teacher" && userData.selectedSubjectId && userData.selectedLevelId) {
+          try {
+            console.log("🔄 Assigning subject to teacher...");
+            const assignmentPayload = {
+              teacherId: response.data.userId || response.data.id || userData.email, // Use whatever ID is returned
+              subjectId: parseInt(userData.selectedSubjectId),
+              levelId: parseInt(userData.selectedLevelId),
+              institutionId: parseInt(userData.institutionId || "1"), // Use form institutionId or default
+            };
+
+            console.log("📤 Subject assignment payload:", assignmentPayload);
+            await adminApiService.assignSubjectToTeacher(assignmentPayload);
+            console.log("✅ Subject assigned to teacher successfully");
+          } catch (assignError) {
+            console.error("⚠️ Failed to assign subject to teacher:", assignError);
+            // Still show success for user creation, but warn about assignment
+            showMessage({
+              id: Date.now().toString(),
+              title: "User Created with Warning",
+              message: "User created successfully, but subject assignment failed",
+              details: "The user was created but could not be assigned to the selected subject. You can assign them manually later.",
+              type: "warning",
+              priority: "medium",
+              timestamp: new Date().toISOString(),
+            });
+            fetchDashboardData();
+            return;
+          }
+        }
+
         showMessage({
           id: Date.now().toString(),
           title: "Success",
-          message: "User created successfully",
+          message: userData.role.name.toLowerCase() === "teacher" && userData.selectedSubjectId
+            ? "Teacher created and assigned to subject successfully"
+            : "User created successfully",
           type: "success",
           priority: "medium",
           timestamp: new Date().toISOString(),
@@ -772,7 +877,6 @@ const AdminDashboard = () => {
   useEffect(() => {
     fetchDashboardData();
     fetchAvailableRoles();
-    fetchLevels();
   }, []);
 
   // Show message function
@@ -853,9 +957,15 @@ const AdminDashboard = () => {
     phoneNumber: "",
     role: {
       id: "",
-      name: "STUDENT"
-    }
+      name: ""
+    },
+    selectedSubjectId: "",
+    selectedLevelId: "",
   });
+
+  // State for subjects (levels already declared later)
+  const [teacherSubjects, setTeacherSubjects] = useState<any[]>([]);
+  const [subjectsLoading, setSubjectsLoading] = useState(false);
 
   const [newSubject, setNewSubject] = useState({
     name: "",
@@ -1037,6 +1147,7 @@ const AdminDashboard = () => {
   ];
 
   const handleAddUser = async () => {
+    // Validation
     if (!newUser.firstName || !newUser.lastName) {
       showMessage({
         id: Date.now().toString(),
@@ -1073,8 +1184,6 @@ const AdminDashboard = () => {
       return;
     }
 
-
-
     if (!newUser.role.name) {
       showMessage({
         id: Date.now().toString(),
@@ -1087,6 +1196,32 @@ const AdminDashboard = () => {
       return;
     }
 
+    // Additional validation for teacher role
+    if (newUser.role.name.toLowerCase() === "teacher") {
+      if (!newUser.selectedSubjectId || newUser.selectedSubjectId === "no-subjects") {
+        showMessage({
+          id: Date.now().toString(),
+          type: "error",
+          priority: "medium",
+          title: "Validation Error",
+          message: "Please select a subject for the teacher",
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+      if (!newUser.selectedLevelId || newUser.selectedLevelId === "no-levels") {
+        showMessage({
+          id: Date.now().toString(),
+          type: "error",
+          priority: "medium",
+          title: "Validation Error",
+          message: "Please select a level for the teacher",
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+    }
+
     try {
       const userData = {
         firstName: newUser.firstName,
@@ -1094,41 +1229,41 @@ const AdminDashboard = () => {
         email: newUser.email,
         phoneNumber: newUser.phoneNumber,
         address: newUser.address,
-        institutionId: newUser.institutionId,
         role: newUser.role,
+        selectedSubjectId: newUser.selectedSubjectId,
+        selectedLevelId: newUser.selectedLevelId,
       };
 
       await createUser(userData);
 
-      // Success is handled within createUser function via showMessage
-      if (true) {
-        showMessage({
-          id: Date.now().toString(),
-          type: "success",
-          priority: "high",
-          title: "User Created Successfully",
-          message: `New ${newUser.role.name} account has been created successfully.`,
-          details: `The user can now log in using their email address: ${userData.email}${newUser.role.name.toLowerCase() === "student" ? "\n\nAI Twin will be automatically configured for personalized learning." : ""}`,
-          timestamp: new Date().toISOString(),
-          requiresResponse: false,
-        });
+      showMessage({
+        id: Date.now().toString(),
+        type: "success",
+        priority: "high",
+        title: "User Created Successfully",
+        message: `New ${newUser.role.name} account has been created successfully.`,
+        details: `The user can now log in using their email address: ${userData.email}${newUser.role.name.toLowerCase() === "student" ? "\n\nAI Twin will be automatically configured for personalized learning." : newUser.role.name.toLowerCase() === "teacher" && newUser.selectedSubjectId ? "\n\nTeacher has been assigned to the selected subject and level." : ""}`,
+        timestamp: new Date().toISOString(),
+        requiresResponse: false,
+      });
 
-        setIsAddUserOpen(false);
-        setNewUser({
-          firstName: "",
-          lastName: "",
-          email: "",
-          address: "",
-          phoneNumber: "",
-          role: {
-            id: "",
-            name: "STUDENT"
-          }
-        });
+      setIsAddUserOpen(false);
+      setNewUser({
+        firstName: "",
+        lastName: "",
+        email: "",
+        address: "",
+        phoneNumber: "",
+        role: {
+          id: "",
+          name: ""
+        },
+        selectedSubjectId: "",
+        selectedLevelId: "",
+      });
 
-        // Reload dashboard to show new user
-        reload();
-      }
+      // Reload dashboard to show new user
+      reload();
     } catch (error) {
       console.error("Error creating user:", error);
       showMessage({
@@ -1391,7 +1526,7 @@ const AdminDashboard = () => {
       priority: "medium",
       title: `${user.fullName}'s AI Twin`,
       message: "AI Twin Analytics & Personalization Data",
-      details: `�� Learning Style: Visual/Kinesthetic\n• Engagement Level: High (${Math.floor(Math.random() * 20) + 80}%)\n• Preferred Learning Time: Morning\n��� Strengths: Mathematics, Science\n• Areas for Improvement: Essay Writing\n• AI Interactions Today: ${Math.floor(Math.random() * 50) + 20}\n• Mood Analysis: Focused & Motivated\n�� Personalized Recommendations: ${Math.floor(Math.random() * 10) + 5} pending`,
+      details: `���� Learning Style: Visual/Kinesthetic\n• Engagement Level: High (${Math.floor(Math.random() * 20) + 80}%)\n• Preferred Learning Time: Morning\n��� Strengths: Mathematics, Science\n• Areas for Improvement: Essay Writing\n• AI Interactions Today: ${Math.floor(Math.random() * 50) + 20}\n• Mood Analysis: Focused & Motivated\n�� Personalized Recommendations: ${Math.floor(Math.random() * 10) + 5} pending`,
       timestamp: new Date().toISOString(),
       requiresResponse: false,
     });
@@ -3281,24 +3416,36 @@ const AdminDashboard = () => {
                   Add New User
                 </DialogTitle>
                 <DialogDescription>
-                  Create a new student or teacher account. AI Twin integration
+                  Create a new student, teacher, or admin account. AI Twin integration
                   is automatically provided for students.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
+                {/* Role Selection - FIRST FIELD */}
                 <div>
                   <Label htmlFor="role">User Role *</Label>
                   <Select
                     value={newUser.role.name}
                     onValueChange={(value) => {
-                      const selectedRole = availableRoles.find(role => role.name === value);
-                      setNewUser({
-                        ...newUser,
-                        role: {
-                          id: selectedRole?.id || "",
-                          name: value
+                      const selectedRole = availableRoles.find(role => role.name === value && role.name !== "SuperAdmin");
+                      if (selectedRole) {
+                        setNewUser({
+                          ...newUser,
+                          role: {
+                            id: selectedRole.id,
+                            name: value
+                          },
+                          // Reset subject/level when role changes
+                          selectedSubjectId: "",
+                          selectedLevelId: "",
+                        });
+
+                        // Fetch subjects and levels if teacher role selected
+                        if (value.toLowerCase() === "teacher") {
+                          fetchSubjectsForTeacher();
+                          fetchLevelsForTeacher();
                         }
-                      });
+                      }
                     }}
                     disabled={rolesLoading}
                   >
@@ -3310,7 +3457,9 @@ const AdminDashboard = () => {
                       />
                     </SelectTrigger>
                     <SelectContent>
-                      {availableRoles.map((role) => (
+                      {availableRoles
+                        .filter(role => role.name !== "SuperAdmin") // EXCLUDE SUPERADMIN
+                        .map((role) => (
                         <SelectItem
                           key={role.id}
                           value={role.name}
@@ -3335,6 +3484,69 @@ const AdminDashboard = () => {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Subject and Level selection for Teacher role */}
+                {newUser.role.name.toLowerCase() === "teacher" && (
+                  <>
+                    <div>
+                      <Label htmlFor="subject">Subject *</Label>
+                      <Select
+                        value={newUser.selectedSubjectId}
+                        onValueChange={(value) => setNewUser({ ...newUser, selectedSubjectId: value })}
+                        disabled={subjectsLoading}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={subjectsLoading ? "Loading subjects..." : "Select subject"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {teacherSubjects.length > 0 ? (
+                            teacherSubjects.map((subject: any) => (
+                              <SelectItem
+                                key={subject.subjectId}
+                                value={subject.subjectId.toString()}
+                              >
+                                {subject.subjectName || subject.name}
+                              </SelectItem>
+                            ))
+                          ) : !subjectsLoading && (
+                            <SelectItem value="no-subjects" disabled>
+                              No subjects available
+                            </SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="level">Level *</Label>
+                      <Select
+                        value={newUser.selectedLevelId}
+                        onValueChange={(value) => setNewUser({ ...newUser, selectedLevelId: value })}
+                        disabled={levelsLoading}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={levelsLoading ? "Loading levels..." : "Select level"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {levels.length > 0 ? (
+                            levels.map((level: any) => (
+                              <SelectItem
+                                key={level.levelId}
+                                value={level.levelId.toString()}
+                              >
+                                {level.levelName}
+                              </SelectItem>
+                            ))
+                          ) : !levelsLoading && (
+                            <SelectItem value="no-levels" disabled>
+                              No levels available
+                            </SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                )}
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -3400,6 +3612,7 @@ const AdminDashboard = () => {
                   />
                 </div>
 
+                {/* NO INSTITUTION FIELD - User automatically assigned to admin's institution */}
                 <div className="text-sm text-gray-600 p-3 bg-blue-50 rounded-lg">
                   <p><strong>Institution:</strong> User will be automatically assigned to your institution</p>
                 </div>
@@ -4258,8 +4471,15 @@ const AdminDashboard = () => {
                   }
 
                   try {
-                    // Get institutionId from admin's profile
-                    const institutionId = dashboardData?.institution?.id || 1;
+                    // Get institutionId using same logic as fetch functions
+                    let institutionId = null;
+                    if (dashboardData?.institutions?.length > 0) {
+                      institutionId = dashboardData.institutions[0].institutionId;
+                    } else if (dashboardData?.adminProfile?.institutionId) {
+                      institutionId = dashboardData.adminProfile.institutionId;
+                    } else {
+                      institutionId = 1; // Default fallback
+                    }
 
                     const levelData = {
                       levelName: newLevel.levelName,
@@ -4272,7 +4492,7 @@ const AdminDashboard = () => {
                     console.log('✅ Level created successfully:', response.data);
 
                     // Refresh levels list
-                    await fetchLevels();
+                    await fetchLevelsForTeacher();
 
                     setIsCreateLevelOpen(false);
                     // Reset form

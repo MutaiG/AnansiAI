@@ -11,14 +11,16 @@ import {
 } from "@/components/ui/select";
 import { DialogFooter } from "@/components/ui/dialog";
 import axiosClient from "@/services/axiosClient";
+import { adminApiService } from "@/services/adminApiService";
 
 interface UserFormProps {
   user?: any;
   onSave: (userData: any) => void;
   onCancel: () => void;
+  institutionId?: number;
 }
 
-const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel }) => {
+const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel, institutionId }) => {
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -27,11 +29,17 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel }) => {
     phoneNumber: "",
     institutionId: "",
     role: { id: "", name: "" },
+    selectedSubjectId: "",
+    selectedLevelId: "",
   });
 
   const [institutions, setInstitutions] = useState([]);
   const [roles, setRoles] = useState([]);
+  const [subjects, setSubjects] = useState([]);
+  const [levels, setLevels] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [subjectsLoading, setSubjectsLoading] = useState(false);
+  const [levelsLoading, setLevelsLoading] = useState(false);
 
   useEffect(() => {
     // Fetch institutions and roles
@@ -51,9 +59,20 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel }) => {
           id: user.role?.id || "",
           name: user.role?.name || user.role || "",
         },
+        selectedSubjectId: user.selectedSubjectId || "",
+        selectedLevelId: user.selectedLevelId || "",
       });
     }
   }, [user]);
+
+  // Fetch subjects and levels when institution is selected or role is teacher
+  useEffect(() => {
+    const currentInstitutionId = institutionId || formData.institutionId;
+    if (currentInstitutionId && formData.role.name.toLowerCase() === "teacher") {
+      fetchSubjects(parseInt(currentInstitutionId.toString()));
+      fetchLevels(parseInt(currentInstitutionId.toString()));
+    }
+  }, [formData.institutionId, formData.role.name, institutionId]);
 
   const fetchInstitutions = async () => {
     try {
@@ -67,7 +86,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel }) => {
 
   const fetchRoles = async () => {
     try {
-      const response = await axiosClient.get("/api/Users/get-roles");
+      const response = await axiosClient.get("/api/Users/all-roles");
       const rolesData = response.data.data || response.data || [];
       setRoles(rolesData);
     } catch (error) {
@@ -84,6 +103,52 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel }) => {
     }
   };
 
+  const fetchSubjects = async (instId: number) => {
+    try {
+      setSubjectsLoading(true);
+      console.log("🔄 Fetching subjects for institution:", instId);
+      const subjectsData = await adminApiService.getSubjectsByInstitution(instId);
+      setSubjects(Array.isArray(subjectsData) ? subjectsData : []);
+      console.log("✅ Subjects fetched:", subjectsData);
+    } catch (error) {
+      console.error("Failed to fetch subjects:", error);
+      setSubjects([]);
+    } finally {
+      setSubjectsLoading(false);
+    }
+  };
+
+  const fetchLevels = async (instId: number) => {
+    try {
+      setLevelsLoading(true);
+      console.log("🔄 Fetching levels for institution:", instId);
+      const levelsData = await adminApiService.getLevelsByInstitution(instId);
+      setLevels(Array.isArray(levelsData) ? levelsData : []);
+      console.log("✅ Levels fetched:", levelsData);
+    } catch (error) {
+      console.error("Failed to fetch levels:", error);
+      // Fallback to default levels if API fails
+      const fallbackLevels = [
+        { levelId: 1, levelName: "Grade 1" },
+        { levelId: 2, levelName: "Grade 2" },
+        { levelId: 3, levelName: "Grade 3" },
+        { levelId: 4, levelName: "Grade 4" },
+        { levelId: 5, levelName: "Grade 5" },
+        { levelId: 6, levelName: "Grade 6" },
+        { levelId: 7, levelName: "Grade 7" },
+        { levelId: 8, levelName: "Grade 8" },
+        { levelId: 9, levelName: "Grade 9" },
+        { levelId: 10, levelName: "Grade 10" },
+        { levelId: 11, levelName: "Grade 11" },
+        { levelId: 12, levelName: "Grade 12" },
+      ];
+      setLevels(fallbackLevels);
+      console.log("📋 Using fallback levels:", fallbackLevels);
+    } finally {
+      setLevelsLoading(false);
+    }
+  };
+
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({
       ...prev,
@@ -93,13 +158,41 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel }) => {
 
   const handleRoleChange = (roleId: string) => {
     const selectedRole = roles.find((role: any) => role.id === roleId);
+    const roleName = selectedRole?.name || "";
+
     setFormData((prev) => ({
       ...prev,
       role: {
         id: roleId,
-        name: selectedRole?.name || "",
+        name: roleName,
       },
+      // Reset subject and level selection when role changes
+      selectedSubjectId: "",
+      selectedLevelId: "",
     }));
+
+    // Fetch subjects and levels if teacher role is selected and institution is available
+    const currentInstitutionId = institutionId || formData.institutionId;
+    if (roleName.toLowerCase() === "teacher" && currentInstitutionId) {
+      fetchSubjects(parseInt(currentInstitutionId.toString()));
+      fetchLevels(parseInt(currentInstitutionId.toString()));
+    }
+  };
+
+  const handleInstitutionChange = (instId: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      institutionId: instId,
+      // Reset subject and level selection when institution changes
+      selectedSubjectId: "",
+      selectedLevelId: "",
+    }));
+
+    // Fetch subjects and levels if teacher role is selected
+    if (formData.role.name.toLowerCase() === "teacher" && instId) {
+      fetchSubjects(parseInt(instId));
+      fetchLevels(parseInt(instId));
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -116,6 +209,20 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel }) => {
       alert("Please fill in all required fields");
       setLoading(false);
       return;
+    }
+
+    // Additional validation for teacher role
+    if (formData.role.name.toLowerCase() === "teacher") {
+      if (!formData.selectedSubjectId) {
+        alert("Please select a subject for the teacher");
+        setLoading(false);
+        return;
+      }
+      if (!formData.selectedLevelId) {
+        alert("Please select a level for the teacher");
+        setLoading(false);
+        return;
+      }
     }
 
     onSave(formData);
@@ -178,7 +285,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel }) => {
         <Label htmlFor="institution">Institution</Label>
         <Select
           value={formData.institutionId.toString()}
-          onValueChange={(value) => handleInputChange("institutionId", value)}
+          onValueChange={handleInstitutionChange}
         >
           <SelectTrigger>
             <SelectValue placeholder="Select institution" />
@@ -211,6 +318,67 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel }) => {
           </SelectContent>
         </Select>
       </div>
+
+      {/* Subject and Level selection for Teacher role */}
+      {formData.role.name.toLowerCase() === "teacher" && (
+        <>
+          <div className="space-y-2">
+            <Label htmlFor="subject">Subject *</Label>
+            <Select
+              value={formData.selectedSubjectId}
+              onValueChange={(value) => handleInputChange("selectedSubjectId", value)}
+              disabled={subjectsLoading}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={subjectsLoading ? "Loading subjects..." : "Select subject"} />
+              </SelectTrigger>
+              <SelectContent>
+                {subjects.map((subject: any) => (
+                  <SelectItem
+                    key={subject.subjectId}
+                    value={subject.subjectId.toString()}
+                  >
+                    {subject.subjectName}
+                  </SelectItem>
+                ))}
+                {subjects.length === 0 && !subjectsLoading && (
+                  <SelectItem value="" disabled>
+                    No subjects available
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="level">Level *</Label>
+            <Select
+              value={formData.selectedLevelId}
+              onValueChange={(value) => handleInputChange("selectedLevelId", value)}
+              disabled={levelsLoading}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={levelsLoading ? "Loading levels..." : "Select level"} />
+              </SelectTrigger>
+              <SelectContent>
+                {levels.map((level: any) => (
+                  <SelectItem
+                    key={level.levelId}
+                    value={level.levelId.toString()}
+                  >
+                    {level.levelName}
+                  </SelectItem>
+                ))}
+                {levels.length === 0 && !levelsLoading && (
+                  <SelectItem value="" disabled>
+                    No levels available
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+        </>
+      )}
 
       <DialogFooter>
         <Button type="button" variant="outline" onClick={onCancel}>

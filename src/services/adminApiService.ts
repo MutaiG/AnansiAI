@@ -1250,6 +1250,131 @@ export class AdminApiService {
   }
 
   // ============================================================================
+  // SUBJECT ASSIGNMENTS ENDPOINTS
+  // ============================================================================
+
+  /**
+   * Get all subject assignments
+   */
+  async getSubjectAssignments(): Promise<any[]> {
+    try {
+      const response: AxiosResponse<any[]> = await axiosClient.get(
+        "/api/subject-assignments"
+      );
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching subject assignments:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get subject assignment by ID
+   */
+  async getSubjectAssignment(id: number): Promise<any> {
+    try {
+      const response: AxiosResponse<any> = await axiosClient.get(
+        `/api/subject-assignments/${id}`
+      );
+      return response.data;
+    } catch (error) {
+      console.error(`Error fetching subject assignment ${id}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Assign subject to teacher
+   */
+  async assignSubjectToTeacher(assignmentData: {
+    teacherId: string;
+    subjectId: number;
+    levelId: number;
+    institutionId: number;
+  }): Promise<any> {
+    try {
+      const response: AxiosResponse<any> = await axiosClient.post(
+        "/api/subject-assignments/assign-subject-to-teacher",
+        assignmentData
+      );
+      return response.data;
+    } catch (error) {
+      console.error("Error assigning subject to teacher:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update subject assignment
+   */
+  async updateSubjectAssignment(
+    id: number,
+    assignmentData: {
+      teacherId: string;
+      subjectId: number;
+      levelId: number;
+    }
+  ): Promise<any> {
+    try {
+      const response: AxiosResponse<any> = await axiosClient.put(
+        `/api/subject-assignments/${id}`,
+        assignmentData
+      );
+      return response.data;
+    } catch (error) {
+      console.error(`Error updating subject assignment ${id}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete subject assignment
+   */
+  async deleteSubjectAssignment(id: number): Promise<void> {
+    try {
+      await axiosClient.delete(`/api/subject-assignments/${id}`);
+    } catch (error) {
+      console.error(`Error deleting subject assignment ${id}:`, error);
+      throw error;
+    }
+  }
+
+  // ============================================================================
+  // LEVELS ENDPOINTS
+  // ============================================================================
+
+  /**
+   * Get all levels
+   */
+  async getLevels(): Promise<any[]> {
+    try {
+      const response: AxiosResponse<any[]> = await axiosClient.get("/api/levels");
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching levels:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get levels by institution
+   */
+  async getLevelsByInstitution(institutionId: number): Promise<any[]> {
+    try {
+      const response: AxiosResponse<any[]> = await axiosClient.get(
+        `/api/levels/by-institution?institutionId=${institutionId}`
+      );
+      return response.data;
+    } catch (error) {
+      console.error(
+        `Error fetching levels for institution ${institutionId}:`,
+        error
+      );
+      throw error;
+    }
+  }
+
+  // ============================================================================
   // USERS ENDPOINTS
   // ============================================================================
 
