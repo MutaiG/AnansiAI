@@ -198,7 +198,7 @@ const TermManagement: React.FC<TermManagementProps> = ({ onTermChange }) => {
         description: curr.description,
         code: (curr as any).code || curr.name.substring(0, 3).toUpperCase(),
         isActive: !curr.isDeleted,
-        createdAt: curr.createdDate || new Date().toISOString(),
+        createdAt: curr.modifiedDate || new Date().toISOString(),
         updatedAt: curr.modifiedDate || new Date().toISOString(),
       }));
 

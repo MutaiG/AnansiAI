@@ -322,7 +322,7 @@ export default function TeacherDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
-  const [showCreateClass, setShowCreateClass] = useState(false);
+
   const [showCreateLesson, setShowCreateLesson] = useState(false);
   const [showEditLesson, setShowEditLesson] = useState(false);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
@@ -350,17 +350,30 @@ export default function TeacherDashboard() {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [curriculumLoading, setCurriculumLoading] = useState(false);
 
+  // Enums state
+  const [enums, setEnums] = useState<any>(null);
+  const [enumsLoading, setEnumsLoading] = useState(false);
+
   // API service instance
   const adminApiService = AdminApiService.getInstance();
 
+  // Enums fetching function
+  const fetchEnums = async () => {
+    try {
+      setEnumsLoading(true);
+      console.log("🔄 Fetching enums from API...");
+      const response = await axiosClient.get("/api/enums/all-enums");
+      const enumsData = response.data?.data || response.data || {};
+      setEnums(enumsData);
+      console.log("✅ Enums loaded:", Object.keys(enumsData));
+    } catch (error) {
+      console.error("❌ Error fetching enums:", error);
+    } finally {
+      setEnumsLoading(false);
+    }
+  };
+
   // Form states
-  const [classForm, setClassForm] = useState({
-    name: "",
-    subject: "",
-    grade: "",
-    description: "",
-    schedule: "",
-  });
 
   const [lessonForm, setLessonForm] = useState({
     title: "",
@@ -390,6 +403,18 @@ export default function TeacherDashboard() {
     certifications: [] as string[],
   });
 
+  // Content creation state
+  const [showCreateContent, setShowCreateContent] = useState(false);
+  const [contentForm, setContentForm] = useState({
+    title: "",
+    type: "lesson",
+    subject: "",
+    description: "",
+    difficulty: "medium",
+    estimatedDuration: 45,
+    content: "",
+  });
+
   // Notification system
   const [showNotificationCenter, setShowNotificationCenter] = useState(false);
   const [selectedMessage, setSelectedMessage] = useState<any | null>(null);
@@ -416,35 +441,32 @@ export default function TeacherDashboard() {
   const fetchSubjects = async () => {
     try {
       setSubjectsLoading(true);
-      console.log("🔄 Fetching teacher's assigned subjects...");
+      console.log("🔄 Fetching subjects from API...");
 
-      // TODO: Replace with actual teacher ID from authentication
-      const teacherId = 1; // This should come from authentication context
+      // Try to get all subjects first
+      const response = await axiosClient.get("/api/subjects");
+      const subjectsData = response.data?.data || response.data || [];
+      const allSubjects = Array.isArray(subjectsData) ? subjectsData : [];
 
-      // Get teacher's assigned subjects only
-      const response = await axiosClient.get(`/api/teachers/${teacherId}/subjects`);
-      const teacherSubjects = Array.isArray(response.data) ? response.data : [];
+      // Filter only active subjects
+      const activeSubjects = allSubjects.filter(subject => subject.isActive);
 
-      setSubjects(teacherSubjects);
-      console.log(`✅ Loaded ${teacherSubjects.length} assigned subjects for teacher`);
-    } catch (error) {
-      console.error("❌ Error fetching teacher's subjects:", error);
+      setSubjects(activeSubjects);
+      console.log(`✅ Loaded ${activeSubjects.length} active subjects (${allSubjects.length} total)`);
 
-      // Fallback: try to get all subjects and filter later (temporary)
-      try {
-        console.log("🔄 Fallback: fetching all subjects...");
-        const fallbackResponse = await axiosClient.get("/api/subjects/all-subjects");
-        const allSubjects = Array.isArray(fallbackResponse.data) ? fallbackResponse.data : [];
-        setSubjects(allSubjects);
-        console.log(`⚠️ Using fallback: loaded ${allSubjects.length} subjects`);
-      } catch (fallbackError) {
-        console.error("❌ Fallback also failed:", fallbackError);
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Failed to fetch subjects",
-        });
+      // Log subjects for debugging
+      if (activeSubjects.length > 0) {
+        console.log("Available subjects:", activeSubjects.map(s => `${s.subjectName} (ID: ${s.subjectId})`));
       }
+    } catch (error) {
+      console.error("❌ Error fetching subjects:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to fetch subjects",
+      });
+      // Set empty array on error
+      setSubjects([]);
     } finally {
       setSubjectsLoading(false);
     }
@@ -529,7 +551,7 @@ export default function TeacherDashboard() {
             termFull: term?.fullName || `Term ${milestone.termId}`,
             milestone: milestone.description,
             isActive: !milestone.isDeleted,
-            createdAt: milestone.createdDate || new Date().toISOString(),
+            createdAt: milestone.modifiedDate || new Date().toISOString(),
             updatedAt: milestone.modifiedDate || new Date().toISOString(),
           };
         });
@@ -551,7 +573,7 @@ export default function TeacherDashboard() {
             termFull: term?.fullName || `Term ${goal.termId}`,
             goal: goal.description,
             isActive: !goal.isDeleted,
-            createdAt: goal.createdDate || new Date().toISOString(),
+            createdAt: goal.modifiedDate || new Date().toISOString(),
             updatedAt: goal.modifiedDate || new Date().toISOString(),
           };
         });
@@ -584,12 +606,13 @@ export default function TeacherDashboard() {
   const fetchAssignments = async () => {
     try {
       setAssignmentsLoading(true);
-      const response = await axiosClient.get(
-        "/api/assignments/all-assignments",
-      );
-      setAssignments(Array.isArray(response.data) ? response.data : []);
+      console.log("🔄 Fetching assignments from API...");
+      const response = await axiosClient.get("/api/assignments");
+      const assignmentsData = response.data?.data || response.data || [];
+      setAssignments(Array.isArray(assignmentsData) ? assignmentsData : []);
+      console.log(`✅ Loaded ${assignmentsData.length} assignments`);
     } catch (error) {
-      console.error("Error fetching assignments:", error);
+      console.error("❌ Error fetching assignments:", error);
       toast({
         variant: "destructive",
         title: "Error",
@@ -619,13 +642,31 @@ export default function TeacherDashboard() {
       return;
     }
 
+    if (!assignmentForm.lessonId || assignmentForm.lessonId === 0) {
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: "Please specify a lesson ID for the assignment",
+      });
+      return;
+    }
+
     try {
+      const assignmentData = {
+        lessonId: assignmentForm.lessonId,
+        title: assignmentForm.title,
+        questionType: assignmentForm.questionType,
+        content: assignmentForm.content,
+        rubric: assignmentForm.rubric,
+        deadline: new Date(assignmentForm.deadline).toISOString(),
+        approvalStatus: assignmentForm.approvalStatus,
+        isActive: assignmentForm.isActive,
+      };
+
+      console.log("🔄 Creating assignment with data:", assignmentData);
       const response = await axiosClient.post(
         "/api/assignments/add-assignment",
-        {
-          ...assignmentForm,
-          deadline: new Date(assignmentForm.deadline).toISOString(),
-        },
+        assignmentData,
       );
       if (response.data) {
         toast({
@@ -644,9 +685,10 @@ export default function TeacherDashboard() {
           approvalStatus: 1,
           isActive: true,
         });
+        console.log("✅ Assignment created successfully");
       }
     } catch (error) {
-      console.error("Error creating assignment:", error);
+      console.error("❌ Error creating assignment:", error);
       toast({
         variant: "destructive",
         title: "Error",
@@ -745,20 +787,7 @@ export default function TeacherDashboard() {
     setShowEditAssignment(true);
   };
 
-  const getQuestionTypeLabel = (type: number) => {
-    switch (type) {
-      case 1:
-        return "Multiple Choice";
-      case 2:
-        return "Short Answer";
-      case 3:
-        return "Essay";
-      case 4:
-        return "True/False";
-      default:
-        return "Unknown";
-    }
-  };
+
 
   const getSubjectName = (subjectId: number) => {
     const subject = subjects.find((s) => s.subjectId === subjectId);
@@ -798,11 +827,12 @@ export default function TeacherDashboard() {
     }
   }, [lastAction]);
 
-  // Load lessons, assignments, and subjects when component mounts
+  // Load lessons, assignments, subjects, and enums when component mounts
   useEffect(() => {
     fetchLessons();
     fetchAssignments();
     fetchSubjects();
+    fetchEnums();
   }, []);
 
     // Load curriculum data when subjects are loaded
@@ -1416,75 +1446,7 @@ export default function TeacherDashboard() {
     }
   };
 
-  const handleCreateClass = async () => {
-    if (!classForm.name.trim() || !classForm.subject.trim()) {
-      setLastAction({
-        type: "error",
-        message: "Please fill in required fields",
-      });
-      return;
-    }
 
-    try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      // Add to dashboard data
-      const newClass: ClassData = {
-        id: `class_${Date.now()}`,
-        name: classForm.name,
-        subject: classForm.subject,
-        grade: classForm.grade,
-        studentCount: 0,
-        progress: 0,
-        nextLesson: "Introduction",
-        schedule: classForm.schedule,
-        status: "active",
-        description: classForm.description,
-        studentsEnrolled: 0,
-        averageGrade: 0,
-        lastUpdated: "Just now",
-      };
-
-      if (dashboardData) {
-        setDashboardData({
-          ...dashboardData,
-          classes: [...dashboardData.classes, newClass],
-          stats: {
-            ...dashboardData.stats,
-            activeClasses: dashboardData.stats.activeClasses + 1,
-          },
-        });
-      }
-
-      // Reset form and close dialog
-      setClassForm({
-        name: "",
-        subject: "",
-        grade: "",
-        description: "",
-        schedule: "",
-      });
-      setShowCreateClass(false);
-      setLastAction({
-        type: "success",
-        message: `Class "${classForm.name}" created successfully!`,
-      });
-
-      addNotification({
-        type: "class",
-        priority: "medium",
-        title: "Class Created Successfully",
-        message: `${classForm.name} has been created and is now available to students.`,
-        isRead: false,
-      });
-    } catch (error) {
-      setLastAction({
-        type: "error",
-        message: "Failed to create class. Please try again.",
-      });
-    }
-  };
 
   // Profile settings handlers
   const handleOpenProfileSettings = () => {
@@ -1562,7 +1524,7 @@ export default function TeacherDashboard() {
         details: `📚 Class: ${classData.name}
 📖 Subject: ${classData.subject}
 🎓 Grade: ${classData.grade}
-👥 Students: ${classData.studentCount}
+�� Students: ${classData.studentCount}
 ��� Progress: ${classData.progress}%
 📅 Schedule: ${classData.schedule}
 📝 Next Lesson: ${classData.nextLesson}
@@ -1602,23 +1564,7 @@ Quick Actions Available:
     }
   };
 
-  const handleEditClass = (classId: string) => {
-    const classData = dashboardData?.classes.find((c) => c.id === classId);
-    if (classData) {
-      setClassForm({
-        name: classData.name,
-        subject: classData.subject,
-        grade: classData.grade,
-        description: classData.description,
-        schedule: classData.schedule,
-      });
-      setShowCreateClass(true);
-      setLastAction({
-        type: "info",
-        message: `Editing ${classData.name} - Update details and save changes`,
-      });
-    }
-  };
+
 
   const handleViewStudent = (studentId: string) => {
     const student = dashboardData?.students.find((s) => s.id === studentId);
@@ -2403,7 +2349,7 @@ ${
 ⭐ Average Grade: ${classData.averageGrade}%
 
 Recent Trends:
-• Student participation increased by 15%
+��� Student participation increased by 15%
 • Assignment completion rate: 92%
 • Most challenging topic: ${classData.nextLesson}
 • Recommended focus areas identified
@@ -2681,10 +2627,13 @@ AI Recommendations:
   const fetchLessons = async () => {
     try {
       setLessonsLoading(true);
-      const response = await axiosClient.get("/api/lessons/all-lessons");
-      setLessons(Array.isArray(response.data) ? response.data : []);
+      console.log("🔄 Fetching lessons from API...");
+      const response = await axiosClient.get("/api/lessons");
+      const lessonsData = response.data?.data || response.data || [];
+      setLessons(Array.isArray(lessonsData) ? lessonsData : []);
+      console.log(`✅ Loaded ${lessonsData.length} lessons`);
     } catch (error) {
-      console.error("Error fetching lessons:", error);
+      console.error("❌ Error fetching lessons:", error);
       toast({
         variant: "destructive",
         title: "Error",
@@ -2705,8 +2654,28 @@ AI Recommendations:
       return;
     }
 
+    if (!lessonForm.subjectId || lessonForm.subjectId === 0) {
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: "Please select a subject for the lesson",
+      });
+      return;
+    }
+
     try {
-      const response = await axiosClient.post("/api/lessons", lessonForm);
+      const lessonData = {
+        subjectId: lessonForm.subjectId,
+        title: lessonForm.title,
+        content: lessonForm.content,
+        difficultyLevel: lessonForm.difficultyLevel,
+        approvalStatus: lessonForm.approvalStatus,
+        isActive: lessonForm.isActive,
+      };
+
+      console.log("🔄 Creating lesson with data:", lessonData);
+      const response = await axiosClient.post("/api/lessons/add-lesson", lessonData);
+
       if (response.data) {
         toast({
           title: "Success",
@@ -2722,9 +2691,10 @@ AI Recommendations:
           approvalStatus: 1,
           isActive: true,
         });
+        console.log("✅ Lesson created successfully");
       }
     } catch (error) {
-      console.error("Error creating lesson:", error);
+      console.error("❌ Error creating lesson:", error);
       toast({
         variant: "destructive",
         title: "Error",
@@ -2784,18 +2754,18 @@ AI Recommendations:
 
   const deleteLesson = async (lessonId: number) => {
     try {
-      const response = await axiosClient.delete(`/api/lessons`, {
-        params: { lessonId },
-      });
+      console.log(`🔄 Deleting lesson ${lessonId}...`);
+      const response = await axiosClient.delete(`/api/lessons/${lessonId}`);
       if (response.status === 200) {
         toast({
           title: "Success",
           description: "Lesson deleted successfully",
         });
         fetchLessons(); // Refresh lessons
+        console.log(`✅ Lesson ${lessonId} deleted successfully`);
       }
     } catch (error) {
-      console.error("Error deleting lesson:", error);
+      console.error(`❌ Error deleting lesson ${lessonId}:`, error);
       toast({
         variant: "destructive",
         title: "Error",
@@ -2831,15 +2801,40 @@ AI Recommendations:
   };
 
   const getApprovalStatusLabel = (status: number) => {
+    if (enums?.ApprovalStatus) {
+      const approvalStatus = enums.ApprovalStatus.find((item: any) => item.key === status);
+      return approvalStatus ? approvalStatus.value.replace('_', ' ') : "Unknown";
+    }
+    // Fallback
     switch (status) {
-      case 0:
-        return "Draft";
       case 1:
-        return "Pending";
+        return "Draft";
       case 2:
-        return "Approved";
+        return "Pending Review";
       case 3:
+        return "Approved";
+      case 4:
         return "Rejected";
+      default:
+        return "Unknown";
+    }
+  };
+
+  const getQuestionTypeLabel = (type: number) => {
+    if (enums?.QuestionTypes) {
+      const questionType = enums.QuestionTypes.find((item: any) => item.key === type);
+      return questionType ? questionType.value.replace('_', ' ') : "Unknown";
+    }
+    // Fallback
+    switch (type) {
+      case 1:
+        return "MCQ";
+      case 2:
+        return "Short Answer";
+      case 3:
+        return "Project";
+      case 4:
+        return "Essay";
       default:
         return "Unknown";
     }
@@ -3150,7 +3145,7 @@ AI Recommendations:
               className="flex items-center space-x-2"
             >
               <Calendar className="h-4 w-4" />
-              <span>Classes</span>
+              <span>Levels</span>
             </TabsTrigger>
             <TabsTrigger
               value="content"
@@ -3215,7 +3210,7 @@ AI Recommendations:
                             <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">
-                    Active Classes
+                    Active Levels
                   </CardTitle>
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
@@ -3238,10 +3233,15 @@ AI Recommendations:
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">
-                    {subjects.length}
+                    {subjectsLoading ? "..." : subjects.length}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {subjects.length > 0 ? subjects.map(s => s.subjectName).join(", ").substring(0, 40) + (subjects.map(s => s.subjectName).join(", ").length > 40 ? "..." : "") : "No subjects assigned"}
+                    {subjectsLoading
+                      ? "Loading subjects..."
+                      : subjects.length > 0
+                        ? subjects.map(s => s.subjectName).join(", ").substring(0, 40) + (subjects.map(s => s.subjectName).join(", ").length > 40 ? "..." : "")
+                        : "No subjects assigned"
+                    }
                   </p>
                 </CardContent>
               </Card>
@@ -3267,16 +3267,21 @@ AI Recommendations:
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">
-                    Pending Reviews
+                    Created Lessons
                   </CardTitle>
                   <FileText className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">
-                    {dashboardData?.stats?.pendingSubmissions || 0}
+                    {lessonsLoading ? "..." : lessons.length}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Submissions to review
+                    {lessonsLoading
+                      ? "Loading lessons..."
+                      : lessons.length === 0
+                        ? "No lessons created yet"
+                        : `${lessons.filter(l => l.isActive).length} active, ${lessons.filter(l => l.approvalStatus === 3).length} approved`
+                    }
                   </p>
                 </CardContent>
               </Card>
@@ -3435,14 +3440,7 @@ AI Recommendations:
                     <ClipboardList className="mr-2 h-4 w-4" />
                     Create Assignment
                   </Button>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start"
-                    onClick={() => setShowCreateClass(true)}
-                  >
-                    <UserPlus className="mr-2 h-4 w-4" />
-                    Add Class
-                  </Button>
+
                   <Button
                     variant="outline"
                     className="w-full justify-start bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100"
@@ -3998,17 +3996,16 @@ AI Recommendations:
             </Card>
           </TabsContent>
 
-          {/* Classes Tab */}
+          {/* Levels Tab */}
           <TabsContent value="classes" className="space-y-6">
             <div className="flex justify-between items-center">
               <div>
-                <h2 className="text-2xl font-bold">My Classes</h2>
-                <p className="text-gray-600">Manage your active classes</p>
+                <h2 className="text-2xl font-bold">My Levels</h2>
+                <p className="text-gray-600">Manage your assigned levels</p>
               </div>
-              <Button onClick={() => setShowCreateClass(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Create Class
-              </Button>
+              <div className="text-sm text-gray-500">
+                Levels are assigned by administrators
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -4121,13 +4118,8 @@ AI Recommendations:
               )) || (
                 <div className="col-span-full text-center py-8 text-gray-500">
                   <Calendar className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">No classes created yet</p>
-                  <Button
-                    className="mt-2"
-                    onClick={() => setShowCreateClass(true)}
-                  >
-                    Create Your First Class
-                  </Button>
+                  <p className="text-sm">No levels assigned yet</p>
+                  <p className="text-xs mt-1">Levels are assigned by administrators</p>
                 </div>
               )}
             </div>
@@ -4139,13 +4131,30 @@ AI Recommendations:
               <div>
                 <h2 className="text-2xl font-bold">Lesson Management</h2>
                 <p className="text-gray-600">
-                  Create and manage your lessons with full CRUD operations
+                  Create and manage your lessons for assigned subjects
                 </p>
+                {subjects.length === 0 && !subjectsLoading && (
+                  <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-md">
+                    <p className="text-sm text-amber-700">
+                      ⚠️ No subjects found. Please contact your administrator to assign subjects to your account.
+                    </p>
+                  </div>
+                )}
               </div>
-              <Button onClick={() => setShowCreateLesson(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Create Lesson
-              </Button>
+              <div className="flex items-center gap-2">
+                {subjects.length > 0 && (
+                  <div className="text-sm text-gray-600 mr-2">
+                    {subjects.length} subject{subjects.length !== 1 ? 's' : ''} assigned
+                  </div>
+                )}
+                <Button
+                  onClick={() => setShowCreateLesson(true)}
+                  disabled={subjects.length === 0 && !subjectsLoading}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create Lesson
+                </Button>
+              </div>
             </div>
 
             <Card>
@@ -4213,9 +4222,9 @@ AI Recommendations:
                             <TableCell>
                               <Badge
                                 variant={
-                                  lesson.approvalStatus === 2
+                                  lesson.approvalStatus === 3
                                     ? "default"
-                                    : lesson.approvalStatus === 1
+                                    : lesson.approvalStatus === 2
                                       ? "secondary"
                                       : "outline"
                                 }
@@ -4316,10 +4325,20 @@ AI Recommendations:
                   Create and manage assignments with deadlines and rubrics
                 </p>
               </div>
-              <Button onClick={() => setShowCreateAssignment(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Create Assignment
-              </Button>
+              <div className="flex items-center gap-2">
+                {lessons.length > 0 && (
+                  <div className="text-sm text-gray-600 mr-2">
+                    {lessons.length} lesson{lessons.length !== 1 ? 's' : ''} available
+                  </div>
+                )}
+                <Button
+                  onClick={() => setShowCreateAssignment(true)}
+                  disabled={lessons.length === 0 && !lessonsLoading}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create Assignment
+                </Button>
+              </div>
             </div>
 
             <Card>
@@ -4387,9 +4406,9 @@ AI Recommendations:
                             <TableCell>
                               <Badge
                                 variant={
-                                  assignment.approvalStatus === 2
+                                  assignment.approvalStatus === 3
                                     ? "default"
-                                    : assignment.approvalStatus === 1
+                                    : assignment.approvalStatus === 2
                                       ? "secondary"
                                       : "outline"
                                 }
@@ -4566,7 +4585,7 @@ AI Recommendations:
                           message:
                             "Your personalized teaching insights are ready",
                           details:
-                            "Comprehensive analysis of your teaching effectiveness this week:\n\n• Interactive lessons showed 23% better engagement\n• Visual learning approaches increased retention by 18%\n• Student participation increased across all classes\n• Recommended focus areas identified for optimal learning",
+                            "Comprehensive analysis of your teaching effectiveness this week:\n\n• Interactive lessons showed 23% better engagement\n��� Visual learning approaches increased retention by 18%\n• Student participation increased across all classes\n• Recommended focus areas identified for optimal learning",
                           from: {
                             type: "ai",
                             name: "AI Teaching Assistant",
@@ -4899,81 +4918,7 @@ AI Recommendations:
         </Tabs>
       </div>
 
-      {/* Create Class Dialog */}
-      <Dialog open={showCreateClass} onOpenChange={setShowCreateClass}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Create New Class</DialogTitle>
-            <DialogDescription>
-              Set up a new class for your students
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="class-name">Class Name *</Label>
-              <Input
-                id="class-name"
-                value={classForm.name}
-                onChange={(e) =>
-                  setClassForm({ ...classForm, name: e.target.value })
-                }
-                placeholder="e.g., Mathematics 10A"
-              />
-            </div>
-            <div>
-              <Label htmlFor="class-subject">Subject *</Label>
-              <Input
-                id="class-subject"
-                value={classForm.subject}
-                onChange={(e) =>
-                  setClassForm({ ...classForm, subject: e.target.value })
-                }
-                placeholder="e.g., Mathematics"
-              />
-            </div>
-            <div>
-              <Label htmlFor="class-grade">Grade</Label>
-              <Input
-                id="class-grade"
-                value={classForm.grade}
-                onChange={(e) =>
-                  setClassForm({ ...classForm, grade: e.target.value })
-                }
-                placeholder="e.g., Grade 10"
-              />
-            </div>
-            <div>
-              <Label htmlFor="class-description">Description</Label>
-              <Textarea
-                id="class-description"
-                value={classForm.description}
-                onChange={(e) =>
-                  setClassForm({ ...classForm, description: e.target.value })
-                }
-                placeholder="Brief description of the class..."
-                rows={3}
-              />
-            </div>
-            <div>
-              <Label htmlFor="class-schedule">Schedule</Label>
-              <Input
-                id="class-schedule"
-                value={classForm.schedule}
-                onChange={(e) =>
-                  setClassForm({ ...classForm, schedule: e.target.value })
-                }
-                placeholder="e.g., Mon, Wed, Fri - 10:00 AM"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCreateClass(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleCreateClass}>Create Class</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+
 
       {/* Create Lesson Dialog */}
       <Dialog open={showCreateLesson} onOpenChange={setShowCreateLesson}>
@@ -5083,9 +5028,27 @@ AI Recommendations:
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="0">Draft</SelectItem>
-                    <SelectItem value="1">Pending</SelectItem>
-                    <SelectItem value="2">Approved</SelectItem>
+                    {enumsLoading ? (
+                      <SelectItem value="1" disabled>
+                        Loading approval statuses...
+                      </SelectItem>
+                    ) : enums?.ApprovalStatus ? (
+                      enums.ApprovalStatus.map((status: any) => (
+                        <SelectItem
+                          key={status.key}
+                          value={status.key.toString()}
+                        >
+                          {status.value.replace('_', ' ')}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <>
+                        <SelectItem value="1">Draft</SelectItem>
+                        <SelectItem value="2">Pending Review</SelectItem>
+                        <SelectItem value="3">Approved</SelectItem>
+                        <SelectItem value="4">Rejected</SelectItem>
+                      </>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -5223,9 +5186,27 @@ AI Recommendations:
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="0">Draft</SelectItem>
-                    <SelectItem value="1">Pending</SelectItem>
-                    <SelectItem value="2">Approved</SelectItem>
+                    {enumsLoading ? (
+                      <SelectItem value="1" disabled>
+                        Loading approval statuses...
+                      </SelectItem>
+                    ) : enums?.ApprovalStatus ? (
+                      enums.ApprovalStatus.map((status: any) => (
+                        <SelectItem
+                          key={status.key}
+                          value={status.key.toString()}
+                        >
+                          {status.value.replace('_', ' ')}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <>
+                        <SelectItem value="1">Draft</SelectItem>
+                        <SelectItem value="2">Pending Review</SelectItem>
+                        <SelectItem value="3">Approved</SelectItem>
+                        <SelectItem value="4">Rejected</SelectItem>
+                      </>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -5287,19 +5268,40 @@ AI Recommendations:
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="assignment-lessonId">Lesson ID *</Label>
-                <Input
-                  id="assignment-lessonId"
-                  type="number"
-                  value={assignmentForm.lessonId || ""}
-                  onChange={(e) =>
+                <Label htmlFor="assignment-lessonId">Select Lesson *</Label>
+                <Select
+                  value={assignmentForm.lessonId.toString()}
+                  onValueChange={(value) =>
                     setAssignmentForm({
                       ...assignmentForm,
-                      lessonId: parseInt(e.target.value) || 0,
+                      lessonId: parseInt(value),
                     })
                   }
-                  placeholder="Enter lesson ID"
-                />
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a lesson" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {lessonsLoading ? (
+                      <SelectItem value="0" disabled>
+                        Loading lessons...
+                      </SelectItem>
+                    ) : lessons.length > 0 ? (
+                      lessons.map((lesson) => (
+                        <SelectItem
+                          key={lesson.lessonId}
+                          value={lesson.lessonId.toString()}
+                        >
+                          {lesson.title} (ID: {lesson.lessonId}) - {getSubjectName(lesson.subjectId)}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="0" disabled>
+                        No lessons available - create a lesson first
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label htmlFor="assignment-questionType">Question Type</Label>
@@ -5316,10 +5318,27 @@ AI Recommendations:
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="1">Multiple Choice</SelectItem>
-                    <SelectItem value="2">Short Answer</SelectItem>
-                    <SelectItem value="3">Essay</SelectItem>
-                    <SelectItem value="4">True/False</SelectItem>
+                    {enumsLoading ? (
+                      <SelectItem value="1" disabled>
+                        Loading question types...
+                      </SelectItem>
+                    ) : enums?.QuestionTypes ? (
+                      enums.QuestionTypes.map((type: any) => (
+                        <SelectItem
+                          key={type.key}
+                          value={type.key.toString()}
+                        >
+                          {type.value.replace('_', ' ')}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <>
+                        <SelectItem value="1">MCQ</SelectItem>
+                        <SelectItem value="2">Short Answer</SelectItem>
+                        <SelectItem value="3">Project</SelectItem>
+                        <SelectItem value="4">Essay</SelectItem>
+                      </>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -5384,9 +5403,27 @@ AI Recommendations:
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="0">Draft</SelectItem>
-                    <SelectItem value="1">Pending</SelectItem>
-                    <SelectItem value="2">Approved</SelectItem>
+                    {enumsLoading ? (
+                      <SelectItem value="1" disabled>
+                        Loading approval statuses...
+                      </SelectItem>
+                    ) : enums?.ApprovalStatus ? (
+                      enums.ApprovalStatus.map((status: any) => (
+                        <SelectItem
+                          key={status.key}
+                          value={status.key.toString()}
+                        >
+                          {status.value.replace('_', ' ')}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <>
+                        <SelectItem value="1">Draft</SelectItem>
+                        <SelectItem value="2">Pending Review</SelectItem>
+                        <SelectItem value="3">Approved</SelectItem>
+                        <SelectItem value="4">Rejected</SelectItem>
+                      </>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -5445,19 +5482,40 @@ AI Recommendations:
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="edit-assignment-lessonId">Lesson ID *</Label>
-                <Input
-                  id="edit-assignment-lessonId"
-                  type="number"
-                  value={assignmentForm.lessonId || ""}
-                  onChange={(e) =>
+                <Label htmlFor="edit-assignment-lessonId">Select Lesson *</Label>
+                <Select
+                  value={assignmentForm.lessonId.toString()}
+                  onValueChange={(value) =>
                     setAssignmentForm({
                       ...assignmentForm,
-                      lessonId: parseInt(e.target.value) || 0,
+                      lessonId: parseInt(value),
                     })
                   }
-                  placeholder="Enter lesson ID"
-                />
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a lesson" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {lessonsLoading ? (
+                      <SelectItem value="0" disabled>
+                        Loading lessons...
+                      </SelectItem>
+                    ) : lessons.length > 0 ? (
+                      lessons.map((lesson) => (
+                        <SelectItem
+                          key={lesson.lessonId}
+                          value={lesson.lessonId.toString()}
+                        >
+                          {lesson.title} (ID: {lesson.lessonId}) - {getSubjectName(lesson.subjectId)}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="0" disabled>
+                        No lessons available - create a lesson first
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label htmlFor="edit-assignment-questionType">
@@ -5476,10 +5534,27 @@ AI Recommendations:
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="1">Multiple Choice</SelectItem>
-                    <SelectItem value="2">Short Answer</SelectItem>
-                    <SelectItem value="3">Essay</SelectItem>
-                    <SelectItem value="4">True/False</SelectItem>
+                    {enumsLoading ? (
+                      <SelectItem value="1" disabled>
+                        Loading question types...
+                      </SelectItem>
+                    ) : enums?.QuestionTypes ? (
+                      enums.QuestionTypes.map((type: any) => (
+                        <SelectItem
+                          key={type.key}
+                          value={type.key.toString()}
+                        >
+                          {type.value.replace('_', ' ')}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <>
+                        <SelectItem value="1">MCQ</SelectItem>
+                        <SelectItem value="2">Short Answer</SelectItem>
+                        <SelectItem value="3">Project</SelectItem>
+                        <SelectItem value="4">Essay</SelectItem>
+                      </>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -5548,9 +5623,27 @@ AI Recommendations:
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="0">Draft</SelectItem>
-                    <SelectItem value="1">Pending</SelectItem>
-                    <SelectItem value="2">Approved</SelectItem>
+                    {enumsLoading ? (
+                      <SelectItem value="1" disabled>
+                        Loading approval statuses...
+                      </SelectItem>
+                    ) : enums?.ApprovalStatus ? (
+                      enums.ApprovalStatus.map((status: any) => (
+                        <SelectItem
+                          key={status.key}
+                          value={status.key.toString()}
+                        >
+                          {status.value.replace('_', ' ')}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <>
+                        <SelectItem value="1">Draft</SelectItem>
+                        <SelectItem value="2">Pending Review</SelectItem>
+                        <SelectItem value="3">Approved</SelectItem>
+                        <SelectItem value="4">Rejected</SelectItem>
+                      </>
+                    )}
                   </SelectContent>
                 </Select>
               </div>

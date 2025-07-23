@@ -16,11 +16,11 @@ const getOptimalApiUrl = () => {
     hostname: window.location.hostname,
     isDevelopment,
     isHttps,
-        selectedApiUrl: "http://13.61.2.251/anansiai",
+        selectedApiUrl: "http://13.60.46.125/anansiai",
     note: "Using HTTP for API - may cause mixed content warnings",
   });
 
-    return "http://13.61.2.251/anansiai";
+    return "http://13.60.46.125/anansiai";
 };
 
 const API_BASE_URL = getOptimalApiUrl();
@@ -108,7 +108,7 @@ axiosClient.interceptors.response.use(
 
 // Connection test function to help diagnose issues
 export const testApiConnection = async () => {
-    const baseUrl = "13.61.2.251/anansiai";
+    const baseUrl = "13.60.46.125/anansiai";
   const isHttps = window.location.protocol === "https:";
 
   // Test order: prioritize HTTPS if we're on HTTPS, otherwise HTTP first

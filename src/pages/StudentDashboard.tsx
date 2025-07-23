@@ -176,9 +176,7 @@ const LazyStudentProfileManager = lazy(() =>
 // Import comprehensive types
 import {
   StudentProfile,
-  Subject,
   Level,
-  Lesson,
   Assignment,
   Submission,
   BehaviorLog,
@@ -190,11 +188,28 @@ import {
 interface DashboardCourse {
   id: string;
   title: string;
-  subject: Subject;
-  progress: number;
-  nextLesson?: Lesson;
   instructor: string;
+  progress: number;
+  completedLessons: number;
   totalLessons: number;
+  recentGrade?: number;
+  aiRecommended: boolean;
+  subject: {
+    subjectId: number;
+    name: string;
+    description: string;
+  };
+  upcomingAssignments: Array<{
+    id: string;
+    title: string;
+    dueDate: string;
+    priority: string;
+    status: string;
+  }>;
+}
+
+interface DashboardCourseDetailed extends DashboardCourse {
+  nextLesson?: Lesson;
   completedLessons: number;
   upcomingAssignments: Assignment[];
   recentGrade?: number;
@@ -1047,9 +1062,26 @@ const StudentDashboard = () => {
   };
 
   // Filter courses based on search and filters
-  const getFilteredCourses = () => {
+  const getFilteredCourses = (): DashboardCourse[] => {
     // Use real courses if available, otherwise fall back to enrolledCourses
-    let filtered = courses.length > 0 ? courses : enrolledCourses;
+    let filtered: DashboardCourse[] = courses.length > 0
+      ? courses.map(course => ({
+          id: course.id,
+          title: course.title,
+          instructor: course.instructor,
+          progress: course.progress,
+          completedLessons: course.completedLessons,
+          totalLessons: course.totalLessons,
+          recentGrade: undefined,
+          aiRecommended: false,
+          subject: {
+            subjectId: course.subject.id,
+            name: course.subject.name,
+            description: course.subject.description,
+          },
+          upcomingAssignments: [],
+        }))
+      : enrolledCourses;
 
     // Apply search filter
     if (searchQuery.trim()) {

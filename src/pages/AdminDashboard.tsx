@@ -359,6 +359,31 @@ const AdminDashboard = () => {
     }
   };
 
+  const fetchLevels = async () => {
+    try {
+      setLevelsLoading(true);
+      console.log("📚 Fetching levels from API...");
+
+      // Use the correct level endpoints - either get all levels or by institution
+      const institutionId = dashboardData?.institution?.id;
+      const endpoint = institutionId
+        ? `/api/levels/by-institution?institutionId=${institutionId}`
+        : "/api/levels";
+
+      const response = await axiosClient.get(endpoint);
+      console.log("✅ Levels fetched successfully:", response.data);
+
+      if (response.data) {
+        setLevels(Array.isArray(response.data) ? response.data : [response.data]);
+      }
+    } catch (error) {
+      console.error("❌ Failed to fetch levels:", error);
+      setLevels([]);
+    } finally {
+      setLevelsLoading(false);
+    }
+  };
+
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
@@ -474,27 +499,27 @@ const AdminDashboard = () => {
           },
         ],
         subjects: subjects.map((subject) => ({
-          id: subject.subjectId?.toString() || subject.id,
+          id: subject.subjectId.toString(),
           subjectId: subject.subjectId,
-          name: subject.subjectName || subject.name,
-          subjectName: subject.subjectName || subject.name, // Ensure both are available
+          name: subject.subjectName,
+          subjectName: subject.subjectName, // Ensure both are available
           description: subject.description,
           code:
-            subject.code ||
-            (subject.subjectName || subject.name)
+            (subject as any).code ||
+            subject.subjectName
               ?.substring(0, 3)
               .toUpperCase(),
           credits: 3, // No API data available
         })),
         classes: lessons.map((lesson) => ({
-          id: lesson.lessonId || lesson.id,
+          id: lesson.lessonId.toString(),
           title: lesson.title,
           content: lesson.content,
           difficultyLevel: lesson.difficultyLevel,
           isActive: lesson.isActive,
         })),
         assignments: assignments.map((assignment) => ({
-          id: assignment.assignmentId || assignment.id,
+          id: assignment.assignmentId.toString(),
           title: assignment.title,
           content: assignment.content,
           deadline: assignment.deadline,
@@ -534,6 +559,9 @@ const AdminDashboard = () => {
       // Use the exact endpoint and payload format from Swagger documentation
       const endpoint = "/api/Users/add-users-as-admin";
 
+      // Get institution name from admin's profile (should be available in session/context)
+      const institutionName = dashboardData?.institution?.name || "Demo School";
+
       // Create the API payload exactly as specified in Swagger docs
       const apiPayload = {
         firstName: userData.firstName,
@@ -541,35 +569,11 @@ const AdminDashboard = () => {
         email: userData.email,
         address: userData.address || "",
         phoneNumber: userData.phoneNumber || "",
-        institutionName: userData.institutionName || "Default Institution",
-        role: (() => {
-          // Find the role from the fetched roles
-          const selectedRole = availableRoles.find(
-            (role) => role.name.toLowerCase() === userData.role.toLowerCase(),
-          );
-
-          if (selectedRole) {
-            return {
-              id: selectedRole.id,
-              name: selectedRole.name,
-            };
-          }
-
-          // Fallback to default role mapping
-          return {
-            id:
-              userData.role === "teacher"
-                ? "3"
-                : userData.role === "student"
-                  ? "4"
-                  : "2",
-            name:
-              userData.role.charAt(0).toUpperCase() + userData.role.slice(1),
-          };
-        })(),
+        institutionName: institutionName,
+        role: userData.role,
       };
 
-      console.log(`🔄 Creating user via ${endpoint}:`);
+      console.log(`�� Creating user via ${endpoint}:`);
       console.log("📤 API Payload:", JSON.stringify(apiPayload, null, 2));
       console.log("📋 Payload validation:");
       console.log("  - firstName:", !!apiPayload.firstName);
@@ -768,6 +772,7 @@ const AdminDashboard = () => {
   useEffect(() => {
     fetchDashboardData();
     fetchAvailableRoles();
+    fetchLevels();
   }, []);
 
   // Show message function
@@ -844,21 +849,30 @@ const AdminDashboard = () => {
     firstName: "",
     lastName: "",
     email: "",
-    phone: "",
     address: "",
-    institutionName: "",
-    role: "student" as string,
-    regNo: "",
-    grade: "",
-    subject: "",
-    bio: "",
-    experience: "",
+    phoneNumber: "",
+    role: {
+      id: "",
+      name: "STUDENT"
+    }
   });
 
   const [newSubject, setNewSubject] = useState({
     name: "",
     description: "",
     category: "",
+  });
+
+  // Level Management State
+  const [isCreateLevelOpen, setIsCreateLevelOpen] = useState(false);
+  const [isEditLevelOpen, setIsEditLevelOpen] = useState(false);
+  const [selectedLevel, setSelectedLevel] = useState<any>(null);
+  const [levelSearchQuery, setLevelSearchQuery] = useState("");
+  const [levels, setLevels] = useState<any[]>([]);
+  const [levelsLoading, setLevelsLoading] = useState(false);
+
+  const [newLevel, setNewLevel] = useState({
+    levelName: "",
   });
 
   const [passwordData, setPasswordData] = useState({
@@ -1047,18 +1061,6 @@ const AdminDashboard = () => {
       return;
     }
 
-    if (!newUser.phone) {
-      showMessage({
-        id: Date.now().toString(),
-        type: "error",
-        priority: "medium",
-        title: "Validation Error",
-        message: "Please enter the user's phone number",
-        timestamp: new Date().toISOString(),
-      });
-      return;
-    }
-
     if (!newUser.address) {
       showMessage({
         id: Date.now().toString(),
@@ -1071,13 +1073,15 @@ const AdminDashboard = () => {
       return;
     }
 
-    if (!newUser.institutionName) {
+
+
+    if (!newUser.role.name) {
       showMessage({
         id: Date.now().toString(),
         type: "error",
         priority: "medium",
         title: "Validation Error",
-        message: "Please enter the institution name",
+        message: "Please select a user role",
         timestamp: new Date().toISOString(),
       });
       return;
@@ -1088,10 +1092,10 @@ const AdminDashboard = () => {
         firstName: newUser.firstName,
         lastName: newUser.lastName,
         email: newUser.email,
-        phoneNumber: newUser.phone,
+        phoneNumber: newUser.phoneNumber,
         address: newUser.address,
-        institutionName: newUser.institutionName,
-        role: newUser.role.toLowerCase(),
+        institutionId: newUser.institutionId,
+        role: newUser.role,
       };
 
       await createUser(userData);
@@ -1103,8 +1107,8 @@ const AdminDashboard = () => {
           type: "success",
           priority: "high",
           title: "User Created Successfully",
-          message: `New ${newUser.role} account has been created successfully.`,
-          details: `The user can now log in using their email address: ${userData.email}${newUser.role === "student" ? "\n\nAI Twin will be automatically configured for personalized learning." : ""}`,
+          message: `New ${newUser.role.name} account has been created successfully.`,
+          details: `The user can now log in using their email address: ${userData.email}${newUser.role.name.toLowerCase() === "student" ? "\n\nAI Twin will be automatically configured for personalized learning." : ""}`,
           timestamp: new Date().toISOString(),
           requiresResponse: false,
         });
@@ -1114,15 +1118,12 @@ const AdminDashboard = () => {
           firstName: "",
           lastName: "",
           email: "",
-          phone: "",
           address: "",
-          institutionName: "",
-          role: "student",
-          regNo: "",
-          grade: "",
-          subject: "",
-          bio: "",
-          experience: "",
+          phoneNumber: "",
+          role: {
+            id: "",
+            name: "STUDENT"
+          }
         });
 
         // Reload dashboard to show new user
@@ -1781,7 +1782,7 @@ const AdminDashboard = () => {
 
           {/* Main Dashboard Tabs */}
           <Tabs value={selectedTab} onValueChange={setSelectedTab}>
-            <TabsList className="grid w-full grid-cols-7">
+            <TabsList className="grid w-full grid-cols-8">
               <TabsTrigger value="overview" className="flex items-center gap-2">
                 <BarChart3 className="w-4 h-4" />
                 Overview
@@ -1789,6 +1790,10 @@ const AdminDashboard = () => {
               <TabsTrigger value="users" className="flex items-center gap-2">
                 <Users className="w-4 h-4" />
                 Users
+              </TabsTrigger>
+              <TabsTrigger value="class-management" className="flex items-center gap-2">
+                <GraduationCap className="w-4 h-4" />
+                Levels
               </TabsTrigger>
               <TabsTrigger
                 value="curriculum-management"
@@ -2520,6 +2525,107 @@ const AdminDashboard = () => {
               </Card>
             </TabsContent>
 
+            <TabsContent value="class-management" className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
+                    <GraduationCap className="w-6 h-6 text-blue-600" />
+                    Level Management
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    Create and manage educational levels for students and teachers
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={() => setIsCreateLevelOpen(true)}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Create Level
+                  </Button>
+                </div>
+              </div>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <GraduationCap className="w-5 h-5" />
+                    Educational Levels
+                  </CardTitle>
+                  <CardDescription>
+                    Manage educational levels with teacher assignments and student enrollment
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Search className="w-4 h-4 text-gray-400" />
+                      <Input
+                        placeholder="Search levels..."
+                        value={levelSearchQuery}
+                        onChange={(e) => setLevelSearchQuery(e.target.value)}
+                        className="flex-1"
+                      />
+                    </div>
+
+                    <div className="space-y-3 max-h-96 overflow-y-auto">
+                      {levelsLoading ? (
+                        <div className="flex items-center justify-center py-8">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                          <span className="ml-2">Loading levels...</span>
+                        </div>
+                      ) : levels.length > 0 ? (
+                        levels
+                          .filter(level =>
+                            level.levelName?.toLowerCase().includes(levelSearchQuery.toLowerCase()) ||
+                            level.levelId?.toString().includes(levelSearchQuery)
+                          )
+                          .map((level) => (
+                            <div key={level.levelId} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-3 mb-2">
+                                  <p className="font-medium text-lg">{level.levelName}</p>
+                                  <Badge variant="secondary">Level {level.levelId}</Badge>
+                                </div>
+                                <p className="text-sm text-gray-600 mb-2">
+                                  Status: {level.isActive ? "Active" : "Inactive"}
+                                </p>
+                                <div className="flex items-center gap-3">
+                                  <div className="flex items-center gap-2">
+                                    <Progress value={level.maxStudents ? 75 : 0} className="w-24 h-2" />
+                                    <span className="text-sm text-gray-500">
+                                      Max: {level.maxStudents || "N/A"} students
+                                    </span>
+                                  </div>
+                                  <Badge
+                                    variant={level.isActive ? "default" : "secondary"}
+                                    className="text-xs"
+                                  >
+                                    {level.isActive ? "Active" : "Inactive"}
+                                  </Badge>
+                                </div>
+                              </div>
+                              <div className="flex gap-2 ml-4">
+                                <Button variant="outline" size="sm">
+                                  <Eye className="w-4 h-4" />
+                                </Button>
+                                <Button variant="outline" size="sm">
+                                  <Edit className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))
+                      ) : (
+                        <div className="text-center py-8 text-gray-500">
+                          <GraduationCap className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                          <p className="text-sm">No levels found</p>
+                          <p className="text-xs mt-1">Create your first level to get started</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
             <TabsContent value="curriculum-management" className="space-y-6">
               <UnifiedCurriculumManagement onDataChange={fetchDashboardData} />
             </TabsContent>
@@ -2880,7 +2986,7 @@ const AdminDashboard = () => {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2 text-sm text-gray-600 mb-4">
-                      <div>• Login activity logs</div>
+                      <div>��� Login activity logs</div>
                       <div>• Security incident reports</div>
                       <div>��� Data access audits</div>
                     </div>
@@ -3183,13 +3289,17 @@ const AdminDashboard = () => {
                 <div>
                   <Label htmlFor="role">User Role *</Label>
                   <Select
-                    value={newUser.role}
-                    onValueChange={(value) =>
+                    value={newUser.role.name}
+                    onValueChange={(value) => {
+                      const selectedRole = availableRoles.find(role => role.name === value);
                       setNewUser({
                         ...newUser,
-                        role: value,
-                      })
-                    }
+                        role: {
+                          id: selectedRole?.id || "",
+                          name: value
+                        }
+                      });
+                    }}
                     disabled={rolesLoading}
                   >
                     <SelectTrigger>
@@ -3203,7 +3313,7 @@ const AdminDashboard = () => {
                       {availableRoles.map((role) => (
                         <SelectItem
                           key={role.id}
-                          value={role.name.toLowerCase()}
+                          value={role.name}
                         >
                           <div className="flex items-center gap-2">
                             {role.name.toLowerCase() === "student" && (
@@ -3266,15 +3376,14 @@ const AdminDashboard = () => {
                 </div>
 
                 <div>
-                  <Label htmlFor="phone">Phone Number *</Label>
+                  <Label htmlFor="phoneNumber">Phone Number</Label>
                   <Input
-                    id="phone"
-                    value={newUser.phone}
+                    id="phoneNumber"
+                    value={newUser.phoneNumber}
                     onChange={(e) =>
-                      setNewUser({ ...newUser, phone: e.target.value })
+                      setNewUser({ ...newUser, phoneNumber: e.target.value })
                     }
                     placeholder="+254-700-000-000"
-                    required
                   />
                 </div>
 
@@ -3291,117 +3400,11 @@ const AdminDashboard = () => {
                   />
                 </div>
 
-                <div>
-                  <Label htmlFor="institutionName">Institution *</Label>
-                  <Input
-                    id="institutionName"
-                    value={newUser.institutionName}
-                    onChange={(e) =>
-                      setNewUser({
-                        ...newUser,
-                        institutionName: e.target.value,
-                      })
-                    }
-                    placeholder="Institution name"
-                    required
-                  />
+                <div className="text-sm text-gray-600 p-3 bg-blue-50 rounded-lg">
+                  <p><strong>Institution:</strong> User will be automatically assigned to your institution</p>
                 </div>
 
-                {newUser.role === "student" && (
-                  <>
-                    <div>
-                      <Label htmlFor="regNo">
-                        Registration Number (Optional)
-                      </Label>
-                      <Input
-                        id="regNo"
-                        value={newUser.regNo}
-                        onChange={(e) =>
-                          setNewUser({
-                            ...newUser,
-                            regNo: e.target.value,
-                          })
-                        }
-                        placeholder="e.g., ST2024001 (for internal use only)"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="grade">Grade (Optional)</Label>
-                      <Select
-                        value={newUser.grade}
-                        onValueChange={(value) =>
-                          setNewUser({ ...newUser, grade: value })
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select grade (optional)" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="9th">9th Grade</SelectItem>
-                          <SelectItem value="10th">10th Grade</SelectItem>
-                          <SelectItem value="11th">11th Grade</SelectItem>
-                          <SelectItem value="12th">12th Grade</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </>
-                )}
-
-                {newUser.role === "teacher" && (
-                  <>
-                    <div>
-                      <Label htmlFor="subject">Subject (Optional)</Label>
-                      <Select
-                        value={newUser.subject}
-                        onValueChange={(value) =>
-                          setNewUser({ ...newUser, subject: value })
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select subject (optional)" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {uniqueSubjects.map((subject) => (
-                            <SelectItem key={subject} value={subject}>
-                              {subject}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="experience">Experience (Optional)</Label>
-                      <Input
-                        id="experience"
-                        value={newUser.experience}
-                        onChange={(e) =>
-                          setNewUser({
-                            ...newUser,
-                            experience: e.target.value,
-                          })
-                        }
-                        placeholder="e.g., 5 years"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="bio">Bio (Optional)</Label>
-                      <Textarea
-                        id="bio"
-                        value={newUser.bio}
-                        onChange={(e) =>
-                          setNewUser({
-                            ...newUser,
-                            bio: e.target.value,
-                          })
-                        }
-                        placeholder="Brief description about the teacher..."
-                        rows={3}
-                      />
-                    </div>
-                  </>
-                )}
-
-                {newUser.role === "student" && (
+                {newUser.role.name.toLowerCase() === "student" && (
                   <Alert>
                     <Brain className="h-4 w-4" />
                     <AlertTitle>AI Twin Integration</AlertTitle>
@@ -4209,6 +4212,78 @@ const AdminDashboard = () => {
                 <Button onClick={handlePasswordChange}>
                   <Key className="w-4 h-4 mr-2" />
                   Change Password
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Create Level Dialog */}
+          <Dialog open={isCreateLevelOpen} onOpenChange={setIsCreateLevelOpen}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <GraduationCap className="w-5 h-5" />
+                  Create New Level
+                </DialogTitle>
+                <DialogDescription>
+                  Create a new educational level in your institution
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="level-name">Level Name *</Label>
+                  <Input
+                    id="level-name"
+                    value={newLevel.levelName}
+                    onChange={(e) =>
+                      setNewLevel({ ...newLevel, levelName: e.target.value })
+                    }
+                    placeholder="e.g., Beginner Level, Advanced Level"
+                    required
+                  />
+                </div>
+                <div className="text-sm text-gray-600 p-3 bg-blue-50 rounded-lg">
+                  <p><strong>Institution:</strong> Level will be automatically assigned to your institution</p>
+                  <p><strong>Note:</strong> Subject assignments and teacher assignments can be configured separately after level creation using the Subject Assignments section.</p>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsCreateLevelOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={async () => {
+                  if (!newLevel.levelName.trim()) {
+                    console.error("Level name is required");
+                    return;
+                  }
+
+                  try {
+                    // Get institutionId from admin's profile
+                    const institutionId = dashboardData?.institution?.id || 1;
+
+                    const levelData = {
+                      levelName: newLevel.levelName,
+                      institutionId: institutionId,
+                    };
+
+                    console.log('Creating level:', levelData);
+
+                    const response = await axiosClient.post("/api/levels/add-level", levelData);
+                    console.log('✅ Level created successfully:', response.data);
+
+                    // Refresh levels list
+                    await fetchLevels();
+
+                    setIsCreateLevelOpen(false);
+                    // Reset form
+                    setNewLevel({
+                      levelName: "",
+                    });
+                  } catch (error) {
+                    console.error('❌ Failed to create level:', error);
+                  }
+                }}>
+                  Create Level
                 </Button>
               </DialogFooter>
             </DialogContent>

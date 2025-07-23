@@ -130,7 +130,7 @@ const SubjectManagement: React.FC<SubjectManagementProps> = ({
         code:
           (subj as any).code || subj.subjectName.substring(0, 3).toUpperCase(),
         isActive: !subj.isDeleted,
-        createdAt: subj.createdDate || new Date().toISOString(),
+        createdAt: subj.modifiedDate || new Date().toISOString(),
         updatedAt: subj.modifiedDate || new Date().toISOString(),
       }));
 
@@ -176,7 +176,7 @@ const SubjectManagement: React.FC<SubjectManagementProps> = ({
         // Generate code from name if not provided by API
         code: (curr as any).code || curr.name.substring(0, 3).toUpperCase(),
         isActive: !curr.isDeleted,
-        createdAt: curr.createdDate || new Date().toISOString(),
+        createdAt: curr.modifiedDate || new Date().toISOString(),
         updatedAt: curr.modifiedDate || new Date().toISOString(),
       }));
 
@@ -205,7 +205,7 @@ const SubjectManagement: React.FC<SubjectManagementProps> = ({
           id: `r${subj.subjectId}`,
           subjectId: subj.subjectId.toString(),
           curriculumId: subj.curriculumId.toString(),
-          createdAt: subj.createdDate || new Date().toISOString(),
+          createdAt: subj.modifiedDate || new Date().toISOString(),
         }));
 
       setRelations(apiRelations);

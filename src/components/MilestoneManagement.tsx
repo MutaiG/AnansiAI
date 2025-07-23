@@ -172,7 +172,7 @@ const MilestoneManagement: React.FC<MilestoneManagementProps> = ({
           term: milestone.termId.toString(), // You may want to fetch term names
           milestone: milestone.description,
           isActive: !milestone.isDeleted,
-          createdAt: milestone.createdDate || new Date().toISOString(),
+          createdAt: milestone.modifiedDate || new Date().toISOString(),
           updatedAt: milestone.modifiedDate || new Date().toISOString(),
         }),
       );
@@ -219,7 +219,7 @@ const MilestoneManagement: React.FC<MilestoneManagementProps> = ({
         // Generate code from name if not provided by API
         code: (curr as any).code || curr.name.substring(0, 3).toUpperCase(),
         isActive: !curr.isDeleted,
-        createdAt: curr.createdDate || new Date().toISOString(),
+        createdAt: curr.modifiedDate || new Date().toISOString(),
         updatedAt: curr.modifiedDate || new Date().toISOString(),
       }));
 
@@ -248,7 +248,7 @@ const MilestoneManagement: React.FC<MilestoneManagementProps> = ({
         code:
           (subj as any).code || subj.subjectName.substring(0, 3).toUpperCase(),
         isActive: !subj.isDeleted,
-        createdAt: subj.createdDate || new Date().toISOString(),
+        createdAt: subj.modifiedDate || new Date().toISOString(),
         updatedAt: subj.modifiedDate || new Date().toISOString(),
       }));
 
@@ -279,7 +279,7 @@ const MilestoneManagement: React.FC<MilestoneManagementProps> = ({
           id: `r${subj.subjectId}`,
           subjectId: subj.subjectId.toString(),
           curriculumId: subj.curriculumId.toString(),
-          createdAt: subj.createdDate || new Date().toISOString(),
+          createdAt: subj.modifiedDate || new Date().toISOString(),
         }));
 
       setRelations(apiRelations);
