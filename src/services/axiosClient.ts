@@ -8,19 +8,20 @@ const getOptimalApiUrl = () => {
     window.location.hostname === "localhost" ||
     window.location.hostname === "127.0.0.1";
 
-  // Always use HTTP for the API since the server doesn't support HTTPS
-  // Note: This will cause mixed content issues on HTTPS deployments,
-  // but it's the only way to connect to the API server
+  // Use HTTPS for API if we're on HTTPS, otherwise use HTTP
+  const protocol = isHttps ? "https" : "http";
+  const apiUrl = `${protocol}://13.61.173.139/anansiai`;
+
   console.log("🔧 API Configuration:", {
     currentProtocol: window.location.protocol,
     hostname: window.location.hostname,
     isDevelopment,
     isHttps,
-        selectedApiUrl: "http://13.60.46.125/anansiai",
-    note: "Using HTTP for API - may cause mixed content warnings",
+    selectedApiUrl: apiUrl,
+    note: isHttps ? "Using HTTPS to avoid mixed content" : "Using HTTP for development",
   });
 
-    return "http://13.60.46.125/anansiai";
+  return apiUrl;
 };
 
 const API_BASE_URL = getOptimalApiUrl();
@@ -108,7 +109,7 @@ axiosClient.interceptors.response.use(
 
 // Connection test function to help diagnose issues
 export const testApiConnection = async () => {
-    const baseUrl = "13.60.46.125/anansiai";
+    const baseUrl = "13.61.173.139/anansiai";
   const isHttps = window.location.protocol === "https:";
 
   // Test order: prioritize HTTPS if we're on HTTPS, otherwise HTTP first

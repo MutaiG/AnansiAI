@@ -402,6 +402,35 @@ export interface BehaviorLog {
   flagged?: boolean;
 }
 
+// Subject Assignment types
+export interface SubjectAssignment {
+  modifiedDate?: string;
+  createdBy?: string;
+  modifiedBy?: string;
+  isDeleted?: boolean;
+  id: number;
+  levelId: number;
+  level?: any;
+  subjectId: number;
+  subject?: any;
+  teacherId: string;
+  institutionId: number;
+  institution?: any;
+}
+
+export interface AssignSubjectToTeacherDto {
+  teacherId: string;
+  subjectId: number;
+  levelId: number;
+  institutionId: number;
+}
+
+export interface EditAssignSubjectToTeacher {
+  teacherId: string;
+  subjectId: number;
+  levelId: number;
+}
+
 // API Response wrapper
 export interface ApiResponse<T> {
   data: T;
@@ -442,7 +471,7 @@ export class AdminApiService {
         hasMixedContent: true,
         errorMessage: this.mixedContentHelper.getMixedContentErrorMessage(),
         solutions: [
-                    "Configure SSL certificate on your API server (13.61.2.251)",
+                    "Configure SSL certificate on your API server (13.61.173.139)",
           "Deploy this application on HTTP for development",
           "Use a reverse proxy with HTTPS support",
         ],
@@ -1339,6 +1368,28 @@ export class AdminApiService {
     }
   }
 
+  /**
+   * Get teacher subjects with milestones and goals
+   */
+  async getTeacherSubjectsWithMilestonesAndGoals(
+    curriculumId?: number,
+    termId?: number
+  ): Promise<any[]> {
+    try {
+      const params = new URLSearchParams();
+      if (curriculumId) params.append('curriculumId', curriculumId.toString());
+      if (termId) params.append('termId', termId.toString());
+
+      const response: AxiosResponse<any[]> = await axiosClient.get(
+        `/api/subject-assignments/teacher-subjects-with-milestones-and-goals?${params.toString()}`
+      );
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching teacher subjects with milestones and goals:", error);
+      throw error;
+    }
+  }
+
   // ============================================================================
   // LEVELS ENDPOINTS
   // ============================================================================
@@ -1374,6 +1425,71 @@ export class AdminApiService {
     }
   }
 
+  /**
+   * Get level by ID
+   */
+  async getLevel(levelId: number): Promise<any> {
+    try {
+      const response: AxiosResponse<any> = await axiosClient.get(
+        `/api/levels/${levelId}`
+      );
+      return response.data;
+    } catch (error) {
+      console.error(`Error fetching level ${levelId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create new level
+   */
+  async createLevel(levelData: {
+    levelName: string;
+    institutionId: number;
+  }): Promise<any> {
+    try {
+      const response: AxiosResponse<any> = await axiosClient.post(
+        "/api/levels/add-level",
+        levelData
+      );
+      return response.data;
+    } catch (error) {
+      console.error("Error creating level:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update level
+   */
+  async updateLevel(levelId: number, levelData: {
+    levelName: string;
+    isActive: boolean;
+  }): Promise<any> {
+    try {
+      const response: AxiosResponse<any> = await axiosClient.put(
+        `/api/levels/${levelId}`,
+        levelData
+      );
+      return response.data;
+    } catch (error) {
+      console.error(`Error updating level ${levelId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete level
+   */
+  async deleteLevel(levelId: number): Promise<void> {
+    try {
+      await axiosClient.delete(`/api/levels/${levelId}`);
+    } catch (error) {
+      console.error(`Error deleting level ${levelId}:`, error);
+      throw error;
+    }
+  }
+
   // ============================================================================
   // USERS ENDPOINTS
   // ============================================================================
@@ -1383,9 +1499,20 @@ export class AdminApiService {
    */
   async getUsersByRole(roleName: string): Promise<any[]> {
     try {
+      console.log(`🔍 Fetching users by role: ${roleName}`);
       const response: AxiosResponse<any[]> = await axiosClient.get(
         `/api/Users/get-users-by-role?roleName=${roleName}`,
       );
+
+      console.log(`✅ ${roleName} users API response:`, response.data);
+      console.log(`📊 ${roleName} users count:`, response.data?.length || 0);
+
+      if (response.data && response.data.length > 0) {
+        console.log(`🔍 First ${roleName} user structure:`, response.data[0]);
+        console.log(`🔍 Role field in ${roleName} response:`, response.data[0]?.role);
+        console.log(`🔍 Available fields in ${roleName} user:`, Object.keys(response.data[0] || {}));
+      }
+
       return response.data;
     } catch (error) {
       console.error(`Error fetching users by role ${roleName}:`, error);
@@ -1436,6 +1563,62 @@ export class AdminApiService {
       return response.data;
     } catch (error) {
       console.error("Error fetching roles:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get user by ID
+   */
+  async getUserById(userId: string): Promise<any> {
+    try {
+      const response: AxiosResponse<any> = await axiosClient.get(
+        `/api/Users/${userId}`,
+      );
+      return response.data;
+    } catch (error) {
+      console.error(`Error fetching user ${userId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update user
+   */
+  async updateUser(userId: string, userData: Partial<UserRegisterDto>): Promise<any> {
+    try {
+      const response: AxiosResponse<any> = await axiosClient.put(
+        `/api/Users/${userId}`,
+        userData,
+      );
+      return response.data;
+    } catch (error) {
+      console.error(`Error updating user ${userId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete user
+   */
+  async deleteUser(userId: string): Promise<void> {
+    try {
+      await axiosClient.delete(`/api/Users/${userId}`);
+    } catch (error) {
+      console.error(`Error deleting user ${userId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all users
+   */
+  async getAllUsers(): Promise<any[]> {
+    try {
+      const response: AxiosResponse<any[]> = await axiosClient.get("/api/Users");
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching all users:", error);
       throw error;
     }
   }
@@ -1512,6 +1695,24 @@ export class AdminApiService {
         Success: false,
         data: {},
       } as EnumsResponse);
+
+      // Debug role data
+      console.log("🔍 Role data analysis:");
+      console.log("👨‍🏫 Teachers data sample:", teachersData[0]);
+      console.log("🎓 Students data sample:", studentsData[0]);
+      console.log("🔧 Admins data sample:", adminsData[0]);
+
+      // Check if role field exists and what it contains
+      if (teachersData.length > 0) {
+        console.log("👨‍🏫 Teacher role field:", teachersData[0]?.role);
+        console.log("👨‍🏫 Teacher available fields:", Object.keys(teachersData[0] || {}));
+      }
+      if (studentsData.length > 0) {
+        console.log("🎓 Student role field:", studentsData[0]?.role);
+      }
+      if (adminsData.length > 0) {
+        console.log("🔧 Admin role field:", adminsData[0]?.role);
+      }
 
       const dashboardData = {
         institutions: institutionsData,

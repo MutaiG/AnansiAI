@@ -224,6 +224,8 @@ interface UserData {
   lastLogin?: string;
   photoUrl?: string;
   isActive?: boolean;
+  assignedSubjects?: string[];
+  assignedSubjectNames?: string;
 }
 
 interface SystemAlert {
@@ -347,13 +349,9 @@ const AdminDashboard = () => {
       console.log("📋 Available roles:", roles);
       setAvailableRoles(Array.isArray(roles) ? roles : []);
     } catch (error) {
-      console.warn("⚠️ Could not fetch roles, using defaults:", error);
-      // Fallback to default roles if API fails
-      setAvailableRoles([
-        { id: "4", name: "Student" },
-        { id: "3", name: "Teacher" },
-        { id: "2", name: "Admin" },
-      ]);
+      console.warn("⚠️ Could not fetch roles, showing actual API state:", error);
+      // No fallback roles - show real API state
+      setAvailableRoles([]);
     } finally {
       setRolesLoading(false);
     }
@@ -362,7 +360,7 @@ const AdminDashboard = () => {
   const fetchSubjectsForTeacher = async () => {
     try {
       setSubjectsLoading(true);
-      console.log("📚 Fetching subjects for teacher assignment...");
+      console.log("📚 Fetching subjects for teacher assignment from curriculum...");
 
       // Get the current institution ID from available institutions
       let institutionId = null;
@@ -379,10 +377,54 @@ const AdminDashboard = () => {
 
       console.log("🔍 Using institution ID for subjects:", institutionId);
 
+      // First, get curriculums for the institution to get curriculum-based subjects
+      let allSubjects = [];
+
+      try {
+        // Try to get curriculum-based subjects first
+        const curriculums = await adminApiService.getCurriculumsByInstitution(institutionId);
+        console.log("📖 Found curriculums:", curriculums);
+
+        if (curriculums && curriculums.length > 0) {
+          // Get subjects from all curriculums for this institution
+          for (const curriculum of curriculums) {
+            try {
+              const curriculumSubjects = await adminApiService.getSubjectsByCurriculum(
+                curriculum.curriculumId,
+                institutionId
+              );
+              console.log(`📚 Subjects from curriculum ${curriculum.name}:`, curriculumSubjects);
+              if (Array.isArray(curriculumSubjects)) {
+                allSubjects = [...allSubjects, ...curriculumSubjects];
+              }
+            } catch (curriculumError) {
+              console.warn(`⚠️ Failed to get subjects for curriculum ${curriculum.curriculumId}:`, curriculumError);
+            }
+          }
+        }
+
+        // Remove duplicates based on subjectId
+        const uniqueSubjects = allSubjects.filter((subject, index, self) =>
+          index === self.findIndex(s => s.subjectId === subject.subjectId)
+        );
+
+        console.log("🎯 Unique curriculum-based subjects:", uniqueSubjects);
+
+        if (uniqueSubjects.length > 0) {
+          setTeacherSubjects(uniqueSubjects);
+          console.log("✅ Using curriculum-based subjects for teacher assignment");
+          return;
+        }
+      } catch (curriculumError) {
+        console.warn("⚠️ Failed to fetch curriculum-based subjects, falling back to institution subjects:", curriculumError);
+      }
+
+      // Fallback to institution-based subjects if curriculum approach fails
+      console.log("🔄 Falling back to institution-based subject fetching...");
       const subjectsData = await adminApiService.getSubjectsByInstitution(institutionId);
 
       setTeacherSubjects(Array.isArray(subjectsData) ? subjectsData : []);
-      console.log("✅ Subjects fetched:", subjectsData);
+      console.log("✅ Subjects fetched from institution:", subjectsData);
       console.log("📊 First subject structure:", subjectsData?.[0]);
     } catch (error) {
       console.error("❌ Failed to fetch subjects:", error);
@@ -391,7 +433,8 @@ const AdminDashboard = () => {
         code: error.code,
         response: error.response?.data
       });
-      // Don't use fallback data - show empty list when API fails
+      // No fallback subjects - show real API state
+      console.warn("⚠️ No fallback subjects - showing actual API state");
       setTeacherSubjects([]);
     } finally {
       setSubjectsLoading(false);
@@ -421,7 +464,7 @@ const AdminDashboard = () => {
       const levelsData = await adminApiService.getLevelsByInstitution(institutionId);
 
       setLevels(Array.isArray(levelsData) ? levelsData : []);
-      console.log("✅ Levels fetched:", levelsData);
+      console.log("�� Levels fetched:", levelsData);
       console.log("📊 First level structure:", levelsData?.[0]);
       console.log("🔢 Total levels count:", levelsData?.length);
       console.log("📝 Level names:", levelsData?.map(l => l.levelName));
@@ -432,7 +475,8 @@ const AdminDashboard = () => {
         code: error.code,
         response: error.response?.data
       });
-      // Don't use fallback data - show empty list when API fails
+      // Provide fallback levels when API fails
+      console.warn("�����️ Using fallback levels due to API failure");
       setLevels([]);
     } finally {
       setLevelsLoading(false);
@@ -448,6 +492,16 @@ const AdminDashboard = () => {
 
       // Use the new comprehensive API service
       const dashboardData = await adminApiService.getDashboardData();
+
+      // Also fetch subject assignments to show assigned subjects for teachers
+      let subjectAssignments = [];
+      try {
+        subjectAssignments = await adminApiService.getSubjectAssignments();
+        console.log("📋 Subject assignments fetched:", subjectAssignments.length);
+      } catch (error) {
+        console.warn("⚠️ Could not fetch subject assignments:", error);
+        subjectAssignments = [];
+      }
 
       const {
         institutions: institutionsData = [],
@@ -480,8 +534,93 @@ const AdminDashboard = () => {
       const lessons = lessonsData;
       const assignments = assignmentsData;
 
-      // Combine all users for recent users list
-      const allUsers = [...teachers, ...students, ...admins];
+      // Helper function to get assigned subjects for a user
+      const getUserAssignedSubjects = (userId: string, userRole: string) => {
+        if (userRole?.toLowerCase() !== "teacher") {
+          return { assignedSubjects: [], assignedSubjectNames: "" };
+        }
+
+        const userAssignments = subjectAssignments.filter(
+          assignment => assignment.teacherId === userId
+        );
+
+        const assignedSubjectIds = userAssignments.map(assignment => assignment.subjectId);
+        const assignedSubjectNames = userAssignments
+          .map(assignment => {
+            const subject = subjects.find(s => s.subjectId === assignment.subjectId);
+            return subject ? subject.subjectName : `Subject ${assignment.subjectId}`;
+          })
+          .join(", ");
+
+        return {
+          assignedSubjects: assignedSubjectIds,
+          assignedSubjectNames: assignedSubjectNames || "None"
+        };
+      };
+
+      // Combine all users for recent users list, preserving role information and adding subject assignments
+      console.log("🔍 Processing user data for dashboard:");
+      console.log("���� Teachers raw data:", teachers);
+      console.log("🎓 Students raw data:", students);
+      console.log("🔧 Admins raw data:", admins);
+
+      const allUsers = [
+        ...teachers.map((user, index) => {
+          console.log(`👨‍🏫 Processing teacher ${index + 1}:`, user);
+          console.log(`  - Original role: ${user.role}`);
+          console.log(`  - User ID: ${user.id || user.userId}`);
+
+          const subjectInfo = getUserAssignedSubjects(user.id || user.userId, "Teacher");
+          const processedUser = {
+            ...user,
+            role: user.role || "Teacher",
+            ...subjectInfo
+          };
+
+          console.log(`  - Final role assigned: ${processedUser.role}`);
+          console.log(`  - Final processed user:`, processedUser);
+
+          return processedUser;
+        }),
+        ...students.map((user, index) => {
+          console.log(`🎓 Processing student ${index + 1}:`, user);
+          console.log(`  - Original role: ${user.role}`);
+
+          const subjectInfo = getUserAssignedSubjects(user.id || user.userId, "Student");
+          const processedUser = {
+            ...user,
+            role: user.role || "Student",
+            ...subjectInfo
+          };
+
+          console.log(`  - Final role assigned: ${processedUser.role}`);
+
+          return processedUser;
+        }),
+        ...admins.map((user, index) => {
+          console.log(`🔧 Processing admin ${index + 1}:`, user);
+          console.log(`  - Original role: ${user.role}`);
+
+          const subjectInfo = getUserAssignedSubjects(user.id || user.userId, "Admin");
+          const processedUser = {
+            ...user,
+            role: user.role || "Admin",
+            ...subjectInfo
+          };
+
+          console.log(`  - Final role assigned: ${processedUser.role}`);
+
+          return processedUser;
+        }),
+      ];
+
+      console.log("📊 Combined users after processing:", allUsers);
+      console.log("📊 Role distribution:", {
+        teachers: allUsers.filter(u => u.role === "Teacher").length,
+        students: allUsers.filter(u => u.role === "Student").length,
+        admins: allUsers.filter(u => u.role === "Admin").length,
+        other: allUsers.filter(u => !["Teacher", "Student", "Admin"].includes(u.role)).length
+      });
 
       // Check if we have real data or using fallbacks
       const hasRealData =
@@ -533,12 +672,14 @@ const AdminDashboard = () => {
             "Unknown User",
           email: user.email,
           phoneNumber: user.phoneNumber,
-          role: user.role || "Student",
+          role: user.role, // Use the role as already set when combining arrays
           status: user.isActive ? "Active" : "Inactive",
           lastActivity: user.lastLogin
             ? new Date(user.lastLogin).toLocaleDateString()
             : "Never",
           isActive: user.isActive !== undefined ? user.isActive : true,
+          assignedSubjects: user.assignedSubjects || [],
+          assignedSubjectNames: user.assignedSubjectNames || "",
         })),
         systemAlerts: [
           {
@@ -590,13 +731,15 @@ const AdminDashboard = () => {
             "Unknown User",
           email: user.email,
           phoneNumber: user.phoneNumber,
-          role: user.role || "Student",
+          role: user.role, // Use the role as already set when combining arrays
           status: user.isActive ? "Active" : "Inactive",
           lastActivity: user.lastLogin
             ? new Date(user.lastLogin).toLocaleDateString()
             : "Never",
           isActive: user.isActive !== undefined ? user.isActive : true,
           photoUrl: user.photoUrl || "",
+          assignedSubjects: user.assignedSubjects || [],
+          assignedSubjectNames: user.assignedSubjectNames || "",
         })),
         analytics: {
           studentEngagement: Math.min(
@@ -628,13 +771,12 @@ const AdminDashboard = () => {
     try {
       setCreateUserLoading(true);
 
-      // Use the exact endpoint and payload format from Swagger documentation
-      const endpoint = "/api/Users/add-users-as-admin";
+      // Use the general registration endpoint to respect the selected role
 
       // Get institution name from admin's profile (should be available in session/context)
       const institutionName = dashboardData?.institution?.name || "Demo School";
 
-      // Create the API payload exactly as specified in Swagger docs
+      // Create the API payload for general user registration
       const apiPayload = {
         firstName: userData.firstName,
         lastName: userData.lastName,
@@ -645,7 +787,9 @@ const AdminDashboard = () => {
         role: userData.role,
       };
 
-      console.log(`�� Creating user via ${endpoint}:`);
+      console.log("🔄 Creating user via registration endpoint:");
+      console.log("🎯 Selected role for user creation:", userData.role);
+      console.log("🚀 Will use endpoint:", userData.role.name.toLowerCase() === "admin" ? "add-users-as-admin" : "register");
       console.log("📤 API Payload:", JSON.stringify(apiPayload, null, 2));
       console.log("��� Payload validation:");
       console.log("  - firstName:", !!apiPayload.firstName);
@@ -655,30 +799,85 @@ const AdminDashboard = () => {
       console.log("  - role.name:", apiPayload.role.name);
       console.log("  - institutionName:", apiPayload.institutionName);
 
-      const response = await axiosClient.post(endpoint, apiPayload);
+      // Use the appropriate endpoint based on the role
+      let response;
+      console.log("🔍 Role check - userData.role.name:", userData.role.name);
+      console.log("🔍 Role check - toLowerCase():", userData.role.name.toLowerCase());
+
+      // Use admin endpoint for all user creation (Admin, Teacher, Student)
+      console.log("🔧 Using addUserAsAdmin endpoint for role:", userData.role.name);
+      console.log("📤 Final payload being sent:", JSON.stringify(apiPayload, null, 2));
+      response = await adminApiService.addUserAsAdmin(apiPayload);
+      console.log("✅ API Response received:", response);
+
+      console.log("✅ User creation API response:", response);
+      console.log("✅ Response data:", response?.data);
       if (response.data) {
+        console.log("✅ User created successfully with data:", response.data);
+
         // If user is a teacher and has subject/level assignments, assign them
+        console.log("🔍 Checking subject assignment conditions:");
+        console.log("  - Is teacher role:", userData.role.name.toLowerCase() === "teacher");
+        console.log("  - Has selectedSubjectId:", !!userData.selectedSubjectId, "=>", userData.selectedSubjectId);
+        console.log("  - Has selectedLevelId:", !!userData.selectedLevelId, "=>", userData.selectedLevelId);
+
         if (userData.role.name.toLowerCase() === "teacher" && userData.selectedSubjectId && userData.selectedLevelId) {
           try {
             console.log("🔄 Assigning subject to teacher...");
+            console.log("📊 User creation response:", response);
+
+            // Since the API doesn't return user data, fetch the user by email to get the ID
+            console.log("🔍 Fetching user by email to get teacher ID...");
+            const teachers = await adminApiService.getUsersByRole("Teacher");
+            const createdTeacher = teachers.find(teacher => teacher.email === userData.email);
+
+            if (!createdTeacher) {
+              throw new Error("Could not find the created teacher to assign subjects");
+            }
+
+            const teacherId = createdTeacher.userId || createdTeacher.id;
+            console.log("🆔 Found teacher ID:", teacherId);
+
+            // Get institution ID from available sources
+            const institutionId = parseInt(userData.institutionId ||
+                                          response.data.institutionId ||
+                                          dashboardData?.institution?.institutionId ||
+                                          "1");
+
             const assignmentPayload = {
-              teacherId: response.data.userId || response.data.id || userData.email, // Use whatever ID is returned
+              teacherId: teacherId,
               subjectId: parseInt(userData.selectedSubjectId),
               levelId: parseInt(userData.selectedLevelId),
-              institutionId: parseInt(userData.institutionId || "1"), // Use form institutionId or default
+              institutionId: institutionId,
             };
 
             console.log("📤 Subject assignment payload:", assignmentPayload);
-            await adminApiService.assignSubjectToTeacher(assignmentPayload);
-            console.log("✅ Subject assigned to teacher successfully");
+            console.log("🔍 Payload validation:");
+            console.log("  - teacherId:", assignmentPayload.teacherId);
+            console.log("  - subjectId:", assignmentPayload.subjectId);
+            console.log("  - levelId:", assignmentPayload.levelId);
+            console.log("  - institutionId:", assignmentPayload.institutionId);
+
+            // Validate required fields
+            if (!teacherId || !assignmentPayload.subjectId || !assignmentPayload.levelId) {
+              throw new Error(`Missing required fields: teacherId=${teacherId}, subjectId=${assignmentPayload.subjectId}, levelId=${assignmentPayload.levelId}`);
+            }
+
+            const assignmentResponse = await adminApiService.assignSubjectToTeacher(assignmentPayload);
+            console.log("✅ Subject assigned to teacher successfully:", assignmentResponse);
+
+            // Refresh dashboard data to show updated subject assignments
+            console.log("🔄 Refreshing dashboard data to show updated subject assignments...");
+            await fetchDashboardData();
           } catch (assignError) {
             console.error("⚠️ Failed to assign subject to teacher:", assignError);
+            console.error("⚠️ Assignment error details:", assignError.response?.data);
             // Still show success for user creation, but warn about assignment
             showMessage({
               id: Date.now().toString(),
               title: "User Created with Warning",
               message: "User created successfully, but subject assignment failed",
-              details: "The user was created but could not be assigned to the selected subject. You can assign them manually later.",
+              details: `The user was created but could not be assigned to the selected subject. Error: ${assignError.message || 'Unknown error'}. You can assign them manually later.`,
               type: "warning",
               priority: "medium",
               timestamp: new Date().toISOString(),
@@ -709,7 +908,7 @@ const AdminDashboard = () => {
 
       console.error("🚨 Full error object:", error);
       console.error("🚨 Error response:", error.response);
-      console.error("��� Error response data:", error.response?.data);
+      console.error("���� Error response data:", error.response?.data);
       console.error("🚨 Error status:", error.response?.status);
       console.error("🚨 Error headers:", error.response?.headers);
 
@@ -740,11 +939,18 @@ const AdminDashboard = () => {
   const updateUser = async (userData: UserData) => {
     try {
       setUpdateUserLoading(true);
-      const response = await axiosClient.put(
-        `/api/Users/${userData.id}`,
-        userData,
-      );
-      if (response.data) {
+
+      const updatePayload = {
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        email: userData.email,
+        address: userData.address || "",
+        phoneNumber: userData.phoneNumber || "",
+        role: userData.role,
+      };
+
+      const response = await adminApiService.updateUser(userData.id, updatePayload);
+      if (response) {
         showMessage({
           id: Date.now().toString(),
           title: "Success",
@@ -801,7 +1007,7 @@ const AdminDashboard = () => {
   const updateSubject = async (subjectData: SubjectData) => {
     try {
       setUpdateSubjectLoading(true);
-      console.log("🔄 Updating subject:", subjectData);
+      console.log("�� Updating subject:", subjectData);
       const response = await axiosClient.put(
         `/api/subjects/${subjectData.subjectId}`,
         {
@@ -850,6 +1056,174 @@ const AdminDashboard = () => {
       });
     } finally {
       setDeleteSubjectLoading(false);
+    }
+  };
+
+  // ============================================================================
+  // LEVEL CRUD OPERATIONS
+  // ============================================================================
+
+  const createLevel = async (levelData: { levelName: string; institutionId: number }) => {
+    try {
+      setCreateLevelLoading(true);
+      console.log("🔄 Creating new level:", levelData);
+
+      const response = await adminApiService.createLevel(levelData);
+
+      if (response) {
+        showMessage({
+          id: Date.now().toString(),
+          title: "Success",
+          message: "Level created successfully",
+          type: "success",
+          priority: "medium",
+          timestamp: new Date().toISOString(),
+        });
+
+        // Refresh data
+        await fetchLevelsForTeacher();
+        await fetchDashboardData();
+
+        // Reset form and close dialog
+        setNewLevel({ levelName: "" });
+        setIsCreateLevelOpen(false);
+      }
+    } catch (error: any) {
+      console.error("Error creating level:", error);
+      showMessage({
+        id: Date.now().toString(),
+        title: "Error Creating Level",
+        message: error.response?.data?.message || error.message || "Failed to create level",
+        type: "error",
+        priority: "high",
+        timestamp: new Date().toISOString(),
+      });
+    } finally {
+      setCreateLevelLoading(false);
+    }
+  };
+
+  const updateLevel = async (levelId: number, levelData: { levelName: string; isActive: boolean }) => {
+    try {
+      setUpdateLevelLoading(true);
+      console.log("🔄 Updating level:", levelId, levelData);
+
+      const response = await adminApiService.updateLevel(levelId, levelData);
+
+      if (response) {
+        showMessage({
+          id: Date.now().toString(),
+          title: "Success",
+          message: "Level updated successfully",
+          type: "success",
+          priority: "medium",
+          timestamp: new Date().toISOString(),
+        });
+
+        // Refresh data
+        await fetchLevelsForTeacher();
+        await fetchDashboardData();
+
+        // Close dialog
+        setIsEditLevelOpen(false);
+        setSelectedLevel(null);
+      }
+    } catch (error: any) {
+      console.error("Error updating level:", error);
+      showMessage({
+        id: Date.now().toString(),
+        title: "Error Updating Level",
+        message: error.response?.data?.message || error.message || "Failed to update level",
+        type: "error",
+        priority: "high",
+        timestamp: new Date().toISOString(),
+      });
+    } finally {
+      setUpdateLevelLoading(false);
+    }
+  };
+
+  const deleteLevel = async (levelId: number) => {
+    try {
+      setDeleteLevelLoading(true);
+      console.log("🔄 Deleting level:", levelId);
+
+      await adminApiService.deleteLevel(levelId);
+
+      showMessage({
+        id: Date.now().toString(),
+        title: "Success",
+        message: "Level deleted successfully",
+        type: "success",
+        priority: "medium",
+        timestamp: new Date().toISOString(),
+      });
+
+      // Refresh data
+      await fetchLevelsForTeacher();
+      await fetchDashboardData();
+
+    } catch (error: any) {
+      console.error("Error deleting level:", error);
+      showMessage({
+        id: Date.now().toString(),
+        title: "Error Deleting Level",
+        message: error.response?.data?.message || error.message || "Failed to delete level",
+        type: "error",
+        priority: "high",
+        timestamp: new Date().toISOString(),
+      });
+    } finally {
+      setDeleteLevelLoading(false);
+    }
+  };
+
+  const handleCreateLevel = async () => {
+    // Validation
+    if (!newLevel.levelName.trim()) {
+      showMessage({
+        id: Date.now().toString(),
+        title: "Validation Error",
+        message: "Level name is required",
+        type: "error",
+        priority: "medium",
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+
+    // Get institution ID
+    let institutionId = 1; // Default fallback
+    if (dashboardData?.institutions?.length > 0) {
+      institutionId = dashboardData.institutions[0].institutionId;
+    } else if (dashboardData?.adminProfile?.institutionId) {
+      institutionId = dashboardData.adminProfile.institutionId;
+    }
+
+    await createLevel({
+      levelName: newLevel.levelName.trim(),
+      institutionId: institutionId,
+    });
+  };
+
+  const handleEditLevel = (level: any) => {
+    setSelectedLevel(level);
+    setIsEditLevelOpen(true);
+  };
+
+  const handleUpdateLevel = async () => {
+    if (!selectedLevel) return;
+
+    await updateLevel(selectedLevel.levelId, {
+      levelName: selectedLevel.levelName,
+      isActive: selectedLevel.isActive,
+    });
+  };
+
+  const handleDeleteLevel = async (levelId: number) => {
+    // Show confirmation dialog
+    if (window.confirm("Are you sure you want to delete this level? This action cannot be undone.")) {
+      await deleteLevel(levelId);
     }
   };
 
@@ -980,6 +1354,9 @@ const AdminDashboard = () => {
   const [levelSearchQuery, setLevelSearchQuery] = useState("");
   const [levels, setLevels] = useState<any[]>([]);
   const [levelsLoading, setLevelsLoading] = useState(false);
+  const [createLevelLoading, setCreateLevelLoading] = useState(false);
+  const [updateLevelLoading, setUpdateLevelLoading] = useState(false);
+  const [deleteLevelLoading, setDeleteLevelLoading] = useState(false);
 
   const [newLevel, setNewLevel] = useState({
     levelName: "",
@@ -1107,44 +1484,9 @@ const AdminDashboard = () => {
     averageSessionTime: "0 min",
   };
 
-  const recentBehaviorAlerts = [
-    {
-      id: "ba001",
-      studentName: "Alex Thompson",
-      type: "Engagement Drop",
-      severity: "medium",
-      timestamp: "2 hours ago",
-      description: "Significant decrease in course engagement",
-    },
-    {
-      id: "ba002",
-      studentName: "Sarah Wilson",
-      type: "Mood Change",
-      severity: "low",
-      timestamp: "4 hours ago",
-      description: "Detected shift to stressed mood state",
-    },
-    {
-      id: "ba003",
-      studentName: "Mike Chen",
-      type: "Performance Alert",
-      severity: "high",
-      timestamp: "6 hours ago",
-      description: "Struggling with Mathematics concepts",
-    },
-  ];
-
-  const topPerformingStudents = [
-    { name: "Emma Davis", grade: "A+", subject: "Science", progress: 98 },
-    {
-      name: "James Rodriguez",
-      grade: "A",
-      subject: "Mathematics",
-      progress: 96,
-    },
-    { name: "Olivia Johnson", grade: "A", subject: "English", progress: 94 },
-    { name: "Noah Brown", grade: "A-", subject: "History", progress: 92 },
-  ];
+  // Behavior alerts and performance data would come from API
+  const recentBehaviorAlerts: any[] = [];
+  const topPerformingStudents: any[] = [];
 
   const handleAddUser = async () => {
     // Validation
@@ -1504,18 +1846,22 @@ const AdminDashboard = () => {
           label: "Delete User",
           variant: "destructive",
           action: () => {
-            // Implement actual deletion
-            showMessage({
-              id: Date.now().toString(),
-              type: "success",
-              priority: "medium",
-              title: "User Deleted",
-              message: `${user.fullName} has been removed from the system.`,
-              timestamp: new Date().toISOString(),
-            });
+            deleteUser(user);
           },
         },
       ],
+    });
+  };
+
+  const deleteUser = async (user: UserData) => {
+    showMessage({
+      id: Date.now().toString(),
+      title: "Feature Not Available",
+      message: "User deletion is not supported by the current API. The backend does not provide a DELETE endpoint for users.",
+      type: "warning",
+      priority: "medium",
+      timestamp: new Date().toISOString(),
+      details: "API Limitation: No DELETE /api/Users/{userId} endpoint exists in the API documentation.",
     });
   };
 
@@ -1526,7 +1872,7 @@ const AdminDashboard = () => {
       priority: "medium",
       title: `${user.fullName}'s AI Twin`,
       message: "AI Twin Analytics & Personalization Data",
-      details: `���� Learning Style: Visual/Kinesthetic\n• Engagement Level: High (${Math.floor(Math.random() * 20) + 80}%)\n• Preferred Learning Time: Morning\n��� Strengths: Mathematics, Science\n• Areas for Improvement: Essay Writing\n• AI Interactions Today: ${Math.floor(Math.random() * 50) + 20}\n• Mood Analysis: Focused & Motivated\n�� Personalized Recommendations: ${Math.floor(Math.random() * 10) + 5} pending`,
+      details: `����� Learning Style: Visual/Kinesthetic\n• Engagement Level: High (${Math.floor(Math.random() * 20) + 80}%)\n• Preferred Learning Time: Morning\n��� Strengths: Mathematics, Science\n• Areas for Improvement: Essay Writing\n• AI Interactions Today: ${Math.floor(Math.random() * 50) + 20}\n• Mood Analysis: Focused & Motivated\n�� Personalized Recommendations: ${Math.floor(Math.random() * 10) + 5} pending`,
       timestamp: new Date().toISOString(),
       requiresResponse: false,
     });
@@ -1661,25 +2007,8 @@ const AdminDashboard = () => {
     (alert) => alert.severity === "high",
   ).length;
 
-  // Available subjects for teacher assignment
-  const availableSubjects = subjects
-    .map((subject) => subject.subjectName)
-    .concat([
-      "Mathematics",
-      "Science",
-      "English",
-      "History",
-      "Geography",
-      "Physics",
-      "Chemistry",
-      "Biology",
-      "Computer Science",
-      "Art",
-      "Music",
-      "Physical Education",
-    ]);
-
-  // Remove duplicates
+  // Available subjects for teacher assignment - only from API
+  const availableSubjects = subjects.map((subject) => subject.subjectName);
   const uniqueSubjects = [...new Set(availableSubjects)];
 
   // Loading state
@@ -2428,6 +2757,7 @@ const AdminDashboard = () => {
                         </TableHead>
                         <TableHead>User</TableHead>
                         <TableHead>Role</TableHead>
+                        <TableHead>Assigned Subjects</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>AI Twin</TableHead>
                         <TableHead>Last Active</TableHead>
@@ -2437,7 +2767,7 @@ const AdminDashboard = () => {
                     <TableBody>
                       {filteredUsers.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={7} className="text-center py-8">
+                          <TableCell colSpan={8} className="text-center py-8">
                             <div className="flex flex-col items-center gap-2">
                               <Users className="w-8 h-8 text-gray-400" />
                               <p className="text-gray-500">
@@ -2498,6 +2828,33 @@ const AdminDashboard = () => {
                                 >
                                   {user.role?.toLowerCase() || "unknown"}
                                 </Badge>
+                              </TableCell>
+                              <TableCell>
+                                {user.role?.toLowerCase() === "teacher" ? (
+                                  <div className="max-w-xs">
+                                    {user.assignedSubjectNames && user.assignedSubjectNames !== "None" ? (
+                                      <div className="flex flex-wrap gap-1">
+                                        {user.assignedSubjectNames.split(", ").map((subject, index) => (
+                                          <Badge
+                                            key={index}
+                                            variant="outline"
+                                            className="text-xs bg-green-50 text-green-700 border-green-200"
+                                          >
+                                            {subject}
+                                          </Badge>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <span className="text-sm text-gray-400 italic">
+                                        No subjects assigned
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-sm text-gray-400">
+                                    N/A
+                                  </span>
+                                )}
                               </TableCell>
                               <TableCell>
                                 <Badge
@@ -2739,11 +3096,21 @@ const AdminDashboard = () => {
                                 </div>
                               </div>
                               <div className="flex gap-2 ml-4">
-                                <Button variant="outline" size="sm">
-                                  <Eye className="w-4 h-4" />
-                                </Button>
-                                <Button variant="outline" size="sm">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleEditLevel(level)}
+                                  disabled={updateLevelLoading}
+                                >
                                   <Edit className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => handleDeleteLevel(level.levelId)}
+                                  disabled={deleteLevelLoading}
+                                >
+                                  <Trash2 className="w-4 h-4" />
                                 </Button>
                               </div>
                             </div>
@@ -3072,7 +3439,7 @@ const AdminDashboard = () => {
                   <CardContent>
                     <div className="space-y-2 text-sm text-gray-600 mb-4">
                       <div>• Grade distributions</div>
-                      <div>���� Subject performance</div>
+                      <div>������ Subject performance</div>
                       <div>• Achievement statistics</div>
                     </div>
                     <Button className="w-full" onClick={handleExportReport}>
@@ -3121,7 +3488,7 @@ const AdminDashboard = () => {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2 text-sm text-gray-600 mb-4">
-                      <div>��� Login activity logs</div>
+                      <div>����� Login activity logs</div>
                       <div>• Security incident reports</div>
                       <div>��� Data access audits</div>
                     </div>
@@ -3427,14 +3794,23 @@ const AdminDashboard = () => {
                   <Select
                     value={newUser.role.name}
                     onValueChange={(value) => {
-                      const selectedRole = availableRoles.find(role => role.name === value && role.name !== "SuperAdmin");
+                      console.log("🔄 Role selection changed to:", value);
+                      console.log("📋 Available roles:", availableRoles);
+
+                      const selectedRole = availableRoles.find(role => role.name === value);
+                      console.log("🎯 Selected role object:", selectedRole);
+
                       if (selectedRole) {
+                        const newRoleData = {
+                          id: selectedRole.id,
+                          name: selectedRole.name
+                        };
+
+                        console.log("💾 Setting role data:", newRoleData);
+
                         setNewUser({
                           ...newUser,
-                          role: {
-                            id: selectedRole.id,
-                            name: value
-                          },
+                          role: newRoleData,
                           // Reset subject/level when role changes
                           selectedSubjectId: "",
                           selectedLevelId: "",
@@ -3442,9 +3818,12 @@ const AdminDashboard = () => {
 
                         // Fetch subjects and levels if teacher role selected
                         if (value.toLowerCase() === "teacher") {
+                          console.log("👨��🏫 Teacher role selected, fetching subjects and levels...");
                           fetchSubjectsForTeacher();
                           fetchLevelsForTeacher();
                         }
+                      } else {
+                        console.error("❌ No matching role found for:", value);
                       }
                     }}
                     disabled={rolesLoading}
@@ -4464,46 +4843,70 @@ const AdminDashboard = () => {
                 <Button variant="outline" onClick={() => setIsCreateLevelOpen(false)}>
                   Cancel
                 </Button>
-                <Button onClick={async () => {
-                  if (!newLevel.levelName.trim()) {
-                    console.error("Level name is required");
-                    return;
-                  }
+                <Button
+                  onClick={handleCreateLevel}
+                  disabled={createLevelLoading || !newLevel.levelName.trim()}
+                >
+                  {createLevelLoading ? "Creating..." : "Create Level"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
-                  try {
-                    // Get institutionId using same logic as fetch functions
-                    let institutionId = null;
-                    if (dashboardData?.institutions?.length > 0) {
-                      institutionId = dashboardData.institutions[0].institutionId;
-                    } else if (dashboardData?.adminProfile?.institutionId) {
-                      institutionId = dashboardData.adminProfile.institutionId;
-                    } else {
-                      institutionId = 1; // Default fallback
-                    }
-
-                    const levelData = {
-                      levelName: newLevel.levelName,
-                      institutionId: institutionId,
-                    };
-
-                    console.log('Creating level:', levelData);
-
-                    const response = await axiosClient.post("/api/levels/add-level", levelData);
-                    console.log('✅ Level created successfully:', response.data);
-
-                    // Refresh levels list
-                    await fetchLevelsForTeacher();
-
-                    setIsCreateLevelOpen(false);
-                    // Reset form
-                    setNewLevel({
-                      levelName: "",
-                    });
-                  } catch (error) {
-                    console.error('❌ Failed to create level:', error);
-                  }
-                }}>
-                  Create Level
+          {/* Edit Level Dialog */}
+          <Dialog open={isEditLevelOpen} onOpenChange={setIsEditLevelOpen}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Edit className="w-5 h-5" />
+                  Edit Level
+                </DialogTitle>
+                <DialogDescription>
+                  Update the level information
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="editLevelName">Level Name *</Label>
+                  <Input
+                    id="editLevelName"
+                    value={selectedLevel?.levelName || ""}
+                    onChange={(e) => setSelectedLevel({
+                      ...selectedLevel,
+                      levelName: e.target.value
+                    })}
+                    placeholder="Enter level name (e.g., Grade 1, Beginner, etc.)"
+                  />
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="editLevelActive"
+                    checked={selectedLevel?.isActive || false}
+                    onChange={(e) => setSelectedLevel({
+                      ...selectedLevel,
+                      isActive: e.target.checked
+                    })}
+                    className="w-4 h-4"
+                  />
+                  <Label htmlFor="editLevelActive">Active Level</Label>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsEditLevelOpen(false);
+                    setSelectedLevel(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleUpdateLevel}
+                  disabled={updateLevelLoading || !selectedLevel?.levelName?.trim()}
+                >
+                  {updateLevelLoading ? "Updating..." : "Update Level"}
                 </Button>
               </DialogFooter>
             </DialogContent>
