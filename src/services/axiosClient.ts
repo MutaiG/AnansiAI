@@ -10,7 +10,7 @@ const getOptimalApiUrl = () => {
 
   // Use HTTPS for API if we're on HTTPS, otherwise use HTTP
   const protocol = isHttps ? "https" : "http";
-  const apiUrl = `${protocol}://13.61.173.139/anansiai`;
+  const apiUrl = `${protocol}://16.171.24.15/anansiai`;
 
   console.log("🔧 API Configuration:", {
     currentProtocol: window.location.protocol,
@@ -109,7 +109,7 @@ axiosClient.interceptors.response.use(
 
 // Connection test function to help diagnose issues
 export const testApiConnection = async () => {
-    const baseUrl = "13.61.173.139/anansiai";
+    const baseUrl = "16.171.24.15/anansiai";
   const isHttps = window.location.protocol === "https:";
 
   // Test order: prioritize HTTPS if we're on HTTPS, otherwise HTTP first

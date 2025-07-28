@@ -3,7 +3,7 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from "axios";
 
 const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "http://13.61.2.251/anansiai";
+  import.meta.env.VITE_API_URL || "http://16.171.24.15/anansiai";
 
 const IS_DEVELOPMENT =
   import.meta.env.VITE_ENVIRONMENT === "development" || import.meta.env.DEV;
@@ -417,7 +417,7 @@ class ApiClient {
   }
 
   async getNotifications(): Promise<ApiResponse<Notification[]>> {
-    return this.request<Notification[]>("/notifications");
+    return this.request<Notification[]>("/api/notifications");
   }
 
   async markNotificationRead(

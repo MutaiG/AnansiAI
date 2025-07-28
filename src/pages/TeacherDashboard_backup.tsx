@@ -477,32 +477,13 @@ export default function TeacherDashboard() {
     }
   };
 
-  // Fetch teacher dashboard data using the proper endpoint
-  const fetchTeacherDashboardData = async () => {
-    try {
-      console.log("📊 Fetching teacher dashboard data from API...");
-      const response = await axiosClient.get("/api/teachers/dashboard");
 
-      if (response.data && response.data.success) {
-        console.log("✅ Teacher dashboard data fetched successfully:", response.data.data);
-        return response.data.data;
-      } else if (response.data) {
-        console.log("✅ Teacher dashboard data (direct):", response.data);
-        return response.data;
-      }
-
-      return null;
-    } catch (error) {
-      console.log("⚠️ Teacher dashboard API not available:", error.message);
-      return null;
-    }
-  };
 
   // Fetch milestones and goals for teacher's specific subjects
   const fetchMilestonesAndGoalsForSubjects = async (assignedSubjects: Subject[]) => {
     try {
       const subjectIds = assignedSubjects.map(s => s.subjectId);
-      console.log("📋 Fetching milestones and goals for subject IDs:", subjectIds);
+      console.log("�� Fetching milestones and goals for subject IDs:", subjectIds);
 
       // Try to fetch milestones and goals from API
       const [milestonesResponse, goalsResponse] = await Promise.all([
@@ -519,7 +500,7 @@ export default function TeacherDashboard() {
         subjectIds.includes(goal.subjectId)
       );
 
-      console.log("✅ Found milestones for teacher subjects:", teacherMilestones.length);
+      console.log("�� Found milestones for teacher subjects:", teacherMilestones.length);
       console.log("✅ Found goals for teacher subjects:", teacherGoals.length);
 
       // Update the state
@@ -559,7 +540,7 @@ export default function TeacherDashboard() {
   // Extract teacher data prioritizing real userData over mock dashboard data
   const fetchTeacherData = async (teacherId: string) => {
     try {
-      console.log("🔄 Fetching teacher data for ID:", teacherId);
+      console.log("�� Fetching teacher data for ID:", teacherId);
 
       // First, try to get real user data from localStorage
       const userData = localStorage.getItem("userData");
@@ -614,143 +595,70 @@ export default function TeacherDashboard() {
     }
   };
 
-  // Test the teacher subjects API endpoint
-  const testTeacherSubjectsApi = async (curriculumId: number, termId: number) => {
-    try {
-      console.log("🧪 Testing teacher subjects API endpoint...");
-      const response = await axiosClient.get("/api/teachers/teacher-subjects-with-milestones-and-goals", {
-        params: { curriculumId, termId }
-      });
-
-      console.log("✅ API endpoint test successful:", {
-        status: response.status,
-        dataLength: response.data?.length || 0,
-        hasData: !!response.data
-      });
-
-      return { success: true, data: response.data };
-    } catch (error) {
-      console.error("❌ API endpoint test failed:", {
-        message: error.message,
-        status: error.response?.status,
-        statusText: error.response?.statusText
-      });
-
-      return { success: false, error };
-    }
-  };
-
   // Get teacher's assigned subjects using proper API endpoint
   const fetchTeacherAssignedSubjects = async (teacherId: string) => {
     try {
       setTeacherSubjectsLoading(true);
       console.log("📚 Fetching teacher subjects from API for ID:", teacherId);
 
-      // Try to get curriculum and term IDs from API with improved fallback logic
-      let curriculumId = 1; // Default fallback
-      let termId = 1; // Default fallback
-      let institutionId = null;
+      // First, try to get curriculum and term IDs from API (default to 1 as per API docs)
+      let curriculumId = 1; // Default as per API documentation
+      let termId = 1; // Default as per API documentation
 
       try {
         // Get teacher's institution ID if available
         const userData = localStorage.getItem("userData");
+        let institutionId = null;
         if (userData) {
           try {
             const parsed = JSON.parse(userData);
             institutionId = parsed.institutionId;
-            console.log("🏢 Found institution ID from user data:", institutionId);
-          } catch (e) {
-            console.warn("⚠️ Failed to parse user data for institution ID");
-          }
+          } catch (e) {}
         }
 
-        // Enhanced curriculum and term fetching with better error handling
-        const fetchCurriculumAndTerms = async () => {
-          const results = { curriculumId: 1, termId: 1 };
+        // Try to get actual curriculum and term data, preferably by institution
+        const curriculumPromise = institutionId
+          ? axiosClient.get(`/api/curriculums/by-institution?institutionId=${institutionId}`).catch(() =>
+              axiosClient.get("/api/curriculums").catch(() => ({ data: [] })))
+          : axiosClient.get("/api/curriculums").catch(() => ({ data: [] }));
 
-          try {
-            // Try institution-specific endpoints first
-            if (institutionId) {
-              console.log("🔍 Fetching curriculum and terms for institution:", institutionId);
+        const termPromise = institutionId
+          ? axiosClient.get(`/api/terms/by-institution?institutionId=${institutionId}`).catch(() =>
+              axiosClient.get("/api/terms").catch(() => ({ data: [] })))
+          : axiosClient.get("/api/terms").catch(() => ({ data: [] }));
 
-              const [curriculumRes, termRes] = await Promise.allSettled([
-                axiosClient.get(`/api/curriculums/by-institution?institutionId=${institutionId}`),
-                axiosClient.get(`/api/terms/by-institution?institutionId=${institutionId}`)
-              ]);
+        const [curriculumResponse, termResponse] = await Promise.all([
+          curriculumPromise,
+          termPromise
+        ]);
 
-              if (curriculumRes.status === 'fulfilled' && curriculumRes.value.data?.length > 0) {
-                results.curriculumId = curriculumRes.value.data[0].curriculumId;
-                console.log("✅ Found institution curriculum ID:", results.curriculumId);
-              }
+        if (curriculumResponse.data && curriculumResponse.data.length > 0) {
+          curriculumId = curriculumResponse.data[0].curriculumId || 1;
+        }
 
-              if (termRes.status === 'fulfilled' && termRes.value.data?.length > 0) {
-                results.termId = termRes.value.data[0].termId;
-                console.log("✅ Found institution term ID:", results.termId);
-              }
-            }
+        if (termResponse.data && termResponse.data.length > 0) {
+          termId = termResponse.data[0].termId || 1;
+        }
 
-            // Fallback to global endpoints if institution-specific failed
-            if (results.curriculumId === 1) {
-              console.log("🔍 Falling back to global curriculum endpoint...");
-              try {
-                const curriculumRes = await axiosClient.get("/api/curriculums");
-                if (curriculumRes.data?.length > 0) {
-                  results.curriculumId = curriculumRes.data[0].curriculumId;
-                  console.log("✅ Found global curriculum ID:", results.curriculumId);
-                }
-              } catch (curriculumError) {
-                console.warn("⚠️ Global curriculum endpoint failed:", curriculumError.message);
-              }
-            }
-
-            if (results.termId === 1) {
-              console.log("🔍 Falling back to global terms endpoint...");
-              try {
-                const termRes = await axiosClient.get("/api/terms");
-                if (termRes.data?.length > 0) {
-                  results.termId = termRes.data[0].termId;
-                  console.log("✅ Found global term ID:", results.termId);
-                }
-              } catch (termError) {
-                console.warn("⚠️ Global terms endpoint failed:", termError.message);
-              }
-            }
-          } catch (error) {
-            console.error("❌ Error in enhanced curriculum/term fetching:", error.message);
-          }
-
-          return results;
-        };
-
-        const { curriculumId: fetchedCurriculumId, termId: fetchedTermId } = await fetchCurriculumAndTerms();
-        curriculumId = fetchedCurriculumId;
-        termId = fetchedTermId;
-
-        console.log("📋 Final parameter selection:", {
-          curriculumId,
-          termId,
-          institutionId,
-          source: institutionId ? 'institution-specific' : 'global-fallback'
-        });
+        console.log("📋 Using curriculum ID:", curriculumId, "and term ID:", termId, institutionId ? `(from institution ${institutionId})` : "(system default)");
       } catch (error) {
-        console.error("❌ Failed to fetch curriculum/term IDs, using defaults:", error.message);
-        console.log("⚠️ Using default values - curriculumId: 1, termId: 1");
+        console.log("⚠️ Using default curriculum and term IDs:", error.message);
       }
 
-      // Validate required parameters before making API call
-      if (!curriculumId || !termId) {
-        console.warn("⚠️ Missing required parameters for teacher subjects API:", { curriculumId, termId });
-        throw new Error("Missing required parameters: curriculumId and termId are required");
+      // Debug: First check what's available for this teacher without parameters
+      try {
+        console.log("🔍 Debug: Checking what data is available for teacher...");
+        const debugResponse = await axiosClient.get("/api/teachers/teacher-subjects-with-milestones-and-goals");
+        console.log("🔍 Debug response without parameters:", debugResponse.data);
+      } catch (debugError) {
+        console.log("🔍 Debug call failed:", debugError.message);
       }
 
       // Use the proper teacher-subjects endpoint with required parameters
-      console.log("🔍 Calling teacher subjects API with parameters:", {
-        endpoint: "/api/teachers/teacher-subjects-with-milestones-and-goals",
-        curriculumId,
-        termId
-      });
-
       try {
+        console.log("🔗 Making API call to:", "/api/teachers/teacher-subjects-with-milestones-and-goals");
+        console.log("📋 With parameters:", { curriculumId, termId });
+
         const response = await axiosClient.get("/api/teachers/teacher-subjects-with-milestones-and-goals", {
           params: {
             curriculumId: curriculumId,
@@ -758,270 +666,118 @@ export default function TeacherDashboard() {
           }
         });
 
-        if (response.data && response.data.length > 0) {
-          console.log("✅ Found teacher subjects with milestones and goals from API:", response.data);
+        console.log("���� API Response received:", response.status, response.statusText);
+        console.log("📊 Full response:", {
+          status: response.status,
+          headers: response.headers,
+          data: response.data,
+          dataType: typeof response.data,
+          isArray: Array.isArray(response.data),
+          dataLength: response.data?.length
+        });
 
-          // Debug: Log the detailed structure of the first subject
-          if (response.data[0]) {
-            console.log("🔍 Detailed structure of first subject:", {
-              subjectId: response.data[0].subjectId,
-              subjectName: response.data[0].subjectName,
-              milestonesProperty: response.data[0].milestones,
-              goalsProperty: response.data[0].goals,
-              allProperties: Object.keys(response.data[0]),
-              hasNestedData: !!(response.data[0].milestones || response.data[0].goals)
-            });
+        // Check different possible response structures
+        let subjects = [];
+        if (response.data) {
+          if (Array.isArray(response.data)) {
+            subjects = response.data;
+          } else if (response.data.data && Array.isArray(response.data.data)) {
+            subjects = response.data.data;
+          } else if (response.data.subjects && Array.isArray(response.data.subjects)) {
+            subjects = response.data.subjects;
+          } else {
+            console.log("⚠️ Unexpected response structure. Trying to use response.data as single subject");
+            subjects = [response.data];
           }
+        }
 
-          // The API response contains subjects with embedded milestones and goals
-          const subjects = response.data;
+        console.log("🔍 Extracted subjects:", subjects);
 
-          // Extract and properly format milestones and goals from the response
+        if (subjects && subjects.length > 0) {
+          console.log("✅ Found teacher subjects with milestones and goals from API:", subjects);
+
+          // The API already includes milestones and goals, so use them directly
+
+          // Extract milestones and goals from the response
           const allMilestones = [];
           const allGoals = [];
 
-          subjects.forEach((subject, index) => {
-            console.log(`🔍 Processing subject ${index + 1}:`, {
-              subjectId: subject.subjectId,
-              subjectName: subject.subjectName,
-              milestonesCount: subject.milestones?.length || 0,
-              goalsCount: subject.goals?.length || 0,
-              milestonesType: typeof subject.milestones,
-              goalsType: typeof subject.goals,
-              milestonesData: subject.milestones,
-              goalsData: subject.goals
-            });
-
-            // Handle milestones - check multiple possible property names and formats
-            const milestoneSources = [
-              subject.milestones,
-              subject.Milestones,
-              subject.milestone,
-              subject.subjectMilestones,
-              subject.curriculumMilestones
-            ].filter(Boolean);
-
-            milestoneSources.forEach(milestoneSource => {
-              if (Array.isArray(milestoneSource)) {
-                console.log("📋 Found milestone array with length:", milestoneSource.length);
-                milestoneSource.forEach(milestone => {
-                  if (typeof milestone === 'object' && (milestone.description || milestone.milestoneDescription)) {
-                    // Full milestone object
-                    const description = milestone.description || milestone.milestoneDescription || milestone.name || milestone.title;
-                    if (description) {
-                      allMilestones.push({
-                        id: milestone.milestoneId?.toString() || milestone.id?.toString() || `milestone_${subject.subjectId}_${allMilestones.length}`,
-                        milestoneId: milestone.milestoneId || milestone.id,
-                        subjectId: subject.subjectId,
-                        subjectName: subject.subjectName,
-                        description: description,
-                        curriculumId: milestone.curriculumId || curriculumId,
-                        termId: milestone.termId || termId,
-                        isActive: !milestone.isDeleted && milestone.isActive !== false,
-                        createdAt: milestone.modifiedDate || milestone.createdDate || new Date().toISOString(),
-                        updatedAt: milestone.modifiedDate || milestone.updatedDate || new Date().toISOString()
-                      });
-                    }
-                  } else if (typeof milestone === 'string' && milestone.trim()) {
-                    // String-only milestone
-                    allMilestones.push({
-                      id: `milestone_${subject.subjectId}_${allMilestones.length}`,
-                      subjectId: subject.subjectId,
-                      subjectName: subject.subjectName,
-                      description: milestone.trim(),
-                      curriculumId: curriculumId,
-                      termId: termId,
-                      isActive: true,
-                      createdAt: new Date().toISOString(),
-                      updatedAt: new Date().toISOString()
-                    });
-                  }
-                });
-              } else if (typeof milestoneSource === 'string' && milestoneSource.trim()) {
-                // Single string milestone
-                allMilestones.push({
-                  id: `milestone_${subject.subjectId}_${allMilestones.length}`,
-                  subjectId: subject.subjectId,
-                  subjectName: subject.subjectName,
-                  description: milestoneSource.trim(),
-                  curriculumId: curriculumId,
-                  termId: termId,
-                  isActive: true,
-                  createdAt: new Date().toISOString(),
-                  updatedAt: new Date().toISOString()
-                });
-              }
-            });
-
-            // Handle goals - check multiple possible property names and formats
-            const goalSources = [
-              subject.goals,
-              subject.Goals,
-              subject.goal,
-              subject.subjectGoals,
-              subject.learningGoals,
-              subject.curriculumGoals
-            ].filter(Boolean);
-
-            goalSources.forEach(goalSource => {
-              if (Array.isArray(goalSource)) {
-                console.log("🎯 Found goal array with length:", goalSource.length);
-                goalSource.forEach(goal => {
-                  if (typeof goal === 'object' && (goal.description || goal.goalDescription)) {
-                    // Full goal object
-                    const description = goal.description || goal.goalDescription || goal.name || goal.title;
-                    if (description) {
-                      allGoals.push({
-                        id: goal.goalId?.toString() || goal.id?.toString() || `goal_${subject.subjectId}_${allGoals.length}`,
-                        goalId: goal.goalId || goal.id,
-                        subjectId: subject.subjectId,
-                        subjectName: subject.subjectName,
-                        description: description,
-                        curriculumId: goal.curriculumId || curriculumId,
-                        termId: goal.termId || termId,
-                        isActive: !goal.isDeleted && goal.isActive !== false,
-                        createdAt: goal.modifiedDate || goal.createdDate || new Date().toISOString(),
-                        updatedAt: goal.modifiedDate || goal.updatedDate || new Date().toISOString()
-                      });
-                    }
-                  } else if (typeof goal === 'string' && goal.trim()) {
-                    // String-only goal
-                    allGoals.push({
-                      id: `goal_${subject.subjectId}_${allGoals.length}`,
-                      subjectId: subject.subjectId,
-                      subjectName: subject.subjectName,
-                      description: goal.trim(),
-                      curriculumId: curriculumId,
-                      termId: termId,
-                      isActive: true,
-                      createdAt: new Date().toISOString(),
-                      updatedAt: new Date().toISOString()
-                    });
-                  }
-                });
-              } else if (typeof goalSource === 'string' && goalSource.trim()) {
-                // Single string goal
-                allGoals.push({
-                  id: `goal_${subject.subjectId}_${allGoals.length}`,
-                  subjectId: subject.subjectId,
-                  subjectName: subject.subjectName,
-                  description: goalSource.trim(),
-                  curriculumId: curriculumId,
-                  termId: termId,
-                  isActive: true,
-                  createdAt: new Date().toISOString(),
-                  updatedAt: new Date().toISOString()
-                });
-              }
-            });
+          subjects.forEach(subject => {
+            if (subject.milestones) {
+              allMilestones.push(...subject.milestones);
+            }
+            if (subject.goals) {
+              allGoals.push(...subject.goals);
+            }
           });
 
-          // If no milestones or goals were found in the subjects response, try to fetch them separately
-          if (allMilestones.length === 0 || allGoals.length === 0) {
-            console.log("⚠️ No milestones/goals found in subjects response, trying dedicated endpoints...");
-
-            const subjectIds = subjects.map(s => s.subjectId);
-            console.log("🔍 Subject IDs for milestone/goal lookup:", subjectIds);
-
-            try {
-              // Try to fetch milestones and goals from dedicated endpoints
-              const [milestonesResponse, goalsResponse] = await Promise.allSettled([
-                axiosClient.get("/api/milestones").catch(() => ({ data: [] })),
-                axiosClient.get("/api/goals").catch(() => ({ data: [] }))
-              ]);
-
-              // Process milestones response
-              if (milestonesResponse.status === 'fulfilled' && milestonesResponse.value.data) {
-                const filteredMilestones = (milestonesResponse.value.data || []).filter(milestone =>
-                  subjectIds.includes(milestone.subjectId)
-                );
-
-                filteredMilestones.forEach(milestone => {
-                  const subject = subjects.find(s => s.subjectId === milestone.subjectId);
-                  allMilestones.push({
-                    id: milestone.milestoneId?.toString() || `milestone_${milestone.subjectId}_${allMilestones.length}`,
-                    milestoneId: milestone.milestoneId,
-                    subjectId: milestone.subjectId,
-                    subjectName: subject?.subjectName || `Subject ${milestone.subjectId}`,
-                    description: milestone.description,
-                    curriculumId: milestone.curriculumId || curriculumId,
-                    termId: milestone.termId || termId,
-                    isActive: !milestone.isDeleted,
-                    createdAt: milestone.modifiedDate || new Date().toISOString(),
-                    updatedAt: milestone.modifiedDate || new Date().toISOString()
-                  });
-                });
-
-                console.log(`✅ Found ${filteredMilestones.length} milestones from dedicated endpoint`);
-              }
-
-              // Process goals response
-              if (goalsResponse.status === 'fulfilled' && goalsResponse.value.data) {
-                const filteredGoals = (goalsResponse.value.data || []).filter(goal =>
-                  subjectIds.includes(goal.subjectId)
-                );
-
-                filteredGoals.forEach(goal => {
-                  const subject = subjects.find(s => s.subjectId === goal.subjectId);
-                  allGoals.push({
-                    id: goal.goalId?.toString() || `goal_${goal.subjectId}_${allGoals.length}`,
-                    goalId: goal.goalId,
-                    subjectId: goal.subjectId,
-                    subjectName: subject?.subjectName || `Subject ${goal.subjectId}`,
-                    description: goal.description,
-                    curriculumId: goal.curriculumId || curriculumId,
-                    termId: goal.termId || termId,
-                    isActive: !goal.isDeleted,
-                    createdAt: goal.modifiedDate || new Date().toISOString(),
-                    updatedAt: goal.modifiedDate || new Date().toISOString()
-                  });
-                });
-
-                console.log(`✅ Found ${filteredGoals.length} goals from dedicated endpoint`);
-              }
-            } catch (error) {
-              console.error("❌ Error fetching milestones/goals from dedicated endpoints:", error);
-            }
-          }
-
-          // Update state with properly formatted data
+          // Update state
           setTeacherSubjects(subjects);
           setMilestones(allMilestones);
           setGoals(allGoals);
 
-          console.log(`✅ Final result: ${subjects.length} subjects, ${allMilestones.length} milestones, ${allGoals.length} goals`);
-          console.log("📋 Final milestones:", allMilestones.map(m => `${m.subjectName}: ${m.description}`));
-          console.log("🎯 Final goals:", allGoals.map(g => `${g.subjectName}: ${g.description}`));
-
-          // Show success notification
-          toast({
-            title: "Teacher Subjects Loaded",
-            description: `Successfully loaded ${subjects.length} subjects with ${allMilestones.length} milestones and ${allGoals.length} goals.`,
-            variant: "default"
-          });
+          console.log(`✅ Loaded ${subjects.length} subjects, ${allMilestones.length} milestones, ${allGoals.length} goals`);
 
           return {
             subjects: subjects,
             milestones: allMilestones,
             goals: allGoals
           };
+        } else {
+          console.log("⚠️ No subjects found with current parameters. Trying different curriculum/term combinations...");
+
+          // Try different curriculum and term ID combinations
+          const fallbackParams = [
+            { curriculumId: 0, termId: 0 },
+            { curriculumId: null, termId: null },
+            { curriculumId: 2, termId: 2 },
+          ];
+
+          for (const params of fallbackParams) {
+            try {
+              console.log("🔄 Trying fallback parameters:", params);
+              const fallbackResponse = await axiosClient.get("/api/teachers/teacher-subjects-with-milestones-and-goals", {
+                params: params
+              });
+
+              if (fallbackResponse.data && (Array.isArray(fallbackResponse.data) ? fallbackResponse.data.length > 0 : true)) {
+                console.log("✅ Found data with fallback parameters:", fallbackResponse.data);
+
+                let fallbackSubjects = Array.isArray(fallbackResponse.data) ? fallbackResponse.data : [fallbackResponse.data];
+
+                const allMilestones = [];
+                const allGoals = [];
+
+                fallbackSubjects.forEach(subject => {
+                  if (subject.milestones) {
+                    allMilestones.push(...subject.milestones);
+                  }
+                  if (subject.goals) {
+                    allGoals.push(...subject.goals);
+                  }
+                });
+
+                setTeacherSubjects(fallbackSubjects);
+                setMilestones(allMilestones);
+                setGoals(allGoals);
+
+                console.log(`✅ Loaded with fallback: ${fallbackSubjects.length} subjects, ${allMilestones.length} milestones, ${allGoals.length} goals`);
+
+                return {
+                  subjects: fallbackSubjects,
+                  milestones: allMilestones,
+                  goals: allGoals
+                };
+              }
+            } catch (fallbackError) {
+              console.log("❌ Fallback parameters failed:", params, fallbackError.message);
+            }
+          }
         }
       } catch (apiError) {
         console.log("⚠️ Teacher API not available, trying subject-assignments endpoint with parameters...");
-        console.error("Teacher API error details:", {
-          message: apiError.message,
-          status: apiError.response?.status,
-          statusText: apiError.response?.statusText,
-          data: apiError.response?.data
-        });
 
         // Try the alternative subject-assignments endpoint with same parameters
-        console.log("🔍 Calling subject-assignments API with parameters:", {
-          endpoint: "/api/subject-assignments/teacher-subjects-with-milestones-and-goals",
-          curriculumId,
-          termId
-        });
-
         try {
           const response = await axiosClient.get("/api/subject-assignments/teacher-subjects-with-milestones-and-goals", {
             params: {
@@ -1033,74 +789,17 @@ export default function TeacherDashboard() {
           if (response.data && response.data.length > 0) {
             console.log("✅ Found teacher subjects from subject-assignments API:", response.data);
 
-            // Process the response with the same enhanced extraction logic
+            // Process the response the same way
             const subjects = response.data;
             const allMilestones = [];
             const allGoals = [];
 
             subjects.forEach(subject => {
-              // Handle milestones with proper formatting
-              if (subject.milestones && Array.isArray(subject.milestones)) {
-                subject.milestones.forEach(milestone => {
-                  if (typeof milestone === 'object' && milestone.description) {
-                    allMilestones.push({
-                      id: milestone.milestoneId?.toString() || `milestone_${subject.subjectId}_${allMilestones.length}`,
-                      milestoneId: milestone.milestoneId,
-                      subjectId: subject.subjectId,
-                      subjectName: subject.subjectName,
-                      description: milestone.description,
-                      curriculumId: milestone.curriculumId || curriculumId,
-                      termId: milestone.termId || termId,
-                      isActive: !milestone.isDeleted,
-                      createdAt: milestone.modifiedDate || new Date().toISOString(),
-                      updatedAt: milestone.modifiedDate || new Date().toISOString()
-                    });
-                  } else if (typeof milestone === 'string') {
-                    allMilestones.push({
-                      id: `milestone_${subject.subjectId}_${allMilestones.length}`,
-                      subjectId: subject.subjectId,
-                      subjectName: subject.subjectName,
-                      description: milestone,
-                      curriculumId: curriculumId,
-                      termId: termId,
-                      isActive: true,
-                      createdAt: new Date().toISOString(),
-                      updatedAt: new Date().toISOString()
-                    });
-                  }
-                });
+              if (subject.milestones) {
+                allMilestones.push(...subject.milestones);
               }
-
-              // Handle goals with proper formatting
-              if (subject.goals && Array.isArray(subject.goals)) {
-                subject.goals.forEach(goal => {
-                  if (typeof goal === 'object' && goal.description) {
-                    allGoals.push({
-                      id: goal.goalId?.toString() || `goal_${subject.subjectId}_${allGoals.length}`,
-                      goalId: goal.goalId,
-                      subjectId: subject.subjectId,
-                      subjectName: subject.subjectName,
-                      description: goal.description,
-                      curriculumId: goal.curriculumId || curriculumId,
-                      termId: goal.termId || termId,
-                      isActive: !goal.isDeleted,
-                      createdAt: goal.modifiedDate || new Date().toISOString(),
-                      updatedAt: goal.modifiedDate || new Date().toISOString()
-                    });
-                  } else if (typeof goal === 'string') {
-                    allGoals.push({
-                      id: `goal_${subject.subjectId}_${allGoals.length}`,
-                      subjectId: subject.subjectId,
-                      subjectName: subject.subjectName,
-                      description: goal,
-                      curriculumId: curriculumId,
-                      termId: termId,
-                      isActive: true,
-                      createdAt: new Date().toISOString(),
-                      updatedAt: new Date().toISOString()
-                    });
-                  }
-                });
+              if (subject.goals) {
+                allGoals.push(...subject.goals);
               }
             });
 
@@ -1109,15 +808,6 @@ export default function TeacherDashboard() {
             setGoals(allGoals);
 
             console.log(`✅ Loaded ${subjects.length} subjects, ${allMilestones.length} milestones, ${allGoals.length} goals from subject-assignments`);
-            console.log("📋 Extracted milestones:", allMilestones.map(m => `${m.subjectName}: ${m.description}`));
-            console.log("🎯 Extracted goals:", allGoals.map(g => `${g.subjectName}: ${g.description}`));
-
-            // Show success notification
-            toast({
-              title: "Teacher Subjects Loaded",
-              description: `Successfully loaded ${subjects.length} subjects with ${allMilestones.length} milestones and ${allGoals.length} goals from backup endpoint.`,
-              variant: "default"
-            });
 
             return {
               subjects: subjects,
@@ -1126,13 +816,7 @@ export default function TeacherDashboard() {
             };
           }
         } catch (secondApiError) {
-          console.log("⚠️ Subject-assignments API also not available, trying basic endpoint...");
-          console.error("Subject-assignments API error details:", {
-            message: secondApiError.message,
-            status: secondApiError.response?.status,
-            statusText: secondApiError.response?.statusText,
-            data: secondApiError.response?.data
-          });
+          console.log("⚠��� Subject-assignments API also not available, trying basic endpoint...");
         }
 
         // Fallback to subject assignments endpoint
@@ -1205,28 +889,7 @@ export default function TeacherDashboard() {
       }
 
       console.log("📝 No teacher subjects found from any source");
-
-      // Test the API endpoint to see if it's accessible
-      const apiTest = await testTeacherSubjectsApi(curriculumId, termId);
-      if (apiTest.success) {
-        console.log("✅ API is accessible but returned no data for teacher:", teacherId);
-        toast({
-          title: "No Subjects Assigned",
-          description: "The teacher account has no subjects assigned. Please contact your administrator.",
-          variant: "default"
-        });
-      } else {
-        console.log("❌ API is not accessible or has issues");
-        toast({
-          title: "API Connection Issue",
-          description: "Unable to fetch teacher subjects. Please check your connection and try again.",
-          variant: "destructive"
-        });
-      }
-
       setTeacherSubjects([]);
-      setMilestones([]);
-      setGoals([]);
       return { subjects: [], milestones: [], goals: [] };
     } catch (error) {
       console.error("❌ Error fetching teacher subjects:", error);
@@ -1710,76 +1373,84 @@ export default function TeacherDashboard() {
     try {
       console.log("🔄 Loading teacher dashboard data for:", teacherId);
 
-      // First try to get teacher dashboard data from the proper endpoint
-      const teacherDashboardData = await fetchTeacherDashboardData();
-      if (teacherDashboardData) {
-        console.log("✅ Using teacher dashboard data:", teacherDashboardData);
+      // Get teacher data from stored authentication info
+      let currentTeacherInfo = null;
+      const userData = localStorage.getItem("userData");
+      if (userData) {
+        try {
+          const realTeacherData = JSON.parse(userData);
+          console.log("✅ Using authenticated teacher data:", realTeacherData);
 
-        // Set teacher data from the API response
-        if (teacherDashboardData.teacher || teacherDashboardData.profile) {
-          const teacher = teacherDashboardData.teacher || teacherDashboardData.profile;
-          setTeacherData(teacher);
-        }
+          // Set teacher data with proper name extraction
+          let teacherName = realTeacherData.name;
 
-        // Set dashboard data
-        setDashboardData(teacherDashboardData);
+          // Try different name formats
+          if (!teacherName && realTeacherData.firstName && realTeacherData.lastName) {
+            teacherName = `${realTeacherData.firstName} ${realTeacherData.lastName}`.trim();
+          }
 
-        // Set subjects with milestones and goals if available
-        if (teacherDashboardData.assignedSubjects || teacherDashboardData.subjects) {
-          const subjects = teacherDashboardData.assignedSubjects || teacherDashboardData.subjects;
-          setTeacherSubjects(subjects);
+          // Fallback: extract name from email if no name available
+          if (!teacherName && realTeacherData.email) {
+            const emailParts = realTeacherData.email.split('@')[0];
+            teacherName = emailParts.replace(/[^a-zA-Z]/g, ' ').trim();
+            // Capitalize first letter of each word
+            teacherName = teacherName.split(' ').map(word =>
+              word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+            ).join(' ');
+          }
 
-          // Extract milestones and goals from the subjects
-          const allMilestones = [];
-          const allGoals = [];
+          currentTeacherInfo = {
+            id: realTeacherData.userId || realTeacherData.id || teacherId,
+            name: teacherName || "Teacher",
+            firstName: realTeacherData.firstName,
+            lastName: realTeacherData.lastName,
+            email: realTeacherData.email,
+            role: realTeacherData.role || 'teacher',
+            institutionId: realTeacherData.institutionId
+          };
 
-          subjects.forEach(subject => {
-            if (subject.milestones) {
-              allMilestones.push(...subject.milestones);
-            }
-            if (subject.goals) {
-              allGoals.push(...subject.goals);
-            }
+          console.log("🔍 Name extraction debug:", {
+            originalName: realTeacherData.name,
+            firstName: realTeacherData.firstName,
+            lastName: realTeacherData.lastName,
+            email: realTeacherData.email,
+            extractedName: teacherName,
+            finalTeacherInfo: currentTeacherInfo
           });
 
-          setMilestones(allMilestones);
-          setGoals(allGoals);
+          setTeacherData(currentTeacherInfo);
+          console.log("👤 Teacher data set:", currentTeacherInfo);
+        } catch (error) {
+          console.error("❌ Error parsing teacher data:", error);
         }
-
-        // Load additional data if needed
-        await Promise.all([
-          fetchLessons(),
-          fetchAssignments(),
-          fetchStudents(),
-          fetchClasses(),
-          fetchSubjects(),
-          fetchEnums(),
-          fetchNotifications()
-        ]);
-
-        return;
       }
 
-      // Fallback to individual API calls if dashboard endpoint not available
-      console.log("⚠️ Teacher dashboard API not available, using fallback methods");
+      // Load teacher's assigned subjects with milestones and goals
+      console.log("📚 Loading teacher subjects with milestones and goals...");
 
-      // Fetch teacher details and subjects in parallel
-      const [teacher, subjectsData] = await Promise.all([
-        fetchTeacherData(teacherId),
-        fetchTeacherAssignedSubjects(teacherId)
-      ]);
+      const subjectsData = await fetchTeacherAssignedSubjects(teacherId);
 
       const assignedSubjects = subjectsData.subjects || [];
       const teacherMilestones = subjectsData.milestones || [];
       const teacherGoals = subjectsData.goals || [];
 
-      // Load additional curriculum data for assigned subjects if any
-      if (assignedSubjects.length > 0) {
-        await fetchCurriculumDataForAssignedSubjects(assignedSubjects);
-      }
+      console.log("📊 Loaded data summary:", {
+        subjects: assignedSubjects.length,
+        milestones: teacherMilestones.length,
+        goals: teacherGoals.length,
+        teacherName: currentTeacherInfo?.name || "Not set"
+      });
 
       // Build dashboard data with real teacher info and curriculum data
-      await buildDashboardDataWithRealTeacher(teacher, assignedSubjects, teacherMilestones, teacherGoals);
+      await buildDashboardDataWithRealTeacher(currentTeacherInfo, assignedSubjects, teacherMilestones, teacherGoals);
+
+      // Load additional dashboard data
+      await Promise.all([
+        fetchLessons(),
+        fetchAssignments(),
+        fetchClasses(),
+        fetchNotifications()
+      ]);
 
     } catch (err) {
       console.error("❌ Error loading teacher data:", err);
@@ -1940,9 +1611,12 @@ export default function TeacherDashboard() {
   const buildDashboardDataWithRealTeacher = async (teacher: any, assignedSubjects: Subject[], teacherMilestones: any[] = [], teacherGoals: any[] = []) => {
     try {
       // Get teacher name from real data or fallback
-      const teacherName = teacher
-        ? `${teacher.firstName} ${teacher.lastName}`.trim()
-        : localStorage.getItem("userName") || "Teacher";
+      const teacherName = teacher?.name ||
+        (teacher?.firstName && teacher?.lastName
+          ? `${teacher.firstName} ${teacher.lastName}`.trim()
+          : null) ||
+        localStorage.getItem("userName") ||
+        "Teacher";
 
       const teacherEmail = teacher?.email || localStorage.getItem("userEmail") || "teacher@school.edu";
 
@@ -3441,7 +3115,7 @@ ${
 • Generate parent reports
 
 **Class Statistics:**
-• Total Enrolled: ${classStudents.length}
+�� Total Enrolled: ${classStudents.length}
 • Average Progress: ${classStudents.reduce((sum, s) => sum + s.overallProgress, 0) / (classStudents.length || 1)}%
 • Students Excelling: ${classStudents.filter((s) => s.status === "excelling").length}
 • Students Struggling: ${classStudents.filter((s) => s.status === "struggling").length}`,
@@ -3763,63 +3437,15 @@ AI Recommendations:
     }
   };
 
-  // Students fetching function
-  const fetchStudents = async () => {
-    try {
-      console.log("👥 Fetching students data...");
-      // This would typically call an API endpoint for students assigned to the teacher
-      // For now, we'll use the dashboard data or create mock data
-      console.log("✅ Students data loaded from dashboard");
-    } catch (error) {
-      console.error("❌ Error fetching students:", error);
-    }
-  };
-
-  // Classes fetching function
-  const fetchClasses = async () => {
-    try {
-      console.log("🏫 Fetching classes data...");
-      // This would typically call an API endpoint for classes assigned to the teacher
-      // For now, we'll use the dashboard data or create mock data
-      console.log("✅ Classes data loaded from dashboard");
-    } catch (error) {
-      console.error("❌ Error fetching classes:", error);
-    }
-  };
-
-  // Notifications fetching function
-  const fetchNotifications = async () => {
-    try {
-      console.log("🔔 Fetching notifications data...");
-      // This would typically call an API endpoint for teacher notifications
-      // For now, notifications are handled by the useNotifications hook
-      console.log("✅ Notifications data loaded");
-    } catch (error) {
-      console.error("❌ Error fetching notifications:", error);
-    }
-  };
-
   // Lessons CRUD Functions
   const fetchLessons = async () => {
     try {
       setLessonsLoading(true);
       console.log("🔄 Fetching lessons from API...");
       const response = await axiosClient.get("/api/lessons");
-      const allLessonsData = response.data?.data || response.data || [];
-
-      // Filter lessons for teacher's assigned subjects only
-      const teacherSubjectIds = teacherSubjects.map(s => s.subjectId);
-      const filteredLessons = Array.isArray(allLessonsData)
-        ? allLessonsData.filter(lesson =>
-            teacherSubjectIds.includes(lesson.subjectId)
-          )
-        : [];
-
-      setLessons(filteredLessons);
-
-      console.log(`✅ Loaded ${allLessonsData.length} total lessons, filtered to ${filteredLessons.length} for teacher's subjects`);
-      console.log("📚 Teacher subject IDs:", teacherSubjectIds);
-      console.log("📝 Filtered lessons:", filteredLessons.map(l => `${l.title} (Subject ID: ${l.subjectId})`));
+      const lessonsData = response.data?.data || response.data || [];
+      setLessons(Array.isArray(lessonsData) ? lessonsData : []);
+      console.log(`✅ Loaded ${lessonsData.length} lessons`);
     } catch (error) {
       console.error("❌ Error fetching lessons:", error);
       toast({

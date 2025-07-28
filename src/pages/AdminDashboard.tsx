@@ -434,7 +434,7 @@ const AdminDashboard = () => {
         response: error.response?.data
       });
       // No fallback subjects - show real API state
-      console.warn("⚠️ No fallback subjects - showing actual API state");
+      console.warn("⚠��� No fallback subjects - showing actual API state");
       setTeacherSubjects([]);
     } finally {
       setSubjectsLoading(false);
@@ -566,7 +566,7 @@ const AdminDashboard = () => {
 
       const allUsers = [
         ...teachers.map((user, index) => {
-          console.log(`👨‍🏫 Processing teacher ${index + 1}:`, user);
+          console.log(`👨��🏫 Processing teacher ${index + 1}:`, user);
           console.log(`  - Original role: ${user.role}`);
           console.log(`  - User ID: ${user.id || user.userId}`);
 
@@ -815,84 +815,16 @@ const AdminDashboard = () => {
       if (response.data) {
         console.log("✅ User created successfully with data:", response.data);
 
-        // If user is a teacher and has subject/level assignments, assign them
-        console.log("🔍 Checking subject assignment conditions:");
-        console.log("  - Is teacher role:", userData.role.name.toLowerCase() === "teacher");
-        console.log("  - Has selectedSubjectId:", !!userData.selectedSubjectId, "=>", userData.selectedSubjectId);
-        console.log("  - Has selectedLevelId:", !!userData.selectedLevelId, "=>", userData.selectedLevelId);
-
-        if (userData.role.name.toLowerCase() === "teacher" && userData.selectedSubjectId && userData.selectedLevelId) {
-          try {
-            console.log("🔄 Assigning subject to teacher...");
-            console.log("📊 User creation response:", response);
-
-            // Since the API doesn't return user data, fetch the user by email to get the ID
-            console.log("🔍 Fetching user by email to get teacher ID...");
-            const teachers = await adminApiService.getUsersByRole("Teacher");
-            const createdTeacher = teachers.find(teacher => teacher.email === userData.email);
-
-            if (!createdTeacher) {
-              throw new Error("Could not find the created teacher to assign subjects");
-            }
-
-            const teacherId = createdTeacher.userId || createdTeacher.id;
-            console.log("🆔 Found teacher ID:", teacherId);
-
-            // Get institution ID from available sources
-            const institutionId = parseInt(userData.institutionId ||
-                                          response.data.institutionId ||
-                                          dashboardData?.institution?.institutionId ||
-                                          "1");
-
-            const assignmentPayload = {
-              teacherId: teacherId,
-              subjectId: parseInt(userData.selectedSubjectId),
-              levelId: parseInt(userData.selectedLevelId),
-              institutionId: institutionId,
-            };
-
-            console.log("📤 Subject assignment payload:", assignmentPayload);
-            console.log("🔍 Payload validation:");
-            console.log("  - teacherId:", assignmentPayload.teacherId);
-            console.log("  - subjectId:", assignmentPayload.subjectId);
-            console.log("  - levelId:", assignmentPayload.levelId);
-            console.log("  - institutionId:", assignmentPayload.institutionId);
-
-            // Validate required fields
-            if (!teacherId || !assignmentPayload.subjectId || !assignmentPayload.levelId) {
-              throw new Error(`Missing required fields: teacherId=${teacherId}, subjectId=${assignmentPayload.subjectId}, levelId=${assignmentPayload.levelId}`);
-            }
-
-            const assignmentResponse = await adminApiService.assignSubjectToTeacher(assignmentPayload);
-            console.log("✅ Subject assigned to teacher successfully:", assignmentResponse);
-
-            // Refresh dashboard data to show updated subject assignments
-            console.log("🔄 Refreshing dashboard data to show updated subject assignments...");
-            await fetchDashboardData();
-          } catch (assignError) {
-            console.error("⚠️ Failed to assign subject to teacher:", assignError);
-            console.error("⚠️ Assignment error details:", assignError.response?.data);
-            // Still show success for user creation, but warn about assignment
-            showMessage({
-              id: Date.now().toString(),
-              title: "User Created with Warning",
-              message: "User created successfully, but subject assignment failed",
-              details: `The user was created but could not be assigned to the selected subject. Error: ${assignError.message || 'Unknown error'}. You can assign them manually later.`,
-              type: "warning",
-              priority: "medium",
-              timestamp: new Date().toISOString(),
-            });
-            fetchDashboardData();
-            return;
-          }
-        }
+        // Teacher created successfully - subjects can be assigned separately later
+        console.log("✅ Teacher user created successfully. Subject assignment can be done separately.");
 
         showMessage({
           id: Date.now().toString(),
           title: "Success",
-          message: userData.role.name.toLowerCase() === "teacher" && userData.selectedSubjectId
-            ? "Teacher created and assigned to subject successfully"
-            : "User created successfully",
+          message: "User created successfully",
+          details: userData.role.name.toLowerCase() === "teacher"
+            ? "Teacher created successfully. You can assign subjects using the 'Assign Subject' action in the users table."
+            : undefined,
           type: "success",
           priority: "medium",
           timestamp: new Date().toISOString(),
@@ -1333,9 +1265,16 @@ const AdminDashboard = () => {
       id: "",
       name: ""
     },
+  });
+
+  // Separate state for subject assignment
+  const [isAssignSubjectOpen, setIsAssignSubjectOpen] = useState(false);
+  const [teacherToAssign, setTeacherToAssign] = useState<UserData | null>(null);
+  const [assignmentData, setAssignmentData] = useState({
     selectedSubjectId: "",
     selectedLevelId: "",
   });
+  const [assignSubjectLoading, setAssignSubjectLoading] = useState(false);
 
   // State for subjects (levels already declared later)
   const [teacherSubjects, setTeacherSubjects] = useState<any[]>([]);
@@ -1538,31 +1477,7 @@ const AdminDashboard = () => {
       return;
     }
 
-    // Additional validation for teacher role
-    if (newUser.role.name.toLowerCase() === "teacher") {
-      if (!newUser.selectedSubjectId || newUser.selectedSubjectId === "no-subjects") {
-        showMessage({
-          id: Date.now().toString(),
-          type: "error",
-          priority: "medium",
-          title: "Validation Error",
-          message: "Please select a subject for the teacher",
-          timestamp: new Date().toISOString(),
-        });
-        return;
-      }
-      if (!newUser.selectedLevelId || newUser.selectedLevelId === "no-levels") {
-        showMessage({
-          id: Date.now().toString(),
-          type: "error",
-          priority: "medium",
-          title: "Validation Error",
-          message: "Please select a level for the teacher",
-          timestamp: new Date().toISOString(),
-        });
-        return;
-      }
-    }
+    // Note: Subject assignment for teachers is now handled separately
 
     try {
       const userData = {
@@ -1572,8 +1487,6 @@ const AdminDashboard = () => {
         phoneNumber: newUser.phoneNumber,
         address: newUser.address,
         role: newUser.role,
-        selectedSubjectId: newUser.selectedSubjectId,
-        selectedLevelId: newUser.selectedLevelId,
       };
 
       await createUser(userData);
@@ -1584,7 +1497,7 @@ const AdminDashboard = () => {
         priority: "high",
         title: "User Created Successfully",
         message: `New ${newUser.role.name} account has been created successfully.`,
-        details: `The user can now log in using their email address: ${userData.email}${newUser.role.name.toLowerCase() === "student" ? "\n\nAI Twin will be automatically configured for personalized learning." : newUser.role.name.toLowerCase() === "teacher" && newUser.selectedSubjectId ? "\n\nTeacher has been assigned to the selected subject and level." : ""}`,
+        details: `The user can now log in using their email address: ${userData.email}${newUser.role.name.toLowerCase() === "student" ? "\n\nAI Twin will be automatically configured for personalized learning." : newUser.role.name.toLowerCase() === "teacher" ? "\n\nYou can now assign subjects to this teacher using the 'Assign Subject' action in the users table." : ""}`,
         timestamp: new Date().toISOString(),
         requiresResponse: false,
       });
@@ -1600,6 +1513,10 @@ const AdminDashboard = () => {
           id: "",
           name: ""
         },
+      });
+
+      // Reset assignment data
+      setAssignmentData({
         selectedSubjectId: "",
         selectedLevelId: "",
       });
@@ -1865,6 +1782,119 @@ const AdminDashboard = () => {
     });
   };
 
+  // Subject assignment functions
+  const handleAssignSubject = (user: UserData) => {
+    if (user.role?.toLowerCase() !== "teacher") {
+      showMessage({
+        id: Date.now().toString(),
+        title: "Invalid Action",
+        message: "Subject assignment is only available for teachers.",
+        type: "warning",
+        priority: "medium",
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+
+    setTeacherToAssign(user);
+    setAssignmentData({
+      selectedSubjectId: "",
+      selectedLevelId: "",
+    });
+    setIsAssignSubjectOpen(true);
+
+    // Load subjects and levels for assignment
+    fetchSubjectsForTeacher();
+    fetchLevelsForTeacher();
+  };
+
+  const handleSubjectAssignment = async () => {
+    if (!teacherToAssign) return;
+
+    // Validation
+    if (!assignmentData.selectedSubjectId || assignmentData.selectedSubjectId === "no-subjects") {
+      showMessage({
+        id: Date.now().toString(),
+        type: "error",
+        priority: "medium",
+        title: "Validation Error",
+        message: "Please select a subject for the teacher",
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+
+    if (!assignmentData.selectedLevelId || assignmentData.selectedLevelId === "no-levels") {
+      showMessage({
+        id: Date.now().toString(),
+        type: "error",
+        priority: "medium",
+        title: "Validation Error",
+        message: "Please select a level for the teacher",
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+
+    try {
+      setAssignSubjectLoading(true);
+      console.log("🔄 Assigning subject to teacher:", teacherToAssign.fullName);
+
+      // Get institution ID from available sources
+      let institutionId = 1; // Default fallback
+      if (dashboardData?.institutions?.length > 0) {
+        institutionId = dashboardData.institutions[0].institutionId;
+      } else if (dashboardData?.adminProfile?.institutionId) {
+        institutionId = dashboardData.adminProfile.institutionId;
+      }
+
+      const assignmentPayload = {
+        teacherId: teacherToAssign.id,
+        subjectId: parseInt(assignmentData.selectedSubjectId),
+        levelId: parseInt(assignmentData.selectedLevelId),
+        institutionId: institutionId,
+      };
+
+      console.log("📤 Subject assignment payload:", assignmentPayload);
+
+      // Validate required fields
+      if (!teacherToAssign.id || !assignmentPayload.subjectId || !assignmentPayload.levelId) {
+        throw new Error(`Missing required fields: teacherId=${teacherToAssign.id}, subjectId=${assignmentPayload.subjectId}, levelId=${assignmentPayload.levelId}`);
+      }
+
+      const assignmentResponse = await adminApiService.assignSubjectToTeacher(assignmentPayload);
+      console.log("✅ Subject assigned to teacher successfully:", assignmentResponse);
+
+      showMessage({
+        id: Date.now().toString(),
+        title: "Subject Assigned Successfully",
+        message: `${teacherToAssign.fullName} has been assigned to the selected subject and level.`,
+        type: "success",
+        priority: "medium",
+        timestamp: new Date().toISOString(),
+      });
+
+      // Close dialog and refresh data
+      setIsAssignSubjectOpen(false);
+      setTeacherToAssign(null);
+      await fetchDashboardData();
+
+    } catch (error: any) {
+      console.error("⚠️ Failed to assign subject to teacher:", error);
+      showMessage({
+        id: Date.now().toString(),
+        title: "Subject Assignment Failed",
+        message: "Failed to assign subject to teacher.",
+        details: error.response?.data?.message || error.message || "Unknown error occurred",
+        type: "error",
+        priority: "high",
+        timestamp: new Date().toISOString(),
+      });
+    } finally {
+      setAssignSubjectLoading(false);
+    }
+  };
+
   const handleViewAITwin = (user: UserData) => {
     showMessage({
       id: Date.now().toString(),
@@ -1872,7 +1902,7 @@ const AdminDashboard = () => {
       priority: "medium",
       title: `${user.fullName}'s AI Twin`,
       message: "AI Twin Analytics & Personalization Data",
-      details: `����� Learning Style: Visual/Kinesthetic\n• Engagement Level: High (${Math.floor(Math.random() * 20) + 80}%)\n• Preferred Learning Time: Morning\n��� Strengths: Mathematics, Science\n• Areas for Improvement: Essay Writing\n• AI Interactions Today: ${Math.floor(Math.random() * 50) + 20}\n• Mood Analysis: Focused & Motivated\n�� Personalized Recommendations: ${Math.floor(Math.random() * 10) + 5} pending`,
+      details: `��������� Learning Style: Visual/Kinesthetic\n• Engagement Level: High (${Math.floor(Math.random() * 20) + 80}%)\n• Preferred Learning Time: Morning\n��� Strengths: Mathematics, Science\n• Areas for Improvement: Essay Writing\n• AI Interactions Today: ${Math.floor(Math.random() * 50) + 20}\n• Mood Analysis: Focused & Motivated\n�� Personalized Recommendations: ${Math.floor(Math.random() * 10) + 5} pending`,
       timestamp: new Date().toISOString(),
       requiresResponse: false,
     });
@@ -2902,6 +2932,14 @@ const AdminDashboard = () => {
                                         View AI Twin
                                       </DropdownMenuItem>
                                     )}
+                                    {user.role?.toLowerCase() === "teacher" && (
+                                      <DropdownMenuItem
+                                        onClick={() => handleAssignSubject(user)}
+                                      >
+                                        <BookOpen className="w-4 h-4 mr-2" />
+                                        Assign Subject
+                                      </DropdownMenuItem>
+                                    )}
                                     <DropdownMenuItem
                                       onClick={() => handleEditUser(user)}
                                     >
@@ -3784,7 +3822,7 @@ const AdminDashboard = () => {
                 </DialogTitle>
                 <DialogDescription>
                   Create a new student, teacher, or admin account. AI Twin integration
-                  is automatically provided for students.
+                  is automatically provided for students. For teachers, subjects can be assigned separately after creation.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
@@ -3811,9 +3849,6 @@ const AdminDashboard = () => {
                         setNewUser({
                           ...newUser,
                           role: newRoleData,
-                          // Reset subject/level when role changes
-                          selectedSubjectId: "",
-                          selectedLevelId: "",
                         });
 
                         // Fetch subjects and levels if teacher role selected
@@ -3864,68 +3899,7 @@ const AdminDashboard = () => {
                   </Select>
                 </div>
 
-                {/* Subject and Level selection for Teacher role */}
-                {newUser.role.name.toLowerCase() === "teacher" && (
-                  <>
-                    <div>
-                      <Label htmlFor="subject">Subject *</Label>
-                      <Select
-                        value={newUser.selectedSubjectId}
-                        onValueChange={(value) => setNewUser({ ...newUser, selectedSubjectId: value })}
-                        disabled={subjectsLoading}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder={subjectsLoading ? "Loading subjects..." : "Select subject"} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {teacherSubjects.length > 0 ? (
-                            teacherSubjects.map((subject: any) => (
-                              <SelectItem
-                                key={subject.subjectId}
-                                value={subject.subjectId.toString()}
-                              >
-                                {subject.subjectName || subject.name}
-                              </SelectItem>
-                            ))
-                          ) : !subjectsLoading && (
-                            <SelectItem value="no-subjects" disabled>
-                              No subjects available
-                            </SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </div>
 
-                    <div>
-                      <Label htmlFor="level">Level *</Label>
-                      <Select
-                        value={newUser.selectedLevelId}
-                        onValueChange={(value) => setNewUser({ ...newUser, selectedLevelId: value })}
-                        disabled={levelsLoading}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder={levelsLoading ? "Loading levels..." : "Select level"} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {levels.length > 0 ? (
-                            levels.map((level: any) => (
-                              <SelectItem
-                                key={level.levelId}
-                                value={level.levelId.toString()}
-                              >
-                                {level.levelName}
-                              </SelectItem>
-                            ))
-                          ) : !levelsLoading && (
-                            <SelectItem value="no-levels" disabled>
-                              No levels available
-                            </SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </>
-                )}
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -4026,6 +4000,118 @@ const AdminDashboard = () => {
                     <>
                       <UserPlus className="w-4 h-4 mr-2" />
                       Create User
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Assign Subject Dialog */}
+          <Dialog open={isAssignSubjectOpen} onOpenChange={setIsAssignSubjectOpen}>
+            <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <BookOpen className="w-5 h-5" />
+                  Assign Subject to Teacher
+                </DialogTitle>
+                <DialogDescription>
+                  Assign a subject and level to {teacherToAssign?.fullName || "the selected teacher"}.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                {/* Teacher Info */}
+                {teacherToAssign && (
+                  <div className="p-3 bg-gray-50 rounded-lg">
+                    <p><strong>Teacher:</strong> {teacherToAssign.fullName}</p>
+                    <p><strong>Email:</strong> {teacherToAssign.email}</p>
+                    <p><strong>Current Subjects:</strong> {teacherToAssign.assignedSubjectNames || "None"}</p>
+                  </div>
+                )}
+
+                {/* Subject Selection */}
+                <div>
+                  <Label htmlFor="assignSubject">Subject *</Label>
+                  <Select
+                    value={assignmentData.selectedSubjectId}
+                    onValueChange={(value) => setAssignmentData({ ...assignmentData, selectedSubjectId: value })}
+                    disabled={subjectsLoading}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={subjectsLoading ? "Loading subjects..." : "Select subject"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {teacherSubjects.length > 0 ? (
+                        teacherSubjects.map((subject: any) => (
+                          <SelectItem
+                            key={subject.subjectId}
+                            value={subject.subjectId.toString()}
+                          >
+                            {subject.subjectName || subject.name}
+                          </SelectItem>
+                        ))
+                      ) : !subjectsLoading && (
+                        <SelectItem value="no-subjects" disabled>
+                          No subjects available
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Level Selection */}
+                <div>
+                  <Label htmlFor="assignLevel">Level *</Label>
+                  <Select
+                    value={assignmentData.selectedLevelId}
+                    onValueChange={(value) => setAssignmentData({ ...assignmentData, selectedLevelId: value })}
+                    disabled={levelsLoading}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={levelsLoading ? "Loading levels..." : "Select level"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {levels.length > 0 ? (
+                        levels.map((level: any) => (
+                          <SelectItem
+                            key={level.levelId}
+                            value={level.levelId.toString()}
+                          >
+                            {level.levelName}
+                          </SelectItem>
+                        ))
+                      ) : !levelsLoading && (
+                        <SelectItem value="no-levels" disabled>
+                          No levels available
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Info Note */}
+                <div className="p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
+                  <p><strong>Note:</strong> This will assign the teacher to teach the selected subject at the selected level. Teachers can be assigned to multiple subjects.</p>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsAssignSubjectOpen(false)}
+                  disabled={assignSubjectLoading}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={handleSubjectAssignment} disabled={assignSubjectLoading}>
+                  {assignSubjectLoading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      Assigning...
+                    </>
+                  ) : (
+                    <>
+                      <BookOpen className="w-4 h-4 mr-2" />
+                      Assign Subject
                     </>
                   )}
                 </Button>
