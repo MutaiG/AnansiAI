@@ -1,7 +1,7 @@
 // Assignment Service - Integrates with available assignment endpoints
 import axios, { AxiosInstance } from "axios";
 
-const API_BASE_URL = "http://16.171.24.15/anansiai";
+const API_BASE_URL = "http://13.48.27.31/anansiai";
 
 // Assignment Types based on API schema
 export interface Assignment {

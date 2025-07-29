@@ -21,7 +21,7 @@ export class MixedContentHelper {
   // Check if current environment has mixed content issues
   hasMixedContentIssue(): boolean {
     const isHttps = window.location.protocol === "https:";
-    const apiUrl = "http://16.171.24.15/anansiai"; // Current API is HTTP only
+    const apiUrl = "http://13.48.27.31/anansiai"; // Current API is HTTP only
     const apiIsHttp = apiUrl.startsWith("http://");
 
     return isHttps && apiIsHttp;
@@ -32,7 +32,7 @@ export class MixedContentHelper {
     const solutions: MixedContentSolution[] = [
       {
         type: "https",
-        url: "https://16.171.24.15/anansiai",
+        url: "https://13.48.27.31/anansiai",
         description:
           "Try HTTPS version of the API (requires SSL certificate on server)",
         available: true,
@@ -58,7 +58,7 @@ export class MixedContentHelper {
   // Attempt to resolve mixed content by testing HTTPS version
   async testHttpsApi(): Promise<{ success: boolean; error?: string }> {
     try {
-      const httpsUrl = "https://16.171.24.15/anansiai/api/Institutions";
+      const httpsUrl = "https://13.48.27.31/anansiai/api/Institutions";
 
       const response = await fetch(httpsUrl, {
         method: "GET",
@@ -94,8 +94,8 @@ export class MixedContentHelper {
     const httpsTest = await this.testHttpsApi();
 
     const baseURL = httpsTest.success
-      ? "https://16.171.24.15/anansiai"
-      : "http://16.171.24.15/anansiai"; // This will fail in HTTPS context but provides clear error
+      ? "https://13.48.27.31/anansiai"
+      : "http://13.48.27.31/anansiai"; // This will fail in HTTPS context but provides clear error
 
     console.log(`🔄 Mixed Content Helper: Using ${baseURL}`);
 
@@ -139,13 +139,13 @@ export class MixedContentHelper {
 Your application is running on HTTPS but trying to connect to an HTTP API, which browsers block for security.
 
 Quick Solutions:
-1. 🔧 Configure SSL certificate on your API server (16.171.24.15)
+1. 🔧 Configure SSL certificate on your API server (13.48.27.31)
 2. 🌐 Deploy this application on HTTP for development (not recommended for production)
 3. 🔄 Use a reverse proxy with HTTPS support
 
 Technical Details:
 • App URL: ${window.location.origin} (HTTPS)
-• API URL: http://16.171.24.15/anansiai (HTTP)
+• API URL: http://13.48.27.31/anansiai (HTTP)
 • Issue: Browser blocks HTTPS → HTTP requests
     `.trim();
   }

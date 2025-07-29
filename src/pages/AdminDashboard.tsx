@@ -566,7 +566,7 @@ const AdminDashboard = () => {
 
       const allUsers = [
         ...teachers.map((user, index) => {
-          console.log(`👨��🏫 Processing teacher ${index + 1}:`, user);
+          console.log(`👨����🏫 Processing teacher ${index + 1}:`, user);
           console.log(`  - Original role: ${user.role}`);
           console.log(`  - User ID: ${user.id || user.userId}`);
 
@@ -1274,6 +1274,14 @@ const AdminDashboard = () => {
     selectedSubjectId: "",
     selectedLevelId: "",
   });
+
+  // Student Level Assignment State
+  const [studentToAssign, setStudentToAssign] = useState<UserData | null>(null);
+  const [isAssignLevelOpen, setIsAssignLevelOpen] = useState(false);
+  const [assignLevelLoading, setAssignLevelLoading] = useState(false);
+  const [studentLevelData, setStudentLevelData] = useState({
+    selectedLevelId: "",
+  });
   const [assignSubjectLoading, setAssignSubjectLoading] = useState(false);
 
   // State for subjects (levels already declared later)
@@ -1806,6 +1814,103 @@ const AdminDashboard = () => {
     // Load subjects and levels for assignment
     fetchSubjectsForTeacher();
     fetchLevelsForTeacher();
+  };
+
+  const handleAssignLevel = (user: UserData) => {
+    if (user.role?.toLowerCase() !== "student") {
+      showMessage({
+        id: Date.now().toString(),
+        type: "warning",
+        priority: "medium",
+        title: "Invalid Action",
+        message: "Level assignment is only available for students.",
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+
+    setStudentToAssign(user);
+    setStudentLevelData({
+      selectedLevelId: "",
+    });
+    setIsAssignLevelOpen(true);
+
+    // Load levels for assignment
+    fetchLevelsForTeacher();
+  };
+
+  const handleLevelAssignment = async () => {
+    if (!studentToAssign) return;
+
+    // Validation
+    if (!studentLevelData.selectedLevelId || studentLevelData.selectedLevelId === "no-levels") {
+      showMessage({
+        id: Date.now().toString(),
+        type: "error",
+        priority: "medium",
+        title: "Validation Error",
+        message: "Please select a level for the student",
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+
+    try {
+      setAssignLevelLoading(true);
+      console.log("🔄 Assigning level to student:", studentToAssign.fullName);
+
+      // Get institution ID from available sources
+      let institutionId = 1; // Default fallback
+      if (dashboardData?.institutions?.length > 0) {
+        institutionId = dashboardData.institutions[0].institutionId;
+      } else if (dashboardData?.adminProfile?.institutionId) {
+        institutionId = dashboardData.adminProfile.institutionId;
+      }
+
+      const assignmentPayload = {
+        studentId: studentToAssign.id,
+        levelId: parseInt(studentLevelData.selectedLevelId),
+        institutionId: institutionId,
+      };
+
+      console.log("📤 Level assignment payload:", assignmentPayload);
+
+      // Validate required fields
+      if (!studentToAssign.id || !assignmentPayload.levelId) {
+        throw new Error(`Missing required fields: studentId=${studentToAssign.id}, levelId=${assignmentPayload.levelId}`);
+      }
+
+      const assignmentResponse = await adminApiService.assignStudentToLevel(assignmentPayload);
+      console.log("✅ Level assigned to student successfully:", assignmentResponse);
+
+      showMessage({
+        id: Date.now().toString(),
+        title: "Level Assigned Successfully",
+        message: `${studentToAssign.fullName} has been assigned to the selected level.`,
+        type: "success",
+        priority: "medium",
+        timestamp: new Date().toISOString(),
+      });
+
+      // Close dialog and refresh data
+      setIsAssignLevelOpen(false);
+      setStudentToAssign(null);
+      await fetchDashboardData();
+
+    } catch (error: any) {
+      console.error("⚠️ Failed to assign level to student:", error);
+      showMessage({
+        id: Date.now().toString(),
+        title: "Level Assignment Failed",
+        message: "Failed to assign level to student.",
+        details: error.response?.data?.message || error.message || "Unknown error occurred",
+        type: "error",
+        priority: "high",
+        timestamp: new Date().toISOString(),
+      });
+    } finally {
+      setAssignLevelLoading(false);
+    }
   };
 
   const handleSubjectAssignment = async () => {
@@ -2938,6 +3043,14 @@ const AdminDashboard = () => {
                                       >
                                         <BookOpen className="w-4 h-4 mr-2" />
                                         Assign Subject
+                                      </DropdownMenuItem>
+                                    )}
+                                    {user.role?.toLowerCase() === "student" && (
+                                      <DropdownMenuItem
+                                        onClick={() => handleAssignLevel(user)}
+                                      >
+                                        <GraduationCap className="w-4 h-4 mr-2" />
+                                        Assign Level
                                       </DropdownMenuItem>
                                     )}
                                     <DropdownMenuItem
@@ -4112,6 +4225,89 @@ const AdminDashboard = () => {
                     <>
                       <BookOpen className="w-4 h-4 mr-2" />
                       Assign Subject
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Assign Level Dialog */}
+          <Dialog open={isAssignLevelOpen} onOpenChange={setIsAssignLevelOpen}>
+            <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <GraduationCap className="w-5 h-5" />
+                  Assign Level to Student
+                </DialogTitle>
+                <DialogDescription>
+                  Assign a level to {studentToAssign?.fullName || "the selected student"}.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                {/* Student Info */}
+                {studentToAssign && (
+                  <div className="p-3 bg-gray-50 rounded-lg">
+                    <p><strong>Student:</strong> {studentToAssign.fullName}</p>
+                    <p><strong>Email:</strong> {studentToAssign.email}</p>
+                  </div>
+                )}
+
+                {/* Level Selection */}
+                <div>
+                  <Label htmlFor="assignLevel">Level *</Label>
+                  <Select
+                    value={studentLevelData.selectedLevelId}
+                    onValueChange={(value) => setStudentLevelData({ ...studentLevelData, selectedLevelId: value })}
+                    disabled={levelsLoading}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={levelsLoading ? "Loading levels..." : "Select level"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {levels.length > 0 ? (
+                        levels.map((level: any) => (
+                          <SelectItem
+                            key={level.levelId}
+                            value={level.levelId.toString()}
+                          >
+                            {level.levelName}
+                          </SelectItem>
+                        ))
+                      ) : !levelsLoading && (
+                        <SelectItem value="no-levels" disabled>
+                          No levels available
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Info Note */}
+                <div className="p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
+                  <p><strong>Note:</strong> This will assign the student to the selected academic level. Students can only be assigned to one level at a time.</p>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsAssignLevelOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleLevelAssignment}
+                  disabled={assignLevelLoading}
+                >
+                  {assignLevelLoading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      Assigning...
+                    </>
+                  ) : (
+                    <>
+                      <GraduationCap className="w-4 h-4 mr-2" />
+                      Assign Level
                     </>
                   )}
                 </Button>

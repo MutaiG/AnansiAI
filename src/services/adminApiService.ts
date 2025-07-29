@@ -1491,8 +1491,115 @@ export class AdminApiService {
   }
 
   // ============================================================================
+  // STUDENT LEVEL ASSIGNMENT ENDPOINTS
+  // ============================================================================
+
+  /**
+   * Assign student to level
+   */
+  async assignStudentToLevel(assignmentData: {
+    studentId: string;
+    levelId: number;
+    institutionId: number;
+  }): Promise<any> {
+    try {
+      const response: AxiosResponse<any> = await axiosClient.post(
+        "/api/levels/assign-student-to-level",
+        assignmentData
+      );
+      return response.data;
+    } catch (error) {
+      console.error("Error assigning student to level:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get level assignment by ID
+   */
+  async getLevelAssignment(assignmentId: number): Promise<any> {
+    try {
+      const response: AxiosResponse<any> = await axiosClient.get(
+        `/api/levels/level-assigned/${assignmentId}`
+      );
+      return response.data;
+    } catch (error) {
+      console.error(`Error fetching level assignment ${assignmentId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update level assignment
+   */
+  async updateLevelAssignment(
+    assignmentId: number,
+    assignmentData: {
+      studentId: string;
+      levelId: number;
+      status?: number;
+    }
+  ): Promise<any> {
+    try {
+      const response: AxiosResponse<any> = await axiosClient.put(
+        `/api/levels/assigned/${assignmentId}`,
+        assignmentData
+      );
+      return response.data;
+    } catch (error) {
+      console.error(`Error updating level assignment ${assignmentId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get students assigned to a level
+   */
+  async getStudentsByLevel(levelId: number): Promise<any[]> {
+    try {
+      const response: AxiosResponse<any[]> = await axiosClient.get(
+        `/api/levels/${levelId}/students`
+      );
+      return response.data;
+    } catch (error) {
+      console.error(`Error fetching students for level ${levelId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Remove student from level
+   */
+  async removeStudentFromLevel(assignmentId: number): Promise<void> {
+    try {
+      await axiosClient.delete(`/api/levels/assigned/${assignmentId}`);
+    } catch (error) {
+      console.error(`Error removing student from level ${assignmentId}:`, error);
+      throw error;
+    }
+  }
+
+  // ============================================================================
   // USERS ENDPOINTS
   // ============================================================================
+
+  /**
+   * Get all students
+   */
+  async getStudents(): Promise<any[]> {
+    try {
+      console.log("🔍 Fetching all students...");
+      const response: AxiosResponse<any[]> = await axiosClient.get("/api/Users/students");
+
+      console.log("✅ Students API response:", response.data);
+      console.log("📊 Students count:", response.data?.length || 0);
+
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching students:", error);
+      throw error;
+    }
+  }
 
   /**
    * Get users by role
@@ -1671,7 +1778,7 @@ export class AdminApiService {
         this.getLessons(),
         this.getAssignments(),
         this.getUsersByRole("Teacher"),
-        this.getUsersByRole("Student"),
+        this.getStudents(),
         this.getUsersByRole("Admin"),
         this.getAllEnums(),
       ]);

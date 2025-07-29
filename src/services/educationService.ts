@@ -1,7 +1,7 @@
 // Education Service - Manages the educational hierarchy: Subjects → Lessons → Assignments
 import axios, { AxiosInstance } from "axios";
 
-const API_BASE_URL = "http://16.171.24.15/anansiai";
+const API_BASE_URL = "http://13.48.27.31/anansiai";
 
 // Educational Hierarchy Types
 export interface Subject {
