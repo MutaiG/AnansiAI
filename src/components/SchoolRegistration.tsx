@@ -234,10 +234,6 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
       const institutionPayload = {
         name: institutionData.institutionName,
         address: institutionData.address,
-        // Optional fields for tracking
-        createdBy: "super-admin",
-        modifiedBy: "super-admin",
-        isDeleted: false,
       };
 
       // Prepare headers

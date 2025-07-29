@@ -8,8 +8,8 @@ const getOptimalApiUrl = () => {
     window.location.hostname === "localhost" ||
     window.location.hostname === "127.0.0.1";
 
-  // Use HTTPS for API if we're on HTTPS, otherwise use HTTP
-  const protocol = isHttps ? "https" : "http";
+  // Use HTTP for development, HTTPS for production
+  const protocol = isDevelopment ? "http" : "http";
   const apiUrl = `${protocol}://13.48.27.31/anansiai`;
 
   console.log("🔧 API Configuration:", {
@@ -18,7 +18,6 @@ const getOptimalApiUrl = () => {
     isDevelopment,
     isHttps,
     selectedApiUrl: apiUrl,
-    note: isHttps ? "Using HTTPS to avoid mixed content" : "Using HTTP for development",
   });
 
   return apiUrl;
