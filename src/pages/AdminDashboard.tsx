@@ -293,6 +293,7 @@ const AdminDashboard = () => {
   const [dashboardData, setDashboardData] = useState<AdminDashboardData | null>(
     null,
   );
+  const [adminInstitution, setAdminInstitution] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [createUserLoading, setCreateUserLoading] = useState(false);
@@ -1342,37 +1343,171 @@ const AdminDashboard = () => {
 
   // Extract data with fallbacks - memoized to prevent recreation
   const adminInfo = useMemo(() => {
-    if (dashboardData?.adminProfile) {
-      return {
-        name: dashboardData.adminProfile.fullName,
-        school: dashboardData.adminProfile.schoolName,
-        lastLogin: dashboardData.adminProfile.lastLogin,
-        role: dashboardData.adminProfile.role,
-        department: "Administration", // Default value since not in interface
-        email: dashboardData.adminProfile.email,
-        phoneNumber: dashboardData.adminProfile.phoneNumber,
-      };
-    }
-    return {
-      name: "Dr. Sarah Johnson",
-      school: "Westfield High School",
-      lastLogin: "Today, 9:30 AM",
-      role: "Principal",
-      department: "Administration",
-      email: "admin@school.edu",
-      phoneNumber: "+1-555-0123",
-    };
-  }, [dashboardData?.adminProfile]);
+    const schoolData = localStorage.getItem("schoolData");
+    let schoolInfo = null;
 
-  // Authentication check
+    if (schoolData) {
+      try {
+        schoolInfo = JSON.parse(schoolData);
+        console.log("🏫 School data found:", schoolInfo);
+      } catch (e) {
+        console.warn("Failed to parse schoolData from localStorage:", e);
+      }
+    }
+
+    // PRIORITY 1: Use the actual admin user found in the API call (from dashboard data)
+    if (dashboardData?.users && Array.isArray(dashboardData.users)) {
+      // Find the admin user from the API response
+      const adminUser = dashboardData.users.find(user =>
+        user.role?.toLowerCase().includes('admin') ||
+        user.role === 'Admin'
+      );
+
+      if (adminUser) {
+        console.log("🎯 Using actual admin user from API:", adminUser);
+
+        // Get institution name from admin user's institutionId
+        let institutionName = "Institution Not Specified";
+
+        // Try to find institution by adminUser's institutionId
+        if (adminUser.institutionId) {
+          console.log("🔍 Looking for institution with ID:", adminUser.institutionId);
+
+          // First try to find in dashboard data
+          if (dashboardData?.institutions) {
+            const userInstitution = dashboardData.institutions.find(inst =>
+              inst.institutionId === adminUser.institutionId ||
+              inst.id === adminUser.institutionId ||
+              String(inst.institutionId) === String(adminUser.institutionId)
+            );
+            if (userInstitution) {
+              institutionName = userInstitution.name;
+              console.log("🏫 Found user's institution in dashboard data:", userInstitution);
+            }
+          }
+
+          // If still not found, try to fetch directly from API
+          if (institutionName === "Institution Not Specified") {
+            console.log("🔍 Institution not found in dashboard data, attempting direct API call...");
+            // We'll handle this with a separate useEffect to avoid async in useMemo
+          }
+        }
+
+        // Use fetched institution if available
+        if (institutionName === "Institution Not Specified" && adminInstitution?.name) {
+          institutionName = adminInstitution.name;
+          console.log("🏫 Using fetched admin institution:", adminInstitution.name);
+        }
+
+        // Fallback to school data if no institution found via institutionId
+        if (institutionName === "Institution Not Specified" && schoolInfo?.name) {
+          institutionName = schoolInfo.name;
+        }
+
+        const fullName = `${adminUser.firstName || ''} ${adminUser.lastName || ''}`.trim() ||
+                        adminUser.fullName ||
+                        adminUser.email?.split('@')[0] ||
+                        "Admin User";
+
+        return {
+          name: fullName,
+          school: institutionName,
+          lastLogin: adminUser.lastLogin || "Recently",
+          role: adminUser.role || "Administrator",
+          department: "Administration",
+          email: adminUser.email || "Not Available",
+          phoneNumber: adminUser.phoneNumber || "Not Available",
+        };
+      }
+    }
+
+    // PRIORITY 2: Use stored authentication data as fallback
+    const storedUserData = localStorage.getItem("userData");
+    if (storedUserData) {
+      try {
+        const userData = JSON.parse(storedUserData);
+        console.log("👤 Using auth user data as fallback:", userData);
+
+        const fullName = userData.fullName ||
+                        `${userData.firstName || ''} ${userData.lastName || ''}`.trim() ||
+                        userData.name ||
+                        userData.email?.split('@')[0] ||
+                        "Admin User";
+
+        return {
+          name: fullName,
+          school: schoolInfo?.name || "Institution Not Specified",
+          lastLogin: userData.lastLogin || "Recently",
+          role: userData.role || "Administrator",
+          department: "Administration",
+          email: userData.email || "Not Available",
+          phoneNumber: userData.phoneNumber || userData.phone || "Not Available",
+        };
+      } catch (e) {
+        console.warn("Failed to parse userData from localStorage:", e);
+      }
+    }
+
+    // PRIORITY 3: Final fallback using minimal available data
+    const userRole = localStorage.getItem("userRole") || "Admin";
+    const storedUserEmail = localStorage.getItem("userEmail") || "";
+
+    return {
+      name: storedUserEmail ? storedUserEmail.split('@')[0] : "Admin User",
+      school: schoolInfo?.name || "Institution Not Specified",
+      lastLogin: "Not Available",
+      role: userRole,
+      department: "Administration",
+      email: storedUserEmail || "Not Available",
+      phoneNumber: "Not Available",
+    };
+  }, [dashboardData?.adminProfile, dashboardData?.users, adminInstitution]);
+
+  // Fetch admin's institution when we have their institutionId
+  useEffect(() => {
+    const fetchAdminInstitution = async () => {
+      if (dashboardData?.users) {
+        const adminUser = dashboardData.users.find(user =>
+          user.role?.toLowerCase().includes('admin') ||
+          user.role === 'Admin'
+        );
+
+        if (adminUser?.institutionId && !adminInstitution) {
+          try {
+            console.log("🔍 Fetching institution for admin user ID:", adminUser.institutionId);
+            const institution = await adminApiService.getInstitution(Number(adminUser.institutionId));
+            setAdminInstitution(institution);
+            console.log("🏫 Fetched admin institution:", institution);
+          } catch (error) {
+            console.warn("⚠️ Failed to fetch admin institution:", error);
+          }
+        }
+      }
+    };
+
+    fetchAdminInstitution();
+  }, [dashboardData?.users, adminInstitution]);
+
+  // Debug: Log all localStorage data to understand what's available
+  useEffect(() => {
+    console.log("🔍 DEBUG: All localStorage data:");
+    console.log("- userData:", localStorage.getItem("userData"));
+    console.log("- schoolData:", localStorage.getItem("schoolData"));
+    console.log("- userRole:", localStorage.getItem("userRole"));
+    console.log("- anansi_token:", localStorage.getItem("anansi_token"));
+    console.log("- currentUser:", localStorage.getItem("currentUser"));
+    console.log("- token:", localStorage.getItem("token"));
+    console.log("- userName:", localStorage.getItem("userName"));
+    console.log("- userEmail:", localStorage.getItem("userEmail"));
+    console.log("🔍 Computed adminInfo:", adminInfo);
+  }, [adminInfo]);
+
+  // Authentication check - removed hardcoded fallbacks
   useEffect(() => {
     const userRole = localStorage.getItem("userRole");
+    console.log("🔐 Current user role:", userRole);
     if (!userRole || !["ADMIN", "SUPER_ADMIN"].includes(userRole)) {
-      // Auto-set admin role for development
-      localStorage.setItem("userRole", "ADMIN");
-      localStorage.setItem("userId", "ADM001");
-      localStorage.setItem("userName", "Dr. Sarah Johnson");
-      console.log("Setting admin role for development");
+      console.log("⚠️ No valid user role found - user should login");
     }
   }, []);
 

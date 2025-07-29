@@ -74,6 +74,7 @@ interface User {
   schoolName?: string;
   schoolCode?: string;
   county?: string;
+  institutionId?: string | number | null;
   isActive: boolean;
   lastLogin?: string;
   createdDate?: string;
@@ -132,6 +133,18 @@ const UsersManagement: React.FC<UsersManagementProps> = ({ onShowMessage, refres
         }
       } catch (error) {
         console.warn("⚠️ Students endpoint failed:", error.message);
+      }
+
+      // Also try to get all users from general endpoint
+      try {
+        console.log("🔍 Trying to fetch all users from general endpoint...");
+        const allUsersResponse = await axiosClient.get("/api/Users");
+        console.log("👥 All users response:", allUsersResponse.data);
+        if (allUsersResponse.data && Array.isArray(allUsersResponse.data)) {
+          allUsersData = [...allUsersData, ...allUsersResponse.data];
+        }
+      } catch (error) {
+        console.warn("⚠️ General users endpoint failed:", error.message);
       }
 
       // Fetch users from the correct roles as per API documentation
@@ -219,12 +232,9 @@ const UsersManagement: React.FC<UsersManagementProps> = ({ onShowMessage, refres
             }
 
             console.log(`🔍 Transforming user ${index + 1}:`, {
-              rawUser: user,
-              availableFields: Object.keys(user || {}),
-              firstName: user.firstName,
-              lastName: user.lastName,
-              fullName: user.fullName,
               email: user.email,
+              availableFields: Object.keys(user || {}),
+              userIdFound: user.userId,
               role: user.role
             });
 
@@ -269,14 +279,36 @@ const UsersManagement: React.FC<UsersManagementProps> = ({ onShowMessage, refres
                 }
               }
 
-              // Extract institution info safely
+              // Extract institution info safely with comprehensive fallbacks
               const schoolName = user.schoolName || user.institutionName || user.institution?.name ||
-                                user.SchoolName || user.InstitutionName || "N/A";
+                                user.SchoolName || user.InstitutionName || user.InstitutionName ||
+                                user.schoolname || user.institutionname || "N/A";
 
               console.log(`🏷️ User ${email || index} role:`, roleName, 'Raw role data:', user.role || user.roles);
 
+              // Extract ID with comprehensive fallbacks based on API documentation
+              // The API documentation shows "userId" as the primary field
+              const userId = user.userId || user.UserId || user.id || user.Id || user.appUserId || user.AppUserId || email || `user-${Date.now()}-${index}`;
+
+              // Extract institution/school ID with comprehensive fallbacks
+              const institutionId = user.schoolId || user.SchoolId || user.institutionId || user.InstitutionId ||
+                                  user.institution_id || user.Institution_Id || user.school_id || user.School_Id || null;
+
+              console.log(`🔍 User ${email || index} field extraction:`, {
+                extractedId: userId,
+                extractedInstitutionId: institutionId,
+                allFields: Object.keys(user || {}),
+                userIdFound: !!user.userId,
+                institutionFieldsChecked: {
+                  schoolId: user.schoolId,
+                  institutionId: user.institutionId,
+                  SchoolId: user.SchoolId,
+                  InstitutionId: user.InstitutionId
+                }
+              });
+
               return {
-                id: user.id || user.userId || user.Id || email || `user-${Date.now()}-${index}`,
+                id: userId,
                 firstName: firstName,
                 lastName: lastName,
                 fullName: fullName,
@@ -286,6 +318,7 @@ const UsersManagement: React.FC<UsersManagementProps> = ({ onShowMessage, refres
                 schoolName: schoolName,
                 schoolCode: user.schoolCode || user.SchoolCode || "N/A",
                 county: user.county || user.County || "N/A",
+                institutionId: institutionId, // Add institutionId to the returned object
                 isActive: user.isActive !== undefined ? Boolean(user.isActive) : true,
                 lastLogin: user.lastLogin
                   ? new Date(user.lastLogin).toLocaleDateString()
@@ -687,6 +720,13 @@ const UsersManagement: React.FC<UsersManagementProps> = ({ onShowMessage, refres
                                 try {
                                   const response = await axiosClient.get(`/api/Users/get-users-by-role?roleName=${role}`);
                                   console.log(`✅ ${role} endpoint response:`, response.data);
+                                  if (response.data && response.data.length > 0) {
+                                    const firstUser = response.data[0];
+                                    console.log(`🔍 ${role} user fields:`, Object.keys(firstUser));
+                                    console.log(`🔍 ${role} user ID field:`, firstUser.id || firstUser.Id || firstUser.userId || firstUser.UserId || 'NOT FOUND');
+                                    console.log(`🔍 ${role} user institution field:`, firstUser.institutionId || firstUser.InstitutionId || firstUser.schoolId || firstUser.SchoolId || 'NOT FOUND');
+                                    console.log(`🔍 ${role} complete first user:`, firstUser);
+                                  }
                                 } catch (error) {
                                   console.error(`❌ ${role} endpoint failed:`, error);
                                 }
@@ -750,13 +790,24 @@ const UsersManagement: React.FC<UsersManagementProps> = ({ onShowMessage, refres
                       <TableCell>
                         <div>
                           <p className="font-medium text-sm">
-                            {user.schoolName}
+                            {user.schoolName === "N/A" ? (
+                              <span className="text-gray-400 italic">
+                                Institution not specified
+                              </span>
+                            ) : (
+                              user.schoolName
+                            )}
                           </p>
                           {(user.schoolCode !== "N/A" || user.county !== "N/A") && (
                             <p className="text-xs text-gray-600">
                               {user.schoolCode !== "N/A" ? user.schoolCode : ""}
                               {user.schoolCode !== "N/A" && user.county !== "N/A" ? " • " : ""}
                               {user.county !== "N/A" ? user.county : ""}
+                            </p>
+                          )}
+                          {user.institutionId && (
+                            <p className="text-xs text-gray-500">
+                              ID: {user.institutionId}
                             </p>
                           )}
                         </div>
@@ -930,6 +981,12 @@ const UsersManagement: React.FC<UsersManagementProps> = ({ onShowMessage, refres
                     County
                   </Label>
                   <p>{selectedUser.county}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium text-gray-500">
+                    Institution ID
+                  </Label>
+                  <p>{selectedUser.institutionId || "N/A"}</p>
                 </div>
                 <div>
                   <Label className="text-sm font-medium text-gray-500">
