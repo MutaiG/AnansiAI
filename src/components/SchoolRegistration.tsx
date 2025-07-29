@@ -234,6 +234,7 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
       const institutionPayload = {
         name: institutionData.institutionName,
         address: institutionData.address,
+        institutionId: 0, // Required by API - will be assigned by backend
       };
 
       // Prepare headers
@@ -286,7 +287,37 @@ const SchoolRegistration: React.FC<SchoolRegistrationProps> = ({
       setError(null);
     } catch (error: any) {
       console.error("❌ Institution creation error:", error);
-      setError(error.response?.data || "Failed to create institution");
+
+      // Better error message extraction
+      let errorMessage = "Failed to create institution";
+
+      if (error.response) {
+        // Server responded with error status
+        console.error("❌ Response status:", error.response.status);
+        console.error("❌ Response data:", error.response.data);
+
+        if (error.response.data?.message) {
+          errorMessage = error.response.data.message;
+        } else if (error.response.data?.errors) {
+          // Handle validation errors
+          const validationErrors = Object.values(error.response.data.errors).flat();
+          errorMessage = validationErrors.join(', ');
+        } else if (typeof error.response.data === 'string') {
+          errorMessage = error.response.data;
+        } else {
+          errorMessage = `Server error: ${error.response.status}`;
+        }
+      } else if (error.request) {
+        // Network error
+        console.error("❌ Network error:", error.request);
+        errorMessage = "Network error: Unable to connect to server";
+      } else {
+        // Other error
+        console.error("❌ Error message:", error.message);
+        errorMessage = error.message || errorMessage;
+      }
+
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }

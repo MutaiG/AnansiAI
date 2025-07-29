@@ -1042,9 +1042,16 @@ export class ApiService {
   // Institution Management (mapped to schools)
   async createInstitution(institutionData: any): Promise<ApiResponse<any>> {
     try {
+      // Ensure institutionId is included for API compatibility
+      const payload = {
+        name: institutionData.name,
+        address: institutionData.address,
+        institutionId: institutionData.institutionId || 0,
+      };
+
       const response = await this.client.post(
         "/api/Institutions",
-        institutionData,
+        payload,
       );
 
       if (response.data) {

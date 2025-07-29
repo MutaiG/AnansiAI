@@ -82,9 +82,10 @@ interface User {
 
 interface UsersManagementProps {
   onShowMessage?: (message: any) => void;
+  refreshTrigger?: number; // Trigger to refresh users when value changes
 }
 
-const UsersManagement: React.FC<UsersManagementProps> = ({ onShowMessage }) => {
+const UsersManagement: React.FC<UsersManagementProps> = ({ onShowMessage, refreshTrigger }) => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -105,31 +106,72 @@ const UsersManagement: React.FC<UsersManagementProps> = ({ onShowMessage }) => {
     fetchUsers();
   }, []);
 
+  // Watch for refresh trigger changes to refresh users list
+  useEffect(() => {
+    if (refreshTrigger && refreshTrigger > 0) {
+      console.log("🔄 Refresh trigger activated, fetching users...");
+      fetchUsers();
+    }
+  }, [refreshTrigger]);
+
   const fetchUsers = async () => {
     setLoading(true);
     setError(null);
     try {
       console.log("👥 Fetching users from API...");
 
-      // Fetch users from multiple roles since this is Super Admin Dashboard
-      const roleRequests = ["admin", "teacher", "student", "superadmin"].map(
-        (role) =>
-          axiosClient
-            .get(`/api/Users/get-users-by-role?roleName=${role}`)
-            .catch((error) => {
-              console.warn(`⚠️ Failed to fetch ${role} users:`, error.message);
-              return { data: [] };
-            }),
+      // First try to get all students (which might include all users)
+      let allUsersData = [];
+
+      try {
+        console.log("🔍 Trying to fetch all students (might include all users)...");
+        const studentsResponse = await axiosClient.get("/api/Users/students");
+        console.log("📚 Students response:", studentsResponse.data);
+        if (studentsResponse.data && Array.isArray(studentsResponse.data)) {
+          allUsersData = studentsResponse.data;
+        }
+      } catch (error) {
+        console.warn("⚠️ Students endpoint failed:", error.message);
+      }
+
+      // Fetch users from the correct roles as per API documentation
+      const validRoles = ["Admin", "Teacher", "Student"];
+
+      const roleRequests = validRoles.map((role) =>
+        axiosClient
+          .get(`/api/Users/get-users-by-role?roleName=${role}`)
+          .then(response => {
+            console.log(`✅ Fetched ${role} users:`, response.data);
+            return response;
+          })
+          .catch((error) => {
+            console.warn(`⚠️ Failed to fetch ${role} users:`, error.response?.status, error.message);
+            return { data: [] };
+          }),
       );
 
       const responses = await Promise.all(roleRequests);
-      console.log(
-        "✅ Users API responses:",
-        responses.map((r) => r.data),
-      );
+      console.log("✅ Users API responses:");
+      responses.forEach((response, index) => {
+        const role = validRoles[index];
+        console.log(`📋 ${role} users:`, response.data);
+        if (response.data && Array.isArray(response.data)) {
+          console.log(`   Count: ${response.data.length}`);
+          response.data.forEach((user, userIndex) => {
+            console.log(`   User ${userIndex + 1}:`, {
+              id: user.id,
+              email: user.email,
+              firstName: user.firstName,
+              lastName: user.lastName,
+              role: user.role,
+              institutionId: user.institutionId
+            });
+          });
+        }
+      });
 
-      // Combine all user data from different roles
-      const allUsersData = responses.reduce((acc, response) => {
+      // Combine all user data from different sources
+      const roleUsersData = responses.reduce((acc, response) => {
         // Handle different possible response structures
         let userData = response.data;
 
@@ -152,26 +194,125 @@ const UsersManagement: React.FC<UsersManagementProps> = ({ onShowMessage }) => {
         return acc;
       }, []);
 
+      // Combine students data with role-based data
+      const combinedUsersData = [...allUsersData, ...roleUsersData];
+
+      // Deduplicate users by email or id
+      const uniqueUsers = combinedUsersData.reduce((acc, user) => {
+        const key = user.email || user.id || JSON.stringify(user);
+        if (!acc.has(key)) {
+          acc.set(key, user);
+        }
+        return acc;
+      }, new Map());
+
+      const finalUsersData = Array.from(uniqueUsers.values());
+      console.log(`📊 Combined ${combinedUsersData.length} users, deduplicated to ${finalUsersData.length} unique users`);
+
       // Transform API data to match UI expectations
-      const transformedUsers = Array.isArray(allUsersData)
-        ? allUsersData.map((user, index) => ({
-            id: user.id || user.userId || String(index + 1),
-            fullName:
-              `${user.firstName || ""} ${user.lastName || ""}`.trim() ||
-              "Unknown User",
-            email: user.email || "N/A",
-            phoneNumber: user.phoneNumber || "",
-            role: user.role?.name || user.roleName || "Unknown",
-            schoolName: user.schoolName || "N/A",
-            schoolCode: user.schoolCode || "N/A",
-            county: user.county || "N/A",
-            isActive: user.isActive !== undefined ? user.isActive : true,
-            lastLogin: user.lastLogin
-              ? new Date(user.lastLogin).toLocaleDateString()
-              : "Never",
-            createdDate: user.createdDate || new Date().toISOString(),
-            photoUrl: user.photoUrl || "",
-          }))
+      const transformedUsers = Array.isArray(finalUsersData)
+        ? finalUsersData.map((user, index) => {
+            // Ensure user is an object to prevent errors
+            if (!user || typeof user !== 'object') {
+              console.warn(`⚠️ Invalid user data at index ${index}:`, user);
+              return null;
+            }
+
+            console.log(`🔍 Transforming user ${index + 1}:`, {
+              rawUser: user,
+              availableFields: Object.keys(user || {}),
+              firstName: user.firstName,
+              lastName: user.lastName,
+              fullName: user.fullName,
+              email: user.email,
+              role: user.role
+            });
+
+            try {
+              // Extract name fields with multiple fallbacks
+              const firstName = user.firstName || user.first_name || user.FirstName || "";
+              const lastName = user.lastName || user.last_name || user.LastName || "";
+              const fullNameDirect = user.fullName || user.full_name || user.name || user.Name || "";
+
+              // Extract email safely
+              const email = user.email || user.Email || user.emailAddress || "";
+
+              // Extract phone safely
+              const phoneNumber = user.phoneNumber || user.phone_number || user.Phone || user.PhoneNumber || "";
+
+              // Extract role with multiple fallbacks
+              let roleName = "Unknown";
+              if (typeof user.role === 'string') {
+                // Role is directly a string like "Admin"
+                roleName = user.role;
+              } else if (user.role?.name) {
+                // Role is an object with name property
+                roleName = user.role.name;
+              } else if (user.roleName) {
+                roleName = user.roleName;
+              } else if (user.roles && Array.isArray(user.roles) && user.roles[0]?.name) {
+                roleName = user.roles[0].name;
+              } else if (user.Role) {
+                roleName = user.Role;
+              }
+
+              // Construct full name safely
+              let fullName = "Unknown User";
+              if (fullNameDirect.trim()) {
+                fullName = fullNameDirect.trim();
+              } else {
+                const constructedName = `${firstName} ${lastName}`.trim();
+                if (constructedName) {
+                  fullName = constructedName;
+                } else if (email) {
+                  fullName = email.split('@')[0] || "Unknown User";
+                }
+              }
+
+              // Extract institution info safely
+              const schoolName = user.schoolName || user.institutionName || user.institution?.name ||
+                                user.SchoolName || user.InstitutionName || "N/A";
+
+              console.log(`🏷️ User ${email || index} role:`, roleName, 'Raw role data:', user.role || user.roles);
+
+              return {
+                id: user.id || user.userId || user.Id || email || `user-${Date.now()}-${index}`,
+                firstName: firstName,
+                lastName: lastName,
+                fullName: fullName,
+                email: email || "N/A",
+                phoneNumber: phoneNumber || "N/A",
+                role: roleName,
+                schoolName: schoolName,
+                schoolCode: user.schoolCode || user.SchoolCode || "N/A",
+                county: user.county || user.County || "N/A",
+                isActive: user.isActive !== undefined ? Boolean(user.isActive) : true,
+                lastLogin: user.lastLogin
+                  ? new Date(user.lastLogin).toLocaleDateString()
+                  : "Never",
+                createdDate: user.createdDate || user.createdAt || user.CreatedAt || new Date().toISOString(),
+                photoUrl: user.photoUrl || user.ProfilePicture || "",
+              };
+            } catch (error) {
+              console.error(`❌ Error transforming user ${index}:`, error, user);
+              return {
+                id: String(index + 1),
+                firstName: "",
+                lastName: "",
+                fullName: "Data Error",
+                email: "error@example.com",
+                phoneNumber: "N/A",
+                role: "Unknown",
+                schoolName: "N/A",
+                schoolCode: "N/A",
+                county: "N/A",
+                isActive: false,
+                lastLogin: "Never",
+                createdDate: new Date().toISOString(),
+                photoUrl: "",
+              };
+            }
+          }).filter(Boolean)
         : [];
 
       setUsers(transformedUsers);
@@ -360,15 +501,20 @@ const UsersManagement: React.FC<UsersManagementProps> = ({ onShowMessage }) => {
   };
 
   const getRoleColor = (role: string) => {
+    if (!role || typeof role !== 'string') {
+      return "bg-gray-100 text-gray-800";
+    }
+
     switch (role.toLowerCase()) {
-      case "superadmin":
-        return "bg-purple-100 text-purple-800";
       case "admin":
+      case "administrator":
         return "bg-blue-100 text-blue-800";
       case "teacher":
+      case "instructor":
         return "bg-green-100 text-green-800";
       case "student":
-        return "bg-gray-100 text-gray-800";
+        return "bg-yellow-100 text-yellow-800";
+      case "unknown":
       default:
         return "bg-gray-100 text-gray-800";
     }
@@ -436,7 +582,6 @@ const UsersManagement: React.FC<UsersManagementProps> = ({ onShowMessage }) => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Roles</SelectItem>
-                    <SelectItem value="superadmin">Super Admin</SelectItem>
                     <SelectItem value="admin">Admin</SelectItem>
                     <SelectItem value="teacher">Teacher</SelectItem>
                     <SelectItem value="student">Student</SelectItem>
@@ -508,14 +653,49 @@ const UsersManagement: React.FC<UsersManagementProps> = ({ onShowMessage }) => {
                       <div className="flex flex-col items-center gap-2">
                         <Users className="w-8 h-8 text-gray-400" />
                         <p className="text-gray-500">No users found</p>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={fetchUsers}
-                        >
-                          <RefreshCw className="w-4 h-4 mr-2" />
-                          Refresh Users
-                        </Button>
+                        <p className="text-xs text-gray-400">
+                          Check browser console for API response details
+                        </p>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={fetchUsers}
+                          >
+                            <RefreshCw className="w-4 h-4 mr-2" />
+                            Refresh Users
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              console.log("🔍 Current users state:", users);
+                              console.log("🔍 Filtered users:", filteredUsers);
+                              console.log("🔍 Search term:", searchTerm);
+                              console.log("🔍 Role filter:", filterRole);
+                              console.log("🔍 Status filter:", filterStatus);
+                            }}
+                          >
+                            Debug Info
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={async () => {
+                              console.log("🧪 Testing individual API endpoints...");
+                              for (const role of ["Admin", "Teacher", "Student"]) {
+                                try {
+                                  const response = await axiosClient.get(`/api/Users/get-users-by-role?roleName=${role}`);
+                                  console.log(`✅ ${role} endpoint response:`, response.data);
+                                } catch (error) {
+                                  console.error(`❌ ${role} endpoint failed:`, error);
+                                }
+                              }
+                            }}
+                          >
+                            Test APIs
+                          </Button>
+                        </div>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -527,11 +707,22 @@ const UsersManagement: React.FC<UsersManagementProps> = ({ onShowMessage }) => {
                           <Avatar className="h-8 w-8">
                             <AvatarImage src={user.photoUrl} />
                             <AvatarFallback className="bg-blue-600 text-white text-xs">
-                              {user.fullName
-                                .split(" ")
-                                .map((n) => n[0])
-                                .join("")
-                                .toUpperCase()}
+                              {(() => {
+                                try {
+                                  if (!user.fullName || user.fullName === "Unknown User" || user.fullName === "Data Error") {
+                                    return "?";
+                                  }
+                                  const initials = user.fullName
+                                    .split(" ")
+                                    .filter(n => n && n.length > 0)
+                                    .map((n) => n[0])
+                                    .join("")
+                                    .toUpperCase();
+                                  return initials || "?";
+                                } catch {
+                                  return "?";
+                                }
+                              })()}
                             </AvatarFallback>
                           </Avatar>
                           <div>
@@ -542,6 +733,12 @@ const UsersManagement: React.FC<UsersManagementProps> = ({ onShowMessage }) => {
                               <Mail className="w-3 h-3" />
                               {user.email}
                             </div>
+                            {user.phoneNumber && user.phoneNumber !== "N/A" && (
+                              <div className="flex items-center gap-1 text-xs text-gray-600">
+                                <Phone className="w-3 h-3" />
+                                {user.phoneNumber}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </TableCell>
@@ -555,9 +752,13 @@ const UsersManagement: React.FC<UsersManagementProps> = ({ onShowMessage }) => {
                           <p className="font-medium text-sm">
                             {user.schoolName}
                           </p>
-                          <p className="text-xs text-gray-600">
-                            {user.schoolCode} • {user.county}
-                          </p>
+                          {(user.schoolCode !== "N/A" || user.county !== "N/A") && (
+                            <p className="text-xs text-gray-600">
+                              {user.schoolCode !== "N/A" ? user.schoolCode : ""}
+                              {user.schoolCode !== "N/A" && user.county !== "N/A" ? " • " : ""}
+                              {user.county !== "N/A" ? user.county : ""}
+                            </p>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell>

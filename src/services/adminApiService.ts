@@ -862,9 +862,16 @@ export class AdminApiService {
     institutionData: Partial<Institution>,
   ): Promise<Institution> {
     try {
+      // Ensure institutionId is included for API compatibility
+      const payload = {
+        name: institutionData.name,
+        address: institutionData.address,
+        institutionId: institutionData.institutionId || 0,
+      };
+
       const response: AxiosResponse<Institution> = await axiosClient.post(
         "/api/Institutions",
-        institutionData,
+        payload,
       );
       return response.data;
     } catch (error) {
