@@ -478,22 +478,31 @@ export default function TeacherDashboard() {
   };
 
   // Fetch teacher dashboard data using the proper endpoint
-  const fetchTeacherDashboardData = async () => {
+  const fetchTeacherDashboardData = async (teacherEmail: string) => {
     try {
-      console.log("📊 Fetching teacher dashboard data from API...");
-      const response = await axiosClient.get("/api/teachers/dashboard");
+      console.log("📊 Fetching teacher data from API using email:", teacherEmail);
 
-      if (response.data && response.data.success) {
-        console.log("✅ Teacher dashboard data fetched successfully:", response.data.data);
-        return response.data.data;
-      } else if (response.data) {
-        console.log("✅ Teacher dashboard data (direct):", response.data);
-        return response.data;
+      // Get all teachers and find the current one by email
+      const response = await axiosClient.get("/api/Users/get-users-by-role?roleName=Teacher");
+
+      if (response.data) {
+        const teachers = Array.isArray(response.data) ? response.data : (response.data.data || []);
+        const currentTeacher = teachers.find(teacher =>
+          teacher.email.toLowerCase() === teacherEmail.toLowerCase()
+        );
+
+        if (currentTeacher) {
+          console.log("✅ Found teacher data:", currentTeacher);
+          return currentTeacher;
+        } else {
+          console.log("⚠️ Teacher not found in API response for email:", teacherEmail);
+          return null;
+        }
       }
 
       return null;
     } catch (error) {
-      console.log("⚠️ Teacher dashboard API not available:", error.message);
+      console.log("⚠️ Teacher API not available:", error.message);
       return null;
     }
   };
@@ -556,18 +565,39 @@ export default function TeacherDashboard() {
     }
   };
 
-  // Extract teacher data prioritizing real userData over mock dashboard data
-  const fetchTeacherData = async (teacherId: string) => {
+  // Extract teacher data using API
+  const fetchTeacherData = async (teacherEmail: string) => {
     try {
-      console.log("🔄 Fetching teacher data for ID:", teacherId);
+      console.log("🔄 Fetching teacher data for email:", teacherEmail);
 
-      // First, try to get real user data from localStorage
+      // First, try to get teacher data from API
+      const apiTeacherData = await fetchTeacherDashboardData(teacherEmail);
+
+      if (apiTeacherData) {
+        console.log("✅ Using real teacher data from API:", apiTeacherData);
+
+        const teacherData = {
+          userId: apiTeacherData.userId || apiTeacherData.id,
+          id: apiTeacherData.id || apiTeacherData.userId,
+          firstName: apiTeacherData.firstName,
+          lastName: apiTeacherData.lastName,
+          email: apiTeacherData.email,
+          name: `${apiTeacherData.firstName || ''} ${apiTeacherData.lastName || ''}`.trim() || 'Teacher',
+          subject: apiTeacherData.subject || 'Not Assigned',
+          institutionId: apiTeacherData.institutionId
+        };
+
+        setTeacherData(teacherData);
+        return teacherData;
+      }
+
+      // Fallback to localStorage if API fails
       const userData = localStorage.getItem("userData");
       if (userData) {
         try {
           const realTeacherData = JSON.parse(userData);
-          if (realTeacherData.userId === teacherId || realTeacherData.id === teacherId) {
-            console.log("✅ Using real teacher data from authentication:", realTeacherData);
+          if (realTeacherData.email === teacherEmail) {
+            console.log("⚠️ Using fallback teacher data from localStorage:", realTeacherData);
 
             const teacherData = {
               userId: realTeacherData.userId || realTeacherData.id,
@@ -575,39 +605,21 @@ export default function TeacherDashboard() {
               firstName: realTeacherData.firstName,
               lastName: realTeacherData.lastName,
               email: realTeacherData.email,
-              name: `${realTeacherData.firstName} ${realTeacherData.lastName}`.trim(),
-              subject: realTeacherData.subject || 'Not Assigned'
+              name: `${realTeacherData.firstName || ''} ${realTeacherData.lastName || ''}`.trim() || 'Teacher',
+              subject: realTeacherData.subject || 'Not Assigned',
+              institutionId: realTeacherData.institutionId
             };
 
             setTeacherData(teacherData);
             return teacherData;
           }
         } catch (error) {
-          console.error("❌ Error parsing real userData:", error);
+          console.error("❌ Error parsing userData:", error);
         }
       }
 
-      // Fallback to dashboard API data (likely mock data for development)
-      if (teacherDashboardData?.teacherProfile) {
-        const teacher = teacherDashboardData.teacherProfile;
-        console.log("⚠️ Using fallback teacher data from dashboard:", teacher);
-
-        const teacherData = {
-          userId: teacher.id,
-          id: teacher.id,
-          firstName: teacher.name.split(' ')[0] || teacher.name,
-          lastName: teacher.name.split(' ').slice(1).join(' ') || '',
-          email: teacher.email,
-          name: teacher.name,
-          subject: teacher.subject
-        };
-
-        setTeacherData(teacherData);
-        return teacherData;
-      } else {
-        console.warn("⚠️ No teacher data available from any source");
-        return null;
-      }
+      console.warn("⚠️ No teacher data available from any source");
+      return null;
     } catch (error) {
       console.error("❌ Error processing teacher data:", error);
       return null;
@@ -625,12 +637,12 @@ export default function TeacherDashboard() {
       }
 
       console.log("🔍 Calling API with parameters:", {
-        endpoint: "/api/teachers/teacher-subjects-with-milestones-and-goals",
+        endpoint: "/api/subject-assignments/teacher-subjects-with-milestones-and-goals",
         curriculumId,
         termId
       });
 
-      const response = await axiosClient.get("/api/teachers/teacher-subjects-with-milestones-and-goals", {
+      const response = await axiosClient.get("/api/subject-assignments/teacher-subjects-with-milestones-and-goals", {
         params: { curriculumId, termId }
       });
 
@@ -654,10 +666,10 @@ export default function TeacherDashboard() {
   };
 
   // Get teacher's assigned subjects using proper API endpoint
-  const fetchTeacherAssignedSubjects = async (teacherId: string) => {
+  const fetchTeacherAssignedSubjects = async (teacherEmail: string) => {
     try {
       setTeacherSubjectsLoading(true);
-      console.log("📚 Fetching teacher subjects from API for ID:", teacherId);
+      console.log("📚 Fetching teacher subjects from API for email:", teacherEmail);
 
       // Try to get curriculum and term IDs from API with improved fallback logic
       let curriculumId = 1; // Default fallback
@@ -665,15 +677,23 @@ export default function TeacherDashboard() {
       let institutionId = null;
 
       try {
-        // Get teacher's institution ID if available
-        const userData = localStorage.getItem("userData");
-        if (userData) {
-          try {
-            const parsed = JSON.parse(userData);
-            institutionId = parsed.institutionId;
-            console.log("🏢 Found institution ID from user data:", institutionId);
-          } catch (e) {
-            console.warn("⚠️ Failed to parse user data for institution ID");
+        // Get teacher's institution ID from the teacher data
+        if (teacherData?.institutionId) {
+          institutionId = teacherData.institutionId;
+          console.log("🏢 Found institution ID from teacher data:", institutionId);
+        } else {
+          // Fallback to getting institution from JWT token
+          const token = localStorage.getItem("anansi_token");
+          if (token) {
+            try {
+              const payload = JSON.parse(atob(token.split('.')[1]));
+              if (payload.institutionId) {
+                institutionId = Number(payload.institutionId);
+                console.log("🏢 Found institution ID from JWT token:", institutionId);
+              }
+            } catch (e) {
+              console.warn("⚠️ Failed to parse JWT token for institution ID");
+            }
           }
         }
 
@@ -702,24 +722,24 @@ export default function TeacherDashboard() {
               }
             }
 
-            // Fallback to global endpoints if institution-specific failed
-            if (results.curriculumId === 1) {
-              console.log("🔍 Falling back to global curriculum endpoint...");
+            // Fallback to institution-specific endpoints if institution-specific failed
+            if (results.curriculumId === 1 && institutionId) {
+              console.log("🔍 Falling back to institution curriculum endpoint...");
               try {
-                const curriculumRes = await axiosClient.get("/api/curriculums");
+                const curriculumRes = await axiosClient.get(`/api/curriculums/by-institution?institutionId=${institutionId}`);
                 if (curriculumRes.data?.length > 0) {
                   results.curriculumId = curriculumRes.data[0].curriculumId;
-                  console.log("✅ Found global curriculum ID:", results.curriculumId);
+                  console.log("✅ Found institution curriculum ID:", results.curriculumId);
                 }
               } catch (curriculumError) {
-                console.warn("⚠️ Global curriculum endpoint failed:", curriculumError.message);
+                console.warn("⚠️ Institution curriculum endpoint failed:", curriculumError.message);
               }
             }
 
-            if (results.termId === 1) {
-              console.log("🔍 Falling back to global terms endpoint...");
+            if (results.termId === 1 && institutionId) {
+              console.log("🔍 Falling back to institution terms endpoint...");
               try {
-                const termRes = await axiosClient.get("/api/terms");
+                const termRes = await axiosClient.get(`/api/terms/by-institution?institutionId=${institutionId}`);
                 if (termRes.data?.length > 0) {
                   results.termId = termRes.data[0].termId;
                   console.log("✅ Found global term ID:", results.termId);
@@ -1393,8 +1413,8 @@ export default function TeacherDashboard() {
       setGoals(filteredGoals);
 
       console.log("✅ Curriculum data loaded successfully:");
-      console.log(`  �� Milestones: ${filteredMilestones.length}`);
-      console.log(`  ���� Goals: ${filteredGoals.length}`);
+      console.log(`  ���� Milestones: ${filteredMilestones.length}`);
+      console.log(`  ������ Goals: ${filteredGoals.length}`);
       console.log(`  📚 Teacher subjects: ${teacherSubjectIds.length}`);
       console.log(`  📖 Available curriculums: ${Object.keys(curriculumMap).length}`);
     } catch (error) {
@@ -1647,7 +1667,7 @@ export default function TeacherDashboard() {
           localStorage.setItem("userEmail", realTeacherData.email);
 
           // Load teacher-specific data and exit early
-          loadTeacherData(realTeacherId);
+          loadTeacherData(realTeacherData.email);
           return;
         }
       } catch (error) {
@@ -1659,14 +1679,14 @@ export default function TeacherDashboard() {
     const teacherId = userId || "teacher_001";
     setCurrentTeacherId(teacherId);
 
-    console.log("���� Teacher Authentication:", {
+    console.log("����� Teacher Authentication:", {
       userId: teacherId,
       userRole,
       userEmail
     });
 
-    // Load teacher-specific data
-    loadTeacherData(teacherId);
+    // Load teacher-specific data using email
+    loadTeacherData(userEmail || 'mbingumuindi34@gmail.com');
   }, []);
 
   // Auto-clear action feedback
@@ -1707,11 +1727,12 @@ export default function TeacherDashboard() {
   // Enhanced refresh function that also refetches teacher-specific data
   const handleFullRefresh = async () => {
     try {
-      console.log("🔄 Full refresh of teacher dashboard data...");
+      console.log("��� Full refresh of teacher dashboard data...");
 
-      // Reload teacher data with current teacher ID
-      if (currentTeacherId) {
-        await loadTeacherData(currentTeacherId);
+      // Reload teacher data with current teacher email
+      const storedEmail = localStorage.getItem("userEmail");
+      if (storedEmail) {
+        await loadTeacherData(storedEmail);
       } else {
         // Fallback: reload with existing subjects
         await fetchSubjects(); // This will trigger curriculum data refresh via useEffect
@@ -1732,15 +1753,15 @@ export default function TeacherDashboard() {
   };
 
   // Load all teacher-specific data
-  const loadTeacherData = async (teacherId: string) => {
+  const loadTeacherData = async (teacherEmail: string) => {
     setLoading(true);
     setError(null);
 
     try {
-      console.log("🔄 Loading teacher dashboard data for:", teacherId);
+      console.log("🔄 Loading teacher dashboard data for:", teacherEmail);
 
       // First try to get teacher dashboard data from the proper endpoint
-      const teacherDashboardData = await fetchTeacherDashboardData();
+      const teacherDashboardData = await fetchTeacherDashboardData(teacherEmail);
       if (teacherDashboardData) {
         console.log("✅ Using teacher dashboard data:", teacherDashboardData);
 
@@ -1794,8 +1815,8 @@ export default function TeacherDashboard() {
 
       // Fetch teacher details and subjects in parallel
       const [teacher, subjectsData] = await Promise.all([
-        fetchTeacherData(teacherId),
-        fetchTeacherAssignedSubjects(teacherId)
+        fetchTeacherData(teacherEmail),
+        fetchTeacherAssignedSubjects(teacherEmail)
       ]);
 
       const assignedSubjects = subjectsData.subjects || [];
@@ -3979,7 +4000,7 @@ AI Recommendations:
           description: "Lesson deleted successfully",
         });
         fetchLessons(); // Refresh lessons
-        console.log(`✅ Lesson ${lessonId} deleted successfully`);
+        console.log(`��� Lesson ${lessonId} deleted successfully`);
       }
     } catch (error) {
       console.error(`❌ Error deleting lesson ${lessonId}:`, error);

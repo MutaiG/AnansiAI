@@ -250,6 +250,7 @@ interface SubjectData {
   subjectName?: string;
 }
 import { MessageModal, type SystemMessage } from "@/components/MessageModal";
+import { ModernMessageModal } from "@/components/ModernMessageModal";
 import usePageTitle from "@/hooks/usePageTitle";
 import { toast } from "@/hooks/use-toast";
 import { Mood } from "@/types/education";
@@ -435,7 +436,7 @@ const AdminDashboard = () => {
         response: error.response?.data
       });
       // No fallback subjects - show real API state
-      console.warn("⚠��� No fallback subjects - showing actual API state");
+      console.warn("⚠����� No fallback subjects - showing actual API state");
       setTeacherSubjects([]);
     } finally {
       setSubjectsLoading(false);
@@ -470,7 +471,7 @@ const AdminDashboard = () => {
       console.log("🔢 Total levels count:", levelsData?.length);
       console.log("📝 Level names:", levelsData?.map(l => l.levelName));
     } catch (error) {
-      console.error("❌ Failed to fetch levels:", error);
+      console.error("��� Failed to fetch levels:", error);
       console.error("❌ Error details:", {
         message: error.message,
         code: error.code,
@@ -515,15 +516,15 @@ const AdminDashboard = () => {
       } = dashboardData;
 
       console.log("📊 API Response Summary:");
-      console.log(`  🏫 Institutions: ${institutionsData.length}`);
+      console.log(`  ��� Institutions: ${institutionsData.length}`);
       console.log(`  👨‍🏫 Teachers: ${teachers.length}`);
       console.log(`  👨‍🎓 Students: ${students.length}`);
-      console.log(`  ����‍💼 Admins: ${admins.length}`);
+      console.log(`  ����‍���� Admins: ${admins.length}`);
       console.log(
         `  📚 Subjects: ${Array.isArray(subjectsData) ? subjectsData.length : 0}`,
       );
       console.log(
-        `  📖 Lessons: ${Array.isArray(lessonsData) ? lessonsData.length : 0}`,
+        `  �� Lessons: ${Array.isArray(lessonsData) ? lessonsData.length : 0}`,
       );
       console.log(
         `  📝 Assignments: ${Array.isArray(assignmentsData) ? assignmentsData.length : 0}`,
@@ -658,7 +659,7 @@ const AdminDashboard = () => {
               }
             : {
                 fullName: "School Administrator",
-                schoolName: "Demo School",
+                schoolName: institutions[0]?.name || "Institution Not Specified",
                 lastLogin: new Date().toLocaleDateString(),
                 role: "Administrator",
                 email: "admin@school.edu",
@@ -774,8 +775,14 @@ const AdminDashboard = () => {
 
       // Use the general registration endpoint to respect the selected role
 
-      // Get institution name from admin's profile (should be available in session/context)
-      const institutionName = dashboardData?.institution?.name || "Demo School";
+      // Get institution name from the computed adminInfo (which has the proper priority logic)
+      const institutionName = adminInfo.school !== "Institution Not Specified"
+        ? adminInfo.school
+        : (adminInstitution?.data?.name || adminInstitution?.name || "Institution Not Specified");
+
+      console.log("🏫 Using institution name for user creation:", institutionName);
+      console.log("🏫 adminInfo.school:", adminInfo.school);
+      console.log("🏫 adminInstitution fallback:", adminInstitution?.data?.name || adminInstitution?.name);
 
       // Create the API payload for general user registration
       const apiPayload = {
@@ -788,9 +795,14 @@ const AdminDashboard = () => {
         role: userData.role,
       };
 
+      // Validate that we have a proper institution name
+      if (institutionName === "Institution Not Specified") {
+        throw new Error("Cannot create user: Admin's institution is not properly loaded. Please refresh the page and try again.");
+      }
+
       console.log("🔄 Creating user via registration endpoint:");
       console.log("🎯 Selected role for user creation:", userData.role);
-      console.log("🚀 Will use endpoint:", userData.role.name.toLowerCase() === "admin" ? "add-users-as-admin" : "register");
+      console.log("🏫 Validated institution name:", institutionName);
       console.log("📤 API Payload:", JSON.stringify(apiPayload, null, 2));
       console.log("��� Payload validation:");
       console.log("  - firstName:", !!apiPayload.firstName);
@@ -813,24 +825,35 @@ const AdminDashboard = () => {
 
       console.log("✅ User creation API response:", response);
       console.log("✅ Response data:", response?.data);
-      if (response.data) {
-        console.log("✅ User created successfully with data:", response.data);
+      console.log("✅ Response status:", response?.status);
 
-        // Teacher created successfully - subjects can be assigned separately later
-        console.log("✅ Teacher user created successfully. Subject assignment can be done separately.");
+      // Only show success if we have a proper success response (201 or 200)
+      if (response && (response.status === 200 || response.status === 201) && response.data) {
+        // Check if the response indicates success
+        const isSuccess = response.data.success !== false && !response.data.error;
 
-        showMessage({
-          id: Date.now().toString(),
-          title: "Success",
-          message: "User created successfully",
-          details: userData.role.name.toLowerCase() === "teacher"
-            ? "Teacher created successfully. You can assign subjects using the 'Assign Subject' action in the users table."
-            : undefined,
-          type: "success",
-          priority: "medium",
-          timestamp: new Date().toISOString(),
-        });
-        fetchDashboardData(); // Refresh data
+        if (isSuccess) {
+          console.log("✅ User created successfully with data:", response.data);
+
+          showMessage({
+            id: Date.now().toString(),
+            title: "Success",
+            message: "User created successfully",
+            details: userData.role.name.toLowerCase() === "teacher"
+              ? "Teacher created successfully. You can assign subjects using the 'Assign Subject' action in the users table."
+              : undefined,
+            type: "success",
+            priority: "medium",
+            timestamp: new Date().toISOString(),
+          });
+          fetchDashboardData(); // Refresh data
+        } else {
+          // API returned data but indicates an error
+          throw new Error(response.data.message || response.data.error || "User creation failed");
+        }
+      } else if (response && response.status >= 400) {
+        // API returned an error status
+        throw new Error("User creation failed with status: " + response.status);
       }
     } catch (error: any) {
       console.error("Error creating user:", error);
@@ -843,14 +866,39 @@ const AdminDashboard = () => {
       console.error("🚨 Error response:", error.response);
       console.error("���� Error response data:", error.response?.data);
       console.error("🚨 Error status:", error.response?.status);
-      console.error("🚨 Error headers:", error.response?.headers);
+      console.error("�� Error headers:", error.response?.headers);
 
       if (error.response?.data) {
-        errorMessage =
-          error.response.data.message ||
-          error.response.data.error ||
-          errorMessage;
-        errorDetails = JSON.stringify(error.response.data, null, 2);
+        const responseData = error.response.data;
+        const statusCode = error.response.status;
+
+        // Handle specific error cases
+        if (statusCode === 400 || statusCode === 409) {
+          // Check for duplicate email error
+          const errorText = (responseData.message || responseData.error || '').toLowerCase();
+          if (errorText.includes('email') && (errorText.includes('already') || errorText.includes('exists') || errorText.includes('duplicate'))) {
+            errorMessage = `Email address already in use`;
+            errorDetails = `The email '${userData.email}' is already registered in the system. Please use a different email address or check if the user already exists.`;
+          } else if (errorText.includes('email') && errorText.includes('invalid')) {
+            errorMessage = `Invalid email address`;
+            errorDetails = `Please enter a valid email address format.`;
+          } else if (errorText.includes('phone') || errorText.includes('number')) {
+            errorMessage = `Invalid phone number`;
+            errorDetails = `Please check the phone number format and try again.`;
+          } else {
+            errorMessage = responseData.message || responseData.error || "Invalid user data provided";
+            errorDetails = responseData.details || "Please check all the information and try again.";
+          }
+        } else if (statusCode === 403) {
+          errorMessage = "Access denied - insufficient permissions";
+          errorDetails = "You don't have permission to create users for this institution.";
+        } else if (statusCode === 500) {
+          errorMessage = "Server error occurred";
+          errorDetails = "Please try again later or contact support if the issue persists.";
+        } else {
+          errorMessage = responseData.message || responseData.error || errorMessage;
+          errorDetails = JSON.stringify(responseData, null, 2);
+        }
       } else if (error.message) {
         errorMessage = error.message;
       }
@@ -971,7 +1019,7 @@ const AdminDashboard = () => {
   const deleteSubject = async (subjectId: number) => {
     try {
       setDeleteSubjectLoading(true);
-      console.log("🔄 Deleting subject with ID:", subjectId);
+      console.log("���� Deleting subject with ID:", subjectId);
       const response = await axiosClient.delete(`/api/subjects/${subjectId}`);
       if (response.status === 200) {
         toast({
@@ -1186,6 +1234,51 @@ const AdminDashboard = () => {
     fetchAvailableRoles();
   }, []);
 
+  // Immediate institution fetching from JWT token on mount
+  useEffect(() => {
+    const fetchInstitutionFromToken = async () => {
+      try {
+        const token = localStorage.getItem("anansi_token");
+        console.log("🔍 Token check - token exists:", !!token);
+        console.log("🔍 adminInstitution current state:", adminInstitution);
+
+        if (token) {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          console.log("🔍 JWT payload:", payload);
+          console.log("🔍 Institution ID from JWT:", payload.institutionId);
+
+          if (payload.institutionId) {
+            console.log("🚀 FETCHING institution with ID:", payload.institutionId);
+            try {
+              const institution = await adminApiService.getInstitution(Number(payload.institutionId));
+              console.log("✅ RAW API response for institution:", institution);
+              console.log("✅ Institution data:", institution?.data);
+              console.log("✅ Institution name from API:", institution?.data?.name || institution?.name);
+
+              setAdminInstitution(institution);
+              console.log("✅ adminInstitution state updated with:", institution);
+            } catch (apiError) {
+              console.error("❌ API call failed for institution:", apiError);
+              console.error("❌ API error details:", {
+                message: apiError.message,
+                status: apiError.response?.status,
+                data: apiError.response?.data
+              });
+            }
+          } else {
+            console.log("❌ No institutionId in JWT payload");
+          }
+        } else {
+          console.log("❌ No JWT token found");
+        }
+      } catch (error) {
+        console.error("❌ Failed to parse JWT or fetch institution:", error);
+      }
+    };
+
+    fetchInstitutionFromToken();
+  }, []);
+
   // Show message function
   const showMessage = (message: SystemMessage) => {
     setCurrentMessage(message);
@@ -1343,17 +1436,11 @@ const AdminDashboard = () => {
 
   // Extract data with fallbacks - memoized to prevent recreation
   const adminInfo = useMemo(() => {
-    const schoolData = localStorage.getItem("schoolData");
-    let schoolInfo = null;
-
-    if (schoolData) {
-      try {
-        schoolInfo = JSON.parse(schoolData);
-        console.log("🏫 School data found:", schoolInfo);
-      } catch (e) {
-        console.warn("Failed to parse schoolData from localStorage:", e);
-      }
-    }
+    console.log("🔄 Computing adminInfo with API institution data only...");
+    console.log("🏫 Available adminInstitution state:", adminInstitution);
+    console.log("🏫 adminInstitution.data:", adminInstitution?.data);
+    console.log("🏫 adminInstitution.data.name:", adminInstitution?.data?.name);
+    console.log("🏫 dashboardData?.institutions:", dashboardData?.institutions);
 
     // PRIORITY 1: Use the actual admin user found in the API call (from dashboard data)
     if (dashboardData?.users && Array.isArray(dashboardData.users)) {
@@ -1368,46 +1455,67 @@ const AdminDashboard = () => {
 
         // Get institution name from admin user's institutionId
         let institutionName = "Institution Not Specified";
+        let institutionId = adminUser.institutionId;
 
-        // Try to find institution by adminUser's institutionId
-        if (adminUser.institutionId) {
-          console.log("🔍 Looking for institution with ID:", adminUser.institutionId);
-
-          // First try to find in dashboard data
-          if (dashboardData?.institutions) {
-            const userInstitution = dashboardData.institutions.find(inst =>
-              inst.institutionId === adminUser.institutionId ||
-              inst.id === adminUser.institutionId ||
-              String(inst.institutionId) === String(adminUser.institutionId)
-            );
-            if (userInstitution) {
-              institutionName = userInstitution.name;
-              console.log("🏫 Found user's institution in dashboard data:", userInstitution);
+        // If no institutionId in user data, try to get from JWT token
+        if (!institutionId) {
+          try {
+            const token = localStorage.getItem("anansi_token");
+            if (token) {
+              const payload = JSON.parse(atob(token.split('.')[1]));
+              if (payload.institutionId) {
+                institutionId = payload.institutionId;
+                console.log("🔍 Using institutionId from JWT token:", institutionId);
+              }
             }
-          }
-
-          // If still not found, try to fetch directly from API
-          if (institutionName === "Institution Not Specified") {
-            console.log("🔍 Institution not found in dashboard data, attempting direct API call...");
-            // We'll handle this with a separate useEffect to avoid async in useMemo
+          } catch (error) {
+            console.warn("⚠️ Failed to parse JWT token:", error);
           }
         }
 
-        // Use fetched institution if available
-        if (institutionName === "Institution Not Specified" && adminInstitution?.name) {
-          institutionName = adminInstitution.name;
-          console.log("🏫 Using fetched admin institution:", adminInstitution.name);
+        // PRIORITY 1: Use fetched institution if available (most reliable)
+        if (adminInstitution?.data?.name || adminInstitution?.name) {
+          institutionName = adminInstitution.data?.name || adminInstitution.name;
+          console.log("✅ Using fetched admin institution:", institutionName);
+        }
+        // PRIORITY 2: Try to find institution by institutionId in dashboard data
+        else if (institutionId && dashboardData?.institutions) {
+          console.log("🔍 Looking for institution with ID:", institutionId, "in dashboard institutions:", dashboardData.institutions);
+          const userInstitution = dashboardData.institutions.find(inst =>
+            inst.institutionId === institutionId ||
+            inst.id === institutionId ||
+            String(inst.institutionId) === String(institutionId)
+          );
+          if (userInstitution) {
+            institutionName = userInstitution.name;
+            console.log("✅ Found user's institution in dashboard data:", userInstitution);
+          } else {
+            console.log("❌ Institution not found in dashboard data");
+          }
+        } else {
+          console.log("❌ No institutionId or dashboard institutions available");
+          console.log("   - institutionId:", institutionId);
+          console.log("   - dashboardData?.institutions:", dashboardData?.institutions);
         }
 
-        // Fallback to school data if no institution found via institutionId
-        if (institutionName === "Institution Not Specified" && schoolInfo?.name) {
-          institutionName = schoolInfo.name;
+        // Fallback to first available institution if no institution found via institutionId
+        if (institutionName === "Institution Not Specified" && dashboardData?.institutions?.length > 0) {
+          institutionName = dashboardData.institutions[0].name;
+          console.log("🏫 Using first available institution:", dashboardData.institutions[0].name);
+        }
+
+        // Last resort: Use institution ID as display name if we have it but no name
+        if (institutionName === "Institution Not Specified" && institutionId) {
+          institutionName = `Institution ${institutionId}`;
+          console.log("🏫 Using institution ID as fallback name:", institutionName);
         }
 
         const fullName = `${adminUser.firstName || ''} ${adminUser.lastName || ''}`.trim() ||
                         adminUser.fullName ||
                         adminUser.email?.split('@')[0] ||
                         "Admin User";
+
+        console.log("🎯 Final institution name for admin user:", institutionName);
 
         return {
           name: fullName,
@@ -1436,7 +1544,10 @@ const AdminDashboard = () => {
 
         return {
           name: fullName,
-          school: schoolInfo?.name || "Institution Not Specified",
+          school:
+            adminInstitution?.data?.name || adminInstitution?.name ||
+            (dashboardData?.institutions?.length > 0 ? dashboardData.institutions[0].name : null) ||
+            "Institution Not Specified",
           lastLogin: userData.lastLogin || "Recently",
           role: userData.role || "Administrator",
           department: "Administration",
@@ -1454,33 +1565,60 @@ const AdminDashboard = () => {
 
     return {
       name: storedUserEmail ? storedUserEmail.split('@')[0] : "Admin User",
-      school: schoolInfo?.name || "Institution Not Specified",
+      school:
+        adminInstitution?.data?.name || adminInstitution?.name ||
+        (dashboardData?.institutions?.length > 0 ? dashboardData.institutions[0].name : null) ||
+        "Institution Not Specified",
       lastLogin: "Not Available",
       role: userRole,
       department: "Administration",
       email: storedUserEmail || "Not Available",
       phoneNumber: "Not Available",
     };
-  }, [dashboardData?.adminProfile, dashboardData?.users, adminInstitution]);
+  }, [dashboardData?.adminProfile, dashboardData?.users, dashboardData?.institutions, adminInstitution]);
 
   // Fetch admin's institution when we have their institutionId
   useEffect(() => {
     const fetchAdminInstitution = async () => {
+      let institutionId = null;
+
+      // Method 1: Try to get institutionId from admin user data
       if (dashboardData?.users) {
         const adminUser = dashboardData.users.find(user =>
           user.role?.toLowerCase().includes('admin') ||
           user.role === 'Admin'
         );
+        if (adminUser?.institutionId) {
+          institutionId = adminUser.institutionId;
+          console.log("🔍 Found institutionId from admin user:", institutionId);
+        }
+      }
 
-        if (adminUser?.institutionId && !adminInstitution) {
-          try {
-            console.log("🔍 Fetching institution for admin user ID:", adminUser.institutionId);
-            const institution = await adminApiService.getInstitution(Number(adminUser.institutionId));
-            setAdminInstitution(institution);
-            console.log("🏫 Fetched admin institution:", institution);
-          } catch (error) {
-            console.warn("⚠️ Failed to fetch admin institution:", error);
+      // Method 2: Try to get institutionId from JWT token if not found in user data
+      if (!institutionId) {
+        try {
+          const token = localStorage.getItem("anansi_token");
+          if (token) {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            if (payload.institutionId) {
+              institutionId = payload.institutionId;
+              console.log("🔍 Found institutionId from JWT token:", institutionId);
+            }
           }
+        } catch (error) {
+          console.warn("⚠️ Failed to parse JWT token:", error);
+        }
+      }
+
+      // Fetch institution if we have an ID and haven't fetched it yet
+      if (institutionId && !adminInstitution) {
+        try {
+          console.log("🔄 Fetching institution for ID:", institutionId);
+          const institution = await adminApiService.getInstitution(Number(institutionId));
+          setAdminInstitution(institution);
+          console.log("🏫 Successfully fetched admin institution:", institution);
+        } catch (error) {
+          console.error("❌ Failed to fetch admin institution:", error);
         }
       }
     };
@@ -1591,6 +1729,24 @@ const AdminDashboard = () => {
         priority: "medium",
         title: "Validation Error",
         message: "Please enter the user's email",
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+
+    // Check if email already exists in the current users list
+    const emailExists = users.some(user =>
+      user.email.toLowerCase() === newUser.email.toLowerCase()
+    );
+
+    if (emailExists) {
+      showMessage({
+        id: Date.now().toString(),
+        type: "error",
+        priority: "high",
+        title: "Email Already Exists",
+        message: `The email address '${newUser.email}' is already registered in the system`,
+        details: "Please use a different email address or check if the user already exists.",
         timestamp: new Date().toISOString(),
       });
       return;
@@ -2142,7 +2298,7 @@ const AdminDashboard = () => {
       priority: "medium",
       title: `${user.fullName}'s AI Twin`,
       message: "AI Twin Analytics & Personalization Data",
-      details: `��������� Learning Style: Visual/Kinesthetic\n• Engagement Level: High (${Math.floor(Math.random() * 20) + 80}%)\n• Preferred Learning Time: Morning\n��� Strengths: Mathematics, Science\n• Areas for Improvement: Essay Writing\n• AI Interactions Today: ${Math.floor(Math.random() * 50) + 20}\n• Mood Analysis: Focused & Motivated\n�� Personalized Recommendations: ${Math.floor(Math.random() * 10) + 5} pending`,
+      details: `���������� Learning Style: Visual/Kinesthetic\n• Engagement Level: High (${Math.floor(Math.random() * 20) + 80}%)\n• Preferred Learning Time: Morning\n��� Strengths: Mathematics, Science\n• Areas for Improvement: Essay Writing\n• AI Interactions Today: ${Math.floor(Math.random() * 50) + 20}\n• Mood Analysis: Focused & Motivated\n�� Personalized Recommendations: ${Math.floor(Math.random() * 10) + 5} pending`,
       timestamp: new Date().toISOString(),
       requiresResponse: false,
     });
@@ -3725,7 +3881,7 @@ const AdminDashboard = () => {
                   <CardContent>
                     <div className="space-y-2 text-sm text-gray-600 mb-4">
                       <div>• Grade distributions</div>
-                      <div>������ Subject performance</div>
+                      <div>������� Subject performance</div>
                       <div>• Achievement statistics</div>
                     </div>
                     <Button className="w-full" onClick={handleExportReport}>
@@ -3775,7 +3931,7 @@ const AdminDashboard = () => {
                   <CardContent>
                     <div className="space-y-2 text-sm text-gray-600 mb-4">
                       <div>����� Login activity logs</div>
-                      <div>• Security incident reports</div>
+                      <div>�� Security incident reports</div>
                       <div>��� Data access audits</div>
                     </div>
                     <Button className="w-full" onClick={handleExportReport}>
@@ -5330,7 +5486,7 @@ const AdminDashboard = () => {
           </Dialog>
 
           {/* Message Modal */}
-          <MessageModal
+          <ModernMessageModal
             isOpen={isMessageModalOpen}
             onClose={closeMessageModal}
             message={currentMessage}

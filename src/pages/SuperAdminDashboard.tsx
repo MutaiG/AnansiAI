@@ -8,6 +8,9 @@ import ApiDiagnostics from "@/components/ApiDiagnostics";
 import ApiStatusNotification from "@/components/ApiStatusNotification";
 import UserForm from "@/components/UserForm";
 import axiosClient from "@/services/axiosClient";
+import { adminApiService } from "@/services/adminApiService";
+import { ModernMessageModal } from "@/components/ModernMessageModal";
+import { type SystemMessage } from "@/components/MessageModal";
 import {
   Card,
   CardContent,
@@ -461,14 +464,7 @@ interface NewSchool {
   establishedYear: number;
 }
 
-interface MessageModal {
-  id: string;
-  type: "success" | "warning" | "error" | "info";
-  priority: "high" | "medium" | "low";
-  title: string;
-  message: string;
-  timestamp: string;
-}
+// Using SystemMessage from MessageModal component for consistency
 
 const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
   usePageTitle("Super Admin Dashboard - AnansiAI");
@@ -485,7 +481,8 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [usersPage, setUsersPage] = useState(1);
   const [usersPerPage] = useState(10);
-  const [messageModal, setMessageModal] = useState<MessageModal | null>(null);
+  const [messageModal, setMessageModal] = useState<SystemMessage | null>(null);
+  const [isMessageModalOpen, setIsMessageModalOpen] = useState(false);
   const [showNotificationCenter, setShowNotificationCenter] = useState(false);
 
   // User CRUD states (create removed - handled in InstitutionsManagement)
@@ -520,13 +517,13 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
 
   // Message modal helper with defaults for required properties
   const showMessage = (
-    message: Partial<MessageModal> & {
-      type: MessageModal["type"];
+    message: Partial<SystemMessage> & {
+      type: SystemMessage["type"];
       title: string;
       message: string;
     },
   ) => {
-    const fullMessage: MessageModal = {
+    const fullMessage: SystemMessage = {
       id: message.id || Date.now().toString(),
       type: message.type,
       priority: message.priority || "medium",
@@ -535,7 +532,12 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
       timestamp: message.timestamp || new Date().toISOString(),
     };
     setMessageModal(fullMessage);
-    setTimeout(() => setMessageModal(null), 5000);
+    setIsMessageModalOpen(true);
+  };
+
+  const closeMessageModal = () => {
+    setIsMessageModalOpen(false);
+    setMessageModal(null);
   };
 
   // Note: Breadcrumbs functionality removed - not implemented in this project
@@ -1560,10 +1562,33 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
         return acc.concat(Array.isArray(userData) ? userData : []);
       }, []);
 
-      // Transform API data to match UI expectations
-      const transformedUsers = Array.isArray(allUsersData)
-        ? allUsersData.map((user, index) => ({
-            id: user.id || user.userId || String(index + 1),
+      // Transform API data and fetch institution names
+      const transformedUsers = [];
+
+      if (Array.isArray(allUsersData)) {
+        for (let i = 0; i < allUsersData.length; i++) {
+          const user = allUsersData[i];
+          let institutionName = "Unknown Institution";
+
+          // Try to fetch real institution name if user has institutionId
+          if (user.institutionId) {
+            try {
+              console.log(`🔍 Fetching institution for user ${user.email} with institutionId: ${user.institutionId}`);
+              const institution = await adminApiService.getInstitution(Number(user.institutionId));
+
+              // Handle API response structure (same as AdminDashboard fix)
+              institutionName = institution?.data?.name || institution?.name || `Institution ${user.institutionId}`;
+              console.log(`✅ Found institution name: ${institutionName} for user ${user.email}`);
+            } catch (error) {
+              console.warn(`⚠️ Failed to fetch institution for user ${user.email}:`, error);
+              institutionName = `Institution ${user.institutionId}`;
+            }
+          } else {
+            console.log(`ℹ️ User ${user.email} has no institutionId, using default institution name`);
+          }
+
+          const transformedUser = {
+            id: user.id || user.userId || String(i + 1),
             fullName:
               `${user.firstName || ""} ${user.lastName || ""}`.trim() ||
               "Unknown User",
@@ -1579,18 +1604,22 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
                   .toLocaleTimeString("en-GB", { hour12: false })
                   .slice(0, 5),
             photoUrl: user.photoUrl || "",
-            schoolName: user.institutionName || "Unknown Institution",
+            schoolName: institutionName,
             schoolCode: user.institutionId
               ? `INST${user.institutionId}`
               : "UNK",
             county: user.address || "Unknown",
-          }))
-        : [];
+          };
+
+          transformedUsers.push(transformedUser);
+        }
+      }
 
       setRealUsers(transformedUsers);
-      console.log(
-        `✅ Successfully loaded ${transformedUsers.length} users from API`,
-      );
+
+      const usersWithInstitutions = transformedUsers.filter(u => u.schoolName !== "Unknown Institution").length;
+      console.log(`✅ Successfully loaded ${transformedUsers.length} users from API`);
+      console.log(`🏫 Fetched real institution names for ${usersWithInstitutions} users`);
 
       // Show success message
       showMessage({
@@ -1850,40 +1879,11 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
     <TooltipProvider>
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
         {/* Message Modal */}
-        {messageModal && (
-          <div className="fixed top-4 right-4 z-50 max-w-md">
-            <Card
-              className={`border-l-4 ${
-                messageModal.type === "success"
-                  ? "border-l-green-500 bg-green-50"
-                  : messageModal.type === "warning"
-                    ? "border-l-yellow-500 bg-yellow-50"
-                    : messageModal.type === "error"
-                      ? "border-l-red-500 bg-red-50"
-                      : "border-l-blue-500 bg-blue-50"
-              } shadow-lg`}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h4 className="font-semibold text-sm">
-                      {messageModal.title}
-                    </h4>
-                    <p className="text-sm mt-1">{messageModal.message}</p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setMessageModal(null)}
-                    className="h-6 w-6 p-0"
-                  >
-                    ×
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+        <ModernMessageModal
+          isOpen={isMessageModalOpen}
+          onClose={closeMessageModal}
+          message={messageModal}
+        />
 
         {/* Enhanced Header with Full Branding */}
         <header className="bg-white/90 backdrop-blur-md border-b border-gray-200 sticky top-0 z-40 shadow-sm">
