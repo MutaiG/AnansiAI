@@ -97,6 +97,7 @@ import { MessageModal } from "@/components/MessageModal";
 import DevelopmentBanner from "@/components/DevelopmentBanner";
 import usePageTitle from "@/hooks/usePageTitle";
 import axiosClient from "@/services/axiosClient";
+import { TeacherService, type TeacherData } from "@/services/teacherService";
 import { toast } from "@/hooks/use-toast";
 import { AdminApiService } from "@/services/adminApiService";
 import { useTeacherDashboard, TeacherDashboardData } from "@/hooks/useTeacherApi";
@@ -457,13 +458,13 @@ export default function TeacherDashboard() {
       if (teacherSubjects.length > 0) {
         setSubjects(teacherSubjects);
         console.log(`✅ Using ${teacherSubjects.length} assigned subjects`);
-        console.log("Available subjects:", teacherSubjects.map(s => `${s.subjectName} (ID: ${s.subjectId})`));
+        console.log("Available subjects:", teacherSubjects.map(s => s.subjectName));
       } else {
         // If no teacher subjects loaded yet, try to load them
         if (currentTeacherId) {
           const assignedSubjects = await fetchTeacherAssignedSubjects(currentTeacherId);
           setSubjects(assignedSubjects);
-          console.log(`✅ Loaded ${assignedSubjects.length} assigned subjects`);
+          console.log(`�� Loaded ${assignedSubjects.length} assigned subjects`);
         } else {
           console.log("⚠️ No teacher ID available, setting empty subjects");
           setSubjects([]);
@@ -479,31 +480,165 @@ export default function TeacherDashboard() {
 
   // Fetch teacher dashboard data using the proper endpoint
   const fetchTeacherDashboardData = async (teacherEmail: string) => {
+    const teacherData = await TeacherService.getTeacherByEmail(teacherEmail);
+    console.log("📊 Fetched teacher data:", teacherData);
+    return teacherData;
+  };
+
+  // Direct fetch from teacher subjects endpoint with flexible parameters
+  const fetchTeacherSubjectsDirectly = async () => {
     try {
-      console.log("📊 Fetching teacher data from API using email:", teacherEmail);
+      console.log("🔄 Attempting direct fetch from teacher subjects endpoint...");
 
-      // Get all teachers and find the current one by email
-      const response = await axiosClient.get("/api/Users/get-users-by-role?roleName=Teacher");
+      const token = localStorage.getItem("anansi_token");
+      let institutionId = null;
+      let teacherId = null;
+      let teacherEmail = null;
 
-      if (response.data) {
-        const teachers = Array.isArray(response.data) ? response.data : (response.data.data || []);
-        const currentTeacher = teachers.find(teacher =>
-          teacher.email.toLowerCase() === teacherEmail.toLowerCase()
-        );
+      if (token) {
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          institutionId = payload.institutionId;
+          teacherId = payload.sub || payload.userId;
+          teacherEmail = payload.email;
 
-        if (currentTeacher) {
-          console.log("✅ Found teacher data:", currentTeacher);
-          return currentTeacher;
-        } else {
-          console.log("⚠️ Teacher not found in API response for email:", teacherEmail);
-          return null;
+          console.log("🔍 Token analysis for API request:", {
+            institutionId,
+            teacherId,
+            teacherEmail,
+            fullPayload: payload
+          });
+        } catch (e) {
+          console.log("⚠️ Could not parse token for request info");
         }
       }
 
-      return null;
+      // Try different parameter combinations
+      const parameterCombinations = [
+        // Try with specific curriculum and term for the institution
+        { curriculumId: 1, termId: 1 },
+        // Try without parameters (if API accepts)
+        {},
+        // Try with just curriculum
+        { curriculumId: 1 },
+        // Try with just term
+        { termId: 1 },
+        // Try with institution ID if available
+        ...(institutionId ? [
+          { curriculumId: 1, termId: 1, institutionId },
+          { institutionId }
+        ] : [])
+      ];
+
+      console.log("🔍 Parameter combinations to try:", parameterCombinations);
+
+      for (const params of parameterCombinations) {
+        try {
+          console.log("🔍 Trying teacher subjects with params:", params);
+
+          const response = await axiosClient.get("/api/teachers/teacher-subjects-with-milestones-and-goals", {
+            params
+          });
+
+          console.log("✅ Teacher subjects response:", {
+            status: response.status,
+            hasData: !!response.data,
+            dataType: typeof response.data,
+            dataLength: Array.isArray(response.data) ? response.data.length : 'not array',
+            responseStructure: response.data,
+            requestParams: params
+          });
+
+          // Log full response details for debugging
+          console.log("📋 Full API response details:", {
+            data: response.data,
+            headers: response.headers,
+            config: {
+              url: response.config?.url,
+              params: response.config?.params,
+              method: response.config?.method
+            }
+          });
+
+          // Process the response
+          let subjects = [];
+          if (response.data) {
+            if (Array.isArray(response.data)) {
+              subjects = response.data;
+            } else if (response.data.data && Array.isArray(response.data.data)) {
+              subjects = response.data.data;
+            } else if (response.data.subjects && Array.isArray(response.data.subjects)) {
+              subjects = response.data.subjects;
+            } else {
+              // Single subject response
+              subjects = [response.data];
+            }
+          }
+
+          if (subjects.length > 0) {
+            console.log("✅ Found subjects using params:", params);
+            console.log("📚 Subjects found:", subjects.map(s => ({
+              subjectId: s.subjectId || s.id,
+              subjectName: s.subjectName || s.name,
+              milestones: s.milestones?.length || 0,
+              goals: s.goals?.length || 0
+            })));
+
+            return { success: true, subjects, milestones: [], goals: [] };
+          }
+        } catch (error) {
+          console.log(`❌ Failed with params ${JSON.stringify(params)}:`, error.message);
+        }
+      }
+
+      console.log("⚠️ All parameter combinations failed for teacher subjects endpoint");
+
+      // Try to get subject assignments as a fallback
+      try {
+        console.log("🔄 Trying subject assignments fallback...");
+
+        const assignmentsResponse = await axiosClient.get("/api/subject-assignments");
+        console.log("📋 Subject assignments response:", assignmentsResponse.data);
+
+        if (assignmentsResponse.data && Array.isArray(assignmentsResponse.data)) {
+          const assignments = assignmentsResponse.data;
+
+          // Filter assignments for current teacher if possible
+          let teacherAssignments = assignments;
+          if (teacherId) {
+            teacherAssignments = assignments.filter(a => a.teacherId === teacherId);
+          }
+
+          console.log("📚 Found subject assignments:", {
+            total: assignments.length,
+            forTeacher: teacherAssignments.length,
+            teacherId,
+            assignments: teacherAssignments
+          });
+
+          if (teacherAssignments.length > 0) {
+            // Convert assignments to subjects format
+            const subjects = teacherAssignments.map(assignment => ({
+              subjectId: assignment.subjectId,
+              subjectName: assignment.subjectName || assignment.subject?.name || `Subject ${assignment.subjectId}`,
+              levelId: assignment.levelId,
+              teacherId: assignment.teacherId,
+              milestones: [],
+              goals: []
+            }));
+
+            return { success: true, subjects, milestones: [], goals: [] };
+          }
+        }
+      } catch (assignmentsError) {
+        console.log("❌ Subject assignments fallback failed:", assignmentsError.message);
+      }
+
+      return { success: false, subjects: [], milestones: [], goals: [] };
+
     } catch (error) {
-      console.log("⚠️ Teacher API not available:", error.message);
-      return null;
+      console.error("❌ Direct teacher subjects fetch failed:", error);
+      return { success: false, subjects: [], milestones: [], goals: [] };
     }
   };
 
@@ -570,52 +705,12 @@ export default function TeacherDashboard() {
     try {
       console.log("🔄 Fetching teacher data for email:", teacherEmail);
 
-      // First, try to get teacher data from API
       const apiTeacherData = await fetchTeacherDashboardData(teacherEmail);
 
       if (apiTeacherData) {
-        console.log("✅ Using real teacher data from API:", apiTeacherData);
-
-        const teacherData = {
-          userId: apiTeacherData.userId || apiTeacherData.id,
-          id: apiTeacherData.id || apiTeacherData.userId,
-          firstName: apiTeacherData.firstName,
-          lastName: apiTeacherData.lastName,
-          email: apiTeacherData.email,
-          name: `${apiTeacherData.firstName || ''} ${apiTeacherData.lastName || ''}`.trim() || 'Teacher',
-          subject: apiTeacherData.subject || 'Not Assigned',
-          institutionId: apiTeacherData.institutionId
-        };
-
-        setTeacherData(teacherData);
-        return teacherData;
-      }
-
-      // Fallback to localStorage if API fails
-      const userData = localStorage.getItem("userData");
-      if (userData) {
-        try {
-          const realTeacherData = JSON.parse(userData);
-          if (realTeacherData.email === teacherEmail) {
-            console.log("⚠️ Using fallback teacher data from localStorage:", realTeacherData);
-
-            const teacherData = {
-              userId: realTeacherData.userId || realTeacherData.id,
-              id: realTeacherData.id || realTeacherData.userId,
-              firstName: realTeacherData.firstName,
-              lastName: realTeacherData.lastName,
-              email: realTeacherData.email,
-              name: `${realTeacherData.firstName || ''} ${realTeacherData.lastName || ''}`.trim() || 'Teacher',
-              subject: realTeacherData.subject || 'Not Assigned',
-              institutionId: realTeacherData.institutionId
-            };
-
-            setTeacherData(teacherData);
-            return teacherData;
-          }
-        } catch (error) {
-          console.error("❌ Error parsing userData:", error);
-        }
+        console.log("✅ Using teacher data from service:", apiTeacherData);
+        setTeacherData(apiTeacherData);
+        return apiTeacherData;
       }
 
       console.warn("⚠️ No teacher data available from any source");
@@ -628,41 +723,10 @@ export default function TeacherDashboard() {
 
   // Fetch teacher subjects with milestones and goals from API
   const fetchTeacherSubjectsApi = async (curriculumId: number, termId: number) => {
-    try {
-      console.log("📚 Fetching teacher subjects with milestones and goals...");
-
-      // Validate required parameters
-      if (!curriculumId || !termId) {
-        throw new Error("Missing required parameters: curriculumId and termId are required");
-      }
-
-      console.log("🔍 Calling API with parameters:", {
-        endpoint: "/api/subject-assignments/teacher-subjects-with-milestones-and-goals",
-        curriculumId,
-        termId
-      });
-
-      const response = await axiosClient.get("/api/subject-assignments/teacher-subjects-with-milestones-and-goals", {
-        params: { curriculumId, termId }
-      });
-
-      console.log("✅ API call successful:", {
-        status: response.status,
-        dataLength: response.data?.length || 0,
-        hasData: !!response.data
-      });
-
-      return { success: true, data: response.data };
-    } catch (error) {
-      console.error("❌ API call failed:", {
-        message: error.message,
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: error.response?.data
-      });
-
-      return { success: false, error };
-    }
+    console.log("🔗 Calling TeacherService.getTeacherSubjectsWithCurriculum with:", { curriculumId, termId });
+    const result = await TeacherService.getTeacherSubjectsWithCurriculum(curriculumId, termId);
+    console.log("📈 TeacherService returned:", result);
+    return result;
   };
 
   // Get teacher's assigned subjects using proper API endpoint
@@ -934,114 +998,12 @@ export default function TeacherDashboard() {
             });
           });
 
-          // If no milestones or goals were found in the subjects response, create realistic examples
-          if (allMilestones.length === 0 || allGoals.length === 0) {
-            console.log("⚠️ No milestones/goals found in subjects response, creating realistic examples...");
-
-            const subjectIds = subjects.map(s => s.subjectId);
-            console.log("🔍 Subject IDs for milestone/goal lookup:", subjectIds);
-
-            // Create realistic milestones and goals for each subject
-            subjects.forEach(subject => {
-              const subjectName = subject.subjectName;
-
-              // Generate subject-specific milestones
-              let subjectMilestones = [];
-              let subjectGoals = [];
-
-              if (subjectName.toLowerCase().includes('english')) {
-                subjectMilestones = [
-                  "Master reading comprehension techniques",
-                  "Develop advanced writing skills",
-                  "Analyze literary texts critically",
-                  "Demonstrate effective communication skills"
-                ];
-                subjectGoals = [
-                  "Read and comprehend complex texts with 85% accuracy",
-                  "Write coherent essays with proper structure and grammar",
-                  "Participate effectively in class discussions and presentations",
-                  "Analyze themes and literary devices in various genres"
-                ];
-              } else if (subjectName.toLowerCase().includes('chemistry')) {
-                subjectMilestones = [
-                  "Understand atomic structure and bonding",
-                  "Master chemical equations and reactions",
-                  "Apply laboratory safety protocols",
-                  "Analyze chemical properties and changes"
-                ];
-                subjectGoals = [
-                  "Balance chemical equations with 90% accuracy",
-                  "Conduct safe laboratory experiments following protocols",
-                  "Explain chemical processes using scientific terminology",
-                  "Apply chemistry concepts to real-world scenarios"
-                ];
-              } else if (subjectName.toLowerCase().includes('math')) {
-                subjectMilestones = [
-                  "Master algebraic problem-solving",
-                  "Understand geometric principles",
-                  "Apply statistical analysis",
-                  "Demonstrate logical reasoning"
-                ];
-                subjectGoals = [
-                  "Solve complex algebraic equations independently",
-                  "Apply geometric theorems to practical problems",
-                  "Interpret and create statistical representations",
-                  "Use mathematical reasoning in problem-solving"
-                ];
-              } else {
-                // Generic milestones and goals for other subjects
-                subjectMilestones = [
-                  `Understand core ${subjectName} concepts`,
-                  `Apply ${subjectName} principles effectively`,
-                  `Demonstrate proficiency in ${subjectName} skills`,
-                  `Connect ${subjectName} to real-world applications`
-                ];
-                subjectGoals = [
-                  `Achieve 80% proficiency in ${subjectName} assessments`,
-                  `Demonstrate understanding through practical application`,
-                  `Participate actively in ${subjectName} activities`,
-                  `Show improvement in ${subjectName} performance over time`
-                ];
-              }
-
-              // Add milestones for this subject
-              subjectMilestones.forEach((milestone, index) => {
-                allMilestones.push({
-                  id: `milestone_${subject.subjectId}_${index + 1}`,
-                  milestoneId: parseInt(`${subject.subjectId}${index + 1}`),
-                  subjectId: subject.subjectId,
-                  subjectName: subject.subjectName,
-                  description: milestone,
-                  curriculumId: curriculumId,
-                  termId: termId,
-                  isActive: true,
-                  createdAt: new Date().toISOString(),
-                  updatedAt: new Date().toISOString()
-                });
-              });
-
-              // Add goals for this subject
-              subjectGoals.forEach((goal, index) => {
-                allGoals.push({
-                  id: `goal_${subject.subjectId}_${index + 1}`,
-                  goalId: parseInt(`${subject.subjectId}${index + 1}`),
-                  subjectId: subject.subjectId,
-                  subjectName: subject.subjectName,
-                  description: goal,
-                  curriculumId: curriculumId,
-                  termId: termId,
-                  isActive: true,
-                  createdAt: new Date().toISOString(),
-                  updatedAt: new Date().toISOString()
-                });
-              });
-            });
-
-            console.log(`✅ Generated ${allMilestones.length} realistic milestones and ${allGoals.length} goals`);
-          }
+          // Only use real data from API - no more fake data generation
+          console.log("✅ Using only real API data - no mock generation");
 
           // Update state with properly formatted data
           setTeacherSubjects(subjects);
+          setSubjects(subjects); // Also update subjects for lesson creation
           setMilestones(allMilestones);
           setGoals(allGoals);
 
@@ -1067,13 +1029,13 @@ export default function TeacherDashboard() {
 
         // Try the alternative subject-assignments endpoint
         try {
-          console.log("🔍 Calling subject-assignments API with parameters:", {
-            endpoint: "/api/subject-assignments/teacher-subjects-with-milestones-and-goals",
+          console.log("🔍 Calling teachers API with parameters:", {
+            endpoint: "/api/teachers/teacher-subjects-with-milestones-and-goals",
             curriculumId,
             termId
           });
 
-          const response = await axiosClient.get("/api/subject-assignments/teacher-subjects-with-milestones-and-goals", {
+          const response = await axiosClient.get("/api/teachers/teacher-subjects-with-milestones-and-goals", {
             params: {
               curriculumId: curriculumId,
               termId: termId
@@ -1155,6 +1117,7 @@ export default function TeacherDashboard() {
             });
 
             setTeacherSubjects(subjects);
+            setSubjects(subjects); // Also update subjects for lesson creation
             setMilestones(allMilestones);
             setGoals(allGoals);
 
@@ -1265,7 +1228,7 @@ export default function TeacherDashboard() {
           variant: "default"
         });
       } else {
-        console.log("❌ API connectivity issues detected");
+        console.log("��� API connectivity issues detected");
         toast({
           title: "API Connection Issue",
           description: "Unable to fetch teacher subjects. Please check your connection and try again.",
@@ -1300,123 +1263,14 @@ export default function TeacherDashboard() {
         await fetchSubjects();
       }
 
-      // Use mock data instead of admin API calls to avoid 403 errors
-      const mockMilestones = subjects.map((subject, index) => ({
-        milestoneId: index + 1,
-        subjectId: parseInt(subject.subjectId) || index + 1,
-        milestoneName: `${subject.subjectName} Core Milestone`,
-        description: `Essential milestone for ${subject.subjectName}`,
-        isActive: true,
-        termId: 1,
-        curriculumId: 1
-      }));
+      // No more mock data generation - only use real API data
+      console.log("✅ Using only real data - no mock curriculum generation");
 
-      const mockGoals = subjects.map((subject, index) => ({
-        goalId: index + 1,
-        subjectId: parseInt(subject.subjectId) || index + 1,
-        goalName: `${subject.subjectName} Learning Goal`,
-        description: `Primary learning objective for ${subject.subjectName}`,
-        isActive: true,
-        termId: 1,
-        curriculumId: 1
-      }));
+      // Only use real milestones and goals from API - no mock data
+      console.log("✅ No curriculum data generation - using only real API data");
 
-      const mockTerms = [{ termId: 1, termName: "Academic Year 2024 - Term 1", isActive: true }];
-      const mockCurriculums = [{ curriculumId: 1, name: "Standard Curriculum", code: "STD", isActive: true }];
-
-      console.log("✅ Generated mock curriculum data for general curriculum fetch");
-
-      // Filter milestones and goals by teacher's subjects
-      const teacherSubjectIds = subjects.map((s) => s.subjectId.toString());
-
-      // Create lookup maps using mock data
-      const termMap = mockTerms.reduce(
-        (map, term) => {
-          map[term.termId.toString()] = {
-            id: term.termId.toString(),
-            fullName: term.termName,
-            cleanName: term.termName,
-            curriculumCode: "STD",
-          };
-          return map;
-        },
-        {} as Record<string, any>,
-      );
-
-      const curriculumMap = mockCurriculums.reduce(
-        (map, curriculum) => {
-          map[curriculum.curriculumId.toString()] = {
-            id: curriculum.curriculumId.toString(),
-            name: curriculum.name,
-            code: curriculum.code,
-          };
-          return map;
-        },
-        {} as Record<string, any>,
-      );
-
-      const subjectMap = subjects.reduce(
-        (map, subject) => {
-          map[subject.subjectId.toString()] = subject.subjectName;
-          return map;
-        },
-        {} as Record<string, string>,
-      );
-
-      const filteredMilestones = mockMilestones
-        .filter((milestone) =>
-          teacherSubjectIds.includes(milestone.subjectId.toString()),
-        )
-        .map((milestone) => {
-          const term = termMap[milestone.termId.toString()];
-          const curriculum = curriculumMap[milestone.curriculumId.toString()];
-          const subject = subjectMap[milestone.subjectId.toString()];
-
-          return {
-            id: milestone.milestoneId.toString(),
-            curriculumId: milestone.curriculumId.toString(),
-            curriculumName: curriculum?.name || "Unknown Curriculum",
-            subjectId: milestone.subjectId.toString(),
-            subjectName: subject || "Unknown Subject",
-            term: term?.cleanName || `Term ${milestone.termId}`,
-            termFull: term?.fullName || `Term ${milestone.termId}`,
-            milestone: milestone.description,
-            isActive: !milestone.isDeleted,
-            createdAt: milestone.modifiedDate || new Date().toISOString(),
-            updatedAt: milestone.modifiedDate || new Date().toISOString(),
-          };
-        });
-
-      const filteredGoals = mockGoals
-        .filter((goal) => teacherSubjectIds.includes(goal.subjectId.toString()))
-        .map((goal) => {
-          const term = termMap[goal.termId.toString()];
-          const curriculum = curriculumMap[goal.curriculumId.toString()];
-          const subject = subjectMap[goal.subjectId.toString()];
-
-          return {
-            id: goal.goalId.toString(),
-            curriculumId: goal.curriculumId.toString(),
-            curriculumName: curriculum?.name || "Unknown Curriculum",
-            subjectId: goal.subjectId.toString(),
-            subjectName: subject || "Unknown Subject",
-            term: term?.cleanName || `Term ${goal.termId}`,
-            termFull: term?.fullName || `Term ${goal.termId}`,
-            goal: goal.description,
-            isActive: !goal.isDeleted,
-            createdAt: goal.modifiedDate || new Date().toISOString(),
-            updatedAt: goal.modifiedDate || new Date().toISOString(),
-          };
-        });
-
-      setMilestones(filteredMilestones);
-      setGoals(filteredGoals);
-
-      console.log("✅ Curriculum data loaded successfully:");
-      console.log(`  ���� Milestones: ${filteredMilestones.length}`);
-      console.log(`  ������ Goals: ${filteredGoals.length}`);
-      console.log(`  📚 Teacher subjects: ${teacherSubjectIds.length}`);
-      console.log(`  📖 Available curriculums: ${Object.keys(curriculumMap).length}`);
+      // Note: Real milestones and goals are loaded from teacher subjects API endpoint
+      // This function no longer generates fake data
     } catch (error) {
       console.error("❌ Error fetching curriculum data:", error);
       toast({
@@ -1646,7 +1500,7 @@ export default function TeacherDashboard() {
       // Auto-set teacher role for development if not authenticated
       localStorage.setItem("userRole", "TEACHER");
       localStorage.setItem("userId", "teacher_001");
-      console.log("⚠️ Using development fallback for teacher authentication");
+      console.log("⚠��� Using development fallback for teacher authentication");
     }
 
     // Try to get real user data first
@@ -1679,7 +1533,7 @@ export default function TeacherDashboard() {
     const teacherId = userId || "teacher_001";
     setCurrentTeacherId(teacherId);
 
-    console.log("����� Teacher Authentication:", {
+    console.log("������ Teacher Authentication:", {
       userId: teacherId,
       userRole,
       userEmail
@@ -1765,19 +1619,32 @@ export default function TeacherDashboard() {
       if (teacherDashboardData) {
         console.log("✅ Using teacher dashboard data:", teacherDashboardData);
 
-        // Set teacher data from the API response
+        // Set teacher data and update localStorage with real teacher info
+        setTeacherData(teacherDashboardData);
+        setCurrentTeacherId(teacherDashboardData.userId || teacherDashboardData.id);
+
+        // Update localStorage with teacher name for profile display
+        const userData = {
+          ...teacherDashboardData,
+          name: teacherDashboardData.name,
+          firstName: teacherDashboardData.firstName,
+          lastName: teacherDashboardData.lastName
+        };
+        localStorage.setItem("userData", JSON.stringify(userData));
+        localStorage.setItem("userName", teacherDashboardData.name || "Teacher");
+        console.log("💾 Updated localStorage with teacher data:", userData);
+
+        // Set dashboard data if it's in the expected format
         if (teacherDashboardData.teacher || teacherDashboardData.profile) {
           const teacher = teacherDashboardData.teacher || teacherDashboardData.profile;
-          setTeacherData(teacher);
+          setDashboardData(teacherDashboardData);
         }
-
-        // Set dashboard data
-        setDashboardData(teacherDashboardData);
 
         // Set subjects with milestones and goals if available
         if (teacherDashboardData.assignedSubjects || teacherDashboardData.subjects) {
           const subjects = teacherDashboardData.assignedSubjects || teacherDashboardData.subjects;
           setTeacherSubjects(subjects);
+          setSubjects(subjects); // Also update subjects for lesson creation
 
           // Extract milestones and goals from the subjects
           const allMilestones = [];
@@ -1811,17 +1678,67 @@ export default function TeacherDashboard() {
       }
 
       // Fallback to individual API calls if dashboard endpoint not available
-      console.log("⚠️ Teacher dashboard API not available, using fallback methods");
+    console.log("⚠️ Teacher dashboard API not available, using fallback methods");
 
+    // Try direct teacher subjects fetch first
+    console.log("🔄 Attempting direct teacher subjects fetch...");
+    const directSubjectsResult = await fetchTeacherSubjectsDirectly();
+
+    let teacher, assignedSubjects, teacherMilestones, teacherGoals;
+
+    if (directSubjectsResult.success && directSubjectsResult.subjects.length > 0) {
+      console.log("✅ Using direct teacher subjects fetch results");
+      teacher = await fetchTeacherData(teacherEmail);
+      assignedSubjects = directSubjectsResult.subjects;
+      teacherMilestones = directSubjectsResult.milestones || [];
+      teacherGoals = directSubjectsResult.goals || [];
+
+      // Extract any embedded milestones and goals from subjects
+      assignedSubjects.forEach(subject => {
+        if (subject.milestones && Array.isArray(subject.milestones)) {
+          teacherMilestones.push(...subject.milestones);
+        }
+        if (subject.goals && Array.isArray(subject.goals)) {
+          teacherGoals.push(...subject.goals);
+        }
+      });
+
+      // Update UI immediately with subjects found
+      setTeacherSubjects(assignedSubjects);
+      setSubjects(assignedSubjects); // Also update subjects for lesson creation
+      setMilestones(teacherMilestones);
+      setGoals(teacherGoals);
+
+      console.log("✅ Immediately updated UI with:", {
+        subjects: assignedSubjects.length,
+        milestones: teacherMilestones.length,
+        goals: teacherGoals.length
+      });
+    } else {
+      console.log("⚠️ Direct fetch failed, using traditional approach");
       // Fetch teacher details and subjects in parallel
-      const [teacher, subjectsData] = await Promise.all([
+      const [teacherResult, subjectsData] = await Promise.all([
         fetchTeacherData(teacherEmail),
         fetchTeacherAssignedSubjects(teacherEmail)
       ]);
 
-      const assignedSubjects = subjectsData.subjects || [];
-      const teacherMilestones = subjectsData.milestones || [];
-      const teacherGoals = subjectsData.goals || [];
+      teacher = teacherResult;
+      assignedSubjects = subjectsData.subjects || [];
+      teacherMilestones = subjectsData.milestones || [];
+      teacherGoals = subjectsData.goals || [];
+
+      // Update UI immediately with subjects found
+      setTeacherSubjects(assignedSubjects);
+      setSubjects(assignedSubjects); // Also update subjects for lesson creation
+      setMilestones(teacherMilestones);
+      setGoals(teacherGoals);
+
+      console.log("✅ Updated UI with traditional approach:", {
+        subjects: assignedSubjects.length,
+        milestones: teacherMilestones.length,
+        goals: teacherGoals.length
+      });
+    }
 
       // Load additional curriculum data for assigned subjects if any
       if (assignedSubjects.length > 0) {
@@ -1846,135 +1763,20 @@ export default function TeacherDashboard() {
   const fetchCurriculumDataForAssignedSubjects = async (assignedSubjects: Subject[]) => {
     try {
       setCurriculumLoading(true);
-      console.log("📖 Generating curriculum data for assigned subjects:", assignedSubjects.map(s => s.subjectName));
+      console.log("📖 Building dashboard with real data only for assigned subjects:", assignedSubjects.map(s => s.subjectName));
 
-      // Create mock curriculum data for teacher's assigned subjects to avoid 403 errors
-      const mockMilestones = assignedSubjects.map((subject, index) => ({
-        milestoneId: index + 1,
-        subjectId: parseInt(subject.subjectId) || index + 1,
-        milestoneName: `${subject.subjectName} Milestone ${index + 1}`,
-        description: `Core milestone for ${subject.subjectName}`,
-        isActive: true,
-        termId: 1,
-        curriculumId: 1
-      }));
-
-      const mockGoals = assignedSubjects.map((subject, index) => ({
-        goalId: index + 1,
-        subjectId: parseInt(subject.subjectId) || index + 1,
-        goalName: `${subject.subjectName} Learning Goal ${index + 1}`,
-        description: `Primary learning objective for ${subject.subjectName}`,
-        isActive: true,
-        termId: 1,
-        curriculumId: 1
-      }));
-
-      const mockTerms = [{
-        termId: 1,
-        termName: "Academic Year 2024 - Term 1",
-        isActive: true
-      }];
-
-      const mockCurriculums = [{
-        curriculumId: 1,
-        name: "Standard Curriculum",
-        code: "STD",
-        isActive: true
-      }];
-
-      console.log("✅ Generated mock curriculum data for teacher's subjects");
-
-      // Use mock data directly for teacher's assigned subjects
-      const teacherSubjectIds = assignedSubjects.map((s) => s.subjectId.toString());
+      // Use only real milestones and goals from teacher and API data - no mock generation
+      console.log("✅ No mock data generation - using only real API data");
       console.log("🎯 Teacher subject IDs:", teacherSubjectIds);
 
-      // Create lookup maps using mock data
-      const termMap = mockTerms.reduce(
-        (map, term) => {
-          map[term.termId.toString()] = {
-            id: term.termId.toString(),
-            fullName: term.termName,
-            cleanName: term.termName,
-            curriculumCode: "STD",
-          };
-          return map;
-        },
-        {} as Record<string, any>,
-      );
+      // Use only real milestones and goals from teacherMilestones and teacherGoals parameters
+      setMilestones(teacherMilestones);
+      setGoals(teacherGoals);
 
-      const curriculumMap = mockCurriculums.reduce(
-        (map, curriculum) => {
-          map[curriculum.curriculumId.toString()] = {
-            id: curriculum.curriculumId.toString(),
-            name: curriculum.name,
-            code: curriculum.code,
-          };
-          return map;
-        },
-        {} as Record<string, any>,
-      );
-
-      const subjectMap = assignedSubjects.reduce(
-        (map, subject) => {
-          map[subject.subjectId.toString()] = subject.subjectName;
-          return map;
-        },
-        {} as Record<string, string>,
-      );
-
-      const filteredMilestones = mockMilestones
-        .filter((milestone) =>
-          teacherSubjectIds.includes(milestone.subjectId.toString()),
-        )
-        .map((milestone) => {
-          const term = termMap[milestone.termId.toString()];
-          const curriculum = curriculumMap[milestone.curriculumId.toString()];
-          const subject = subjectMap[milestone.subjectId.toString()];
-
-          return {
-            id: milestone.milestoneId.toString(),
-            curriculumId: milestone.curriculumId.toString(),
-            curriculumName: curriculum?.name || "Unknown Curriculum",
-            subjectId: milestone.subjectId.toString(),
-            subjectName: subject || "Unknown Subject",
-            term: term?.cleanName || `Term ${milestone.termId}`,
-            termFull: term?.fullName || `Term ${milestone.termId}`,
-            milestone: milestone.description,
-            isActive: !milestone.isDeleted,
-            createdAt: milestone.modifiedDate || new Date().toISOString(),
-            updatedAt: milestone.modifiedDate || new Date().toISOString(),
-          };
-        });
-
-      const filteredGoals = mockGoals
-        .filter((goal) => teacherSubjectIds.includes(goal.subjectId.toString()))
-        .map((goal) => {
-          const term = termMap[goal.termId.toString()];
-          const curriculum = curriculumMap[goal.curriculumId.toString()];
-          const subject = subjectMap[goal.subjectId.toString()];
-
-          return {
-            id: goal.goalId.toString(),
-            curriculumId: goal.curriculumId.toString(),
-            curriculumName: curriculum?.name || "Unknown Curriculum",
-            subjectId: goal.subjectId.toString(),
-            subjectName: subject || "Unknown Subject",
-            term: term?.cleanName || `Term ${goal.termId}`,
-            termFull: term?.fullName || `Term ${goal.termId}`,
-            goal: goal.description,
-            isActive: !goal.isDeleted,
-            createdAt: goal.modifiedDate || new Date().toISOString(),
-            updatedAt: goal.modifiedDate || new Date().toISOString(),
-          };
-        });
-
-      setMilestones(filteredMilestones);
-      setGoals(filteredGoals);
-
-      console.log("✅ Curriculum data loaded successfully:");
-      console.log(`  📋 Milestones: ${filteredMilestones.length}`);
-      console.log(`  🎯 Goals: ${filteredGoals.length}`);
-      console.log(`  📚 Teacher subjects: ${teacherSubjectIds.length}`);
+      console.log("✅ Dashboard built with real data only:");
+      console.log(`  📋 Real Milestones: ${teacherMilestones.length}`);
+      console.log(`  🎯 Real Goals: ${teacherGoals.length}`);
+      console.log(`  📚 Assigned subjects: ${assignedSubjects.length}`);
 
     } catch (error) {
       console.error("❌ Error fetching curriculum data:", error);
@@ -1989,10 +1791,52 @@ export default function TeacherDashboard() {
   // Build dashboard data with real teacher information
   const buildDashboardDataWithRealTeacher = async (teacher: any, assignedSubjects: Subject[], teacherMilestones: any[] = [], teacherGoals: any[] = []) => {
     try {
-      // Get teacher name from real data or fallback
-      const teacherName = teacher
-        ? `${teacher.firstName} ${teacher.lastName}`.trim()
-        : localStorage.getItem("userName") || "Teacher";
+      // Get teacher name from real data with multiple fallback strategies
+      let teacherName = "Teacher"; // Final fallback
+
+      if (teacher) {
+        // Try different ways to get the teacher's name from API response
+        if (teacher.name && teacher.name !== "Teacher") {
+          teacherName = teacher.name;
+        } else if (teacher.firstName || teacher.lastName) {
+          const firstName = teacher.firstName || "";
+          const lastName = teacher.lastName || "";
+          teacherName = `${firstName} ${lastName}`.trim();
+        } else if (teacher.fullName) {
+          teacherName = teacher.fullName;
+        } else if (teacher.displayName) {
+          teacherName = teacher.displayName;
+        }
+      }
+
+      // Enhanced fallbacks using improved teacher service data
+      if (teacherName === "Teacher" || !teacherName.trim()) {
+        const storedUserName = localStorage.getItem("userName");
+        const storedUserData = localStorage.getItem("userData");
+
+        if (storedUserName && storedUserName !== "Teacher") {
+          teacherName = storedUserName;
+        } else if (storedUserData) {
+          try {
+            const userData = JSON.parse(storedUserData);
+            if (userData.name && userData.name !== "Teacher") {
+              teacherName = userData.name;
+            } else if (userData.firstName || userData.lastName) {
+              teacherName = `${userData.firstName || ""} ${userData.lastName || ""}`.trim();
+            }
+          } catch (e) {
+            console.log("Could not parse stored user data");
+          }
+        }
+
+        // If still no name, try to get fresh teacher data by re-calling the service
+        if (teacherName === "Teacher" && userEmail) {
+          console.log("🔍 Trying to get fresh teacher data for name extraction...");
+          // This will be handled by the improved TeacherService
+        }
+      }
+
+      console.log("���� Resolved teacher name:", teacherName, "from source:", teacher ? "API data" : "localStorage/token");
 
       const teacherEmail = teacher?.email || localStorage.getItem("userEmail") || "teacher@school.edu";
 
@@ -3470,7 +3314,7 @@ ${
    📊 Progress: ${student.overallProgress}%
    ⭐ Average Grade: ${student.averageGrade}%
    📈 Status: ${student.status.charAt(0).toUpperCase() + student.status.slice(1)}
-   ⏰ Last Active: ${student.lastActive}
+   �� Last Active: ${student.lastActive}
    ${student.status === "struggling" ? "�����️ Needs attention" : ""}
    ${student.status === "excelling" ? "🌟 Top performer" : ""}
 
@@ -3692,7 +3536,7 @@ AI Insights:
 📊 Completion Rate: ${Math.round((content.studentsCompleted / (dashboardData?.stats.totalStudents || 1)) * 100)}%
 👥 Students Completed: ${content.studentsCompleted}
 ⭐ Average Score: ${content.averageScore}%
-⏱️ Estimated Duration: ${content.estimatedDuration} minutes
+⏱��� Estimated Duration: ${content.estimatedDuration} minutes
 
 Learning Effectiveness:
 • Content Difficulty: ${content.difficulty}
@@ -3869,7 +3713,7 @@ AI Recommendations:
 
       console.log(`✅ Loaded ${allLessonsData.length} total lessons, filtered to ${filteredLessons.length} for teacher's subjects`);
       console.log("📚 Teacher subject IDs:", teacherSubjectIds);
-      console.log("📝 Filtered lessons:", filteredLessons.map(l => `${l.title} (Subject ID: ${l.subjectId})`));
+      console.log("📝 Filtered lessons:", filteredLessons.map(l => l.title));
     } catch (error) {
       console.error("❌ Error fetching lessons:", error);
       toast({
@@ -6026,9 +5870,7 @@ AI Recommendations:
                             <Badge variant="outline" className="text-xs">
                               Active
                             </Badge>
-                            <span className="text-xs text-gray-500">
-                              ID: {subject.subjectId}
-                            </span>
+
                           </div>
                         </div>
                       </div>
@@ -6269,7 +6111,7 @@ AI Recommendations:
                           key={subject.subjectId}
                           value={subject.subjectId.toString()}
                         >
-                          {subject.subjectName} (ID: {subject.subjectId})
+                          {subject.subjectName}
                         </SelectItem>
                       ))
                     ) : (
@@ -6427,7 +6269,7 @@ AI Recommendations:
                           key={subject.subjectId}
                           value={subject.subjectId.toString()}
                         >
-                          {subject.subjectName} (ID: {subject.subjectId})
+                          {subject.subjectName}
                         </SelectItem>
                       ))
                     ) : (
@@ -6594,7 +6436,7 @@ AI Recommendations:
                           key={lesson.lessonId}
                           value={lesson.lessonId.toString()}
                         >
-                          {lesson.title} (ID: {lesson.lessonId}) - {getSubjectName(lesson.subjectId)}
+                          {lesson.title} - {getSubjectName(lesson.subjectId)}
                         </SelectItem>
                       ))
                     ) : (
@@ -6808,7 +6650,7 @@ AI Recommendations:
                           key={lesson.lessonId}
                           value={lesson.lessonId.toString()}
                         >
-                          {lesson.title} (ID: {lesson.lessonId}) - {getSubjectName(lesson.subjectId)}
+                          {lesson.title} - {getSubjectName(lesson.subjectId)}
                         </SelectItem>
                       ))
                     ) : (
@@ -7043,9 +6885,7 @@ AI Recommendations:
                         <Badge variant="secondary" className="text-xs">
                           {subject.subjectName}
                         </Badge>
-                        <span className="text-xs text-gray-500">
-                          ID: {subject.subjectId}
-                        </span>
+
                       </div>
                     ))}
                   </div>
