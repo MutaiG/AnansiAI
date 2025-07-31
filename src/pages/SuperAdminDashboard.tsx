@@ -1589,9 +1589,28 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = () => {
 
           const transformedUser = {
             id: user.id || user.userId || String(i + 1),
-            fullName:
-              `${user.firstName || ""} ${user.lastName || ""}`.trim() ||
-              "Unknown User",
+            fullName: (() => {
+              // Improved name construction with fallbacks
+              const firstName = user.firstName || user.first_name || user.FirstName || user.given_name || "";
+              const lastName = user.lastName || user.last_name || user.LastName || user.family_name || "";
+              const fullNameDirect = user.fullName || user.full_name || user.name || user.displayName || user.userName || user.normalizedUserName || "";
+
+              if (fullNameDirect && fullNameDirect.trim()) {
+                return fullNameDirect.trim();
+              } else if (firstName && lastName) {
+                return `${firstName.trim()} ${lastName.trim()}`.trim();
+              } else if (firstName) {
+                return firstName.trim();
+              } else if (lastName) {
+                return lastName.trim();
+              } else if (user.userName) {
+                return user.userName.trim();
+              } else if (user.email && user.email.includes('@')) {
+                const emailUsername = user.email.split('@')[0];
+                return emailUsername.replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+              }
+              return "Unknown User";
+            })(),
             email: user.email || "",
             phoneNumber: user.phoneNumber || "",
             role: user.role?.name || user.roleName || "Unknown",

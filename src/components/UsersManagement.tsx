@@ -171,13 +171,35 @@ const UsersManagement: React.FC<UsersManagementProps> = ({ onShowMessage, refres
         if (response.data && Array.isArray(response.data)) {
           console.log(`   Count: ${response.data.length}`);
           response.data.forEach((user, userIndex) => {
-            console.log(`   User ${userIndex + 1}:`, {
+            console.log(`   👤 ${role} User ${userIndex + 1} COMPLETE STRUCTURE:`, user);
+            console.log(`   🔍 ${role} User ${userIndex + 1} FIELD ANALYSIS:`, {
+              // ID fields
               id: user.id,
-              email: user.email,
+              userId: user.userId,
+              Id: user.Id,
+              UserId: user.UserId,
+              // Name fields
               firstName: user.firstName,
               lastName: user.lastName,
+              fullName: user.fullName,
+              name: user.name,
+              userName: user.userName,
+              normalizedUserName: user.normalizedUserName,
+              // Contact fields
+              email: user.email,
+              phoneNumber: user.phoneNumber,
+              // Role fields
               role: user.role,
-              institutionId: user.institutionId
+              roleName: user.roleName,
+              // Institution fields
+              institutionId: user.institutionId,
+              InstitutionId: user.InstitutionId,
+              institutionName: user.institutionName,
+              schoolId: user.schoolId,
+              SchoolId: user.SchoolId,
+              schoolName: user.schoolName,
+              // All available fields
+              allFieldNames: Object.keys(user)
             });
           });
         }
@@ -235,14 +257,54 @@ const UsersManagement: React.FC<UsersManagementProps> = ({ onShowMessage, refres
               email: user.email,
               availableFields: Object.keys(user || {}),
               userIdFound: user.userId,
-              role: user.role
+              role: user.role,
+              isStudent: user.role === 'Student',
+              rawUserData: user // Log full user object to see actual field names
             });
 
+            // Special debugging for students since they're having issues
+            if (user.role === 'Student') {
+              console.log(`👨‍🎓 STUDENT USER ${index + 1} DETAILED DEBUG:`, {
+                hasFirstName: !!user.firstName,
+                hasLastName: !!user.lastName,
+                hasFullName: !!user.fullName,
+                firstNameValue: user.firstName,
+                lastNameValue: user.lastName,
+                fullNameValue: user.fullName,
+                userIdValue: user.userId,
+                emailValue: user.email,
+                allFields: Object.keys(user)
+              });
+            }
+
             try {
-              // Extract name fields with multiple fallbacks
-              const firstName = user.firstName || user.first_name || user.FirstName || "";
-              const lastName = user.lastName || user.last_name || user.LastName || "";
-              const fullNameDirect = user.fullName || user.full_name || user.name || user.Name || "";
+              // Extract name fields with comprehensive fallbacks based on API documentation
+              // The API docs show firstName and lastName as the standard fields
+              const firstName = user.firstName || user.first_name || user.FirstName ||
+                               user.firstname || user.given_name || user.givenName || "";
+              const lastName = user.lastName || user.last_name || user.LastName ||
+                              user.lastname || user.family_name || user.familyName || user.surname || "";
+              const fullNameDirect = user.fullName || user.full_name || user.name || user.Name ||
+                                   user.displayName || user.userName || user.username || user.normalizedUserName || "";
+
+              console.log(`📝 Name extraction for user ${index + 1}:`, {
+                firstName,
+                lastName,
+                fullNameDirect,
+                originalFields: {
+                  firstName: user.firstName,
+                  lastName: user.lastName,
+                  fullName: user.fullName,
+                  name: user.name,
+                  normalizedUserName: user.normalizedUserName,
+                  userName: user.userName
+                },
+                allAvailableFields: Object.keys(user).filter(key =>
+                  key.toLowerCase().includes('name') ||
+                  key.toLowerCase().includes('first') ||
+                  key.toLowerCase().includes('last')
+                )
+              });
 
               // Extract email safely
               const email = user.email || user.Email || user.emailAddress || "";
@@ -266,17 +328,65 @@ const UsersManagement: React.FC<UsersManagementProps> = ({ onShowMessage, refres
                 roleName = user.Role;
               }
 
-              // Construct full name safely
+              // Construct full name safely with extensive fallbacks
               let fullName = "Unknown User";
-              if (fullNameDirect.trim()) {
+
+              // Priority 1: Use direct full name if available
+              if (fullNameDirect && fullNameDirect.trim()) {
                 fullName = fullNameDirect.trim();
-              } else {
-                const constructedName = `${firstName} ${lastName}`.trim();
-                if (constructedName) {
-                  fullName = constructedName;
-                } else if (email) {
-                  fullName = email.split('@')[0] || "Unknown User";
+                console.log(`✅ Using direct full name: "${fullName}" ${user.role === 'Student' ? '(STUDENT)' : ''}`);
+              }
+              // Priority 2: Construct from firstName and lastName
+              else if (firstName && lastName) {
+                fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
+                console.log(`✅ Constructed name from firstName + lastName: "${fullName}"`);
+              }
+              // Priority 3: Use just firstName if available
+              else if (firstName && firstName.trim()) {
+                fullName = firstName.trim();
+                console.log(`✅ Using firstName only: "${fullName}"`);
+              }
+              // Priority 4: Use just lastName if available
+              else if (lastName && lastName.trim()) {
+                fullName = lastName.trim();
+                console.log(`✅ Using lastName only: "${fullName}"`);
+              }
+              // Priority 5: Try userName or normalizedUserName
+              else if (user.userName && user.userName.trim()) {
+                fullName = user.userName.trim();
+                console.log(`✅ Using userName: "${fullName}"`);
+              }
+              else if (user.normalizedUserName && user.normalizedUserName.trim()) {
+                fullName = user.normalizedUserName.trim();
+                console.log(`✅ Using normalizedUserName: "${fullName}"`);
+              }
+              // Priority 6: Extract name from email
+              else if (email && email.includes('@')) {
+                const emailUsername = email.split('@')[0];
+                if (emailUsername && emailUsername.trim()) {
+                  // Convert email username to a more readable format
+                  fullName = emailUsername.replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                  console.log(`✅ Using email-based name: "${fullName}" from "${emailUsername}"`);
                 }
+              }
+
+              // If still "Unknown User", log detailed debug info
+              if (fullName === "Unknown User") {
+                console.error(`❌ COULD NOT EXTRACT NAME for user ${index + 1}:`, {
+                  fullNameDirect,
+                  firstName,
+                  lastName,
+                  email,
+                  userName: user.userName,
+                  normalizedUserName: user.normalizedUserName,
+                  allNameRelatedFields: Object.keys(user).filter(key =>
+                    key.toLowerCase().includes('name') ||
+                    key.toLowerCase().includes('first') ||
+                    key.toLowerCase().includes('last') ||
+                    key.toLowerCase().includes('user')
+                  ),
+                  completeUserObject: user
+                });
               }
 
               // Extract institution info safely with comprehensive fallbacks
@@ -286,28 +396,33 @@ const UsersManagement: React.FC<UsersManagementProps> = ({ onShowMessage, refres
 
               console.log(`🏷️ User ${email || index} role:`, roleName, 'Raw role data:', user.role || user.roles);
 
-              // Extract ID with comprehensive fallbacks based on API documentation
-              // The API documentation shows "userId" as the primary field
-              const userId = user.userId || user.UserId || user.id || user.Id || user.appUserId || user.AppUserId || email || `user-${Date.now()}-${index}`;
+              // Extract ID with comprehensive fallbacks - ASP.NET Identity typically uses "id"
+              // But also check for userId, email, or other unique identifiers
+              const userId = user.id || user.Id || user.userId || user.UserId ||
+                           user.appUserId || user.AppUserId || user.normalizedUserName ||
+                           user.userName || email || `user-${Date.now()}-${index}`;
 
               // Extract institution/school ID with comprehensive fallbacks
-              const institutionId = user.schoolId || user.SchoolId || user.institutionId || user.InstitutionId ||
+              const institutionId = user.institutionId || user.InstitutionId || user.schoolId || user.SchoolId ||
                                   user.institution_id || user.Institution_Id || user.school_id || user.School_Id || null;
 
               console.log(`🔍 User ${email || index} field extraction:`, {
                 extractedId: userId,
                 extractedInstitutionId: institutionId,
                 allFields: Object.keys(user || {}),
-                userIdFound: !!user.userId,
+                primaryIdField: user.id,
+                userIdField: user.userId,
+                normalizedUserNameField: user.normalizedUserName,
+                userNameField: user.userName,
                 institutionFieldsChecked: {
-                  schoolId: user.schoolId,
                   institutionId: user.institutionId,
-                  SchoolId: user.SchoolId,
-                  InstitutionId: user.InstitutionId
+                  InstitutionId: user.InstitutionId,
+                  schoolId: user.schoolId,
+                  SchoolId: user.SchoolId
                 }
               });
 
-              return {
+              const transformedUser = {
                 id: userId,
                 firstName: firstName,
                 lastName: lastName,
@@ -326,6 +441,13 @@ const UsersManagement: React.FC<UsersManagementProps> = ({ onShowMessage, refres
                 createdDate: user.createdDate || user.createdAt || user.CreatedAt || new Date().toISOString(),
                 photoUrl: user.photoUrl || user.ProfilePicture || "",
               };
+
+              // Debug final transformed user, especially for students
+              if (user.role === 'Student') {
+                console.log(`👨‍🎓 FINAL TRANSFORMED STUDENT ${index + 1}:`, transformedUser);
+              }
+
+              return transformedUser;
             } catch (error) {
               console.error(`❌ Error transforming user ${index}:`, error, user);
               return {
