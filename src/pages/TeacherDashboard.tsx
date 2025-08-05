@@ -5907,7 +5907,7 @@ AI Recommendations:
                 </div>
 
                 <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
-                  {dashboardData?.milestones?.map((milestone, index) => (
+                  {milestones?.map((milestone, index) => (
                     <div
                       key={milestone.id}
                       className="group relative bg-white border border-gray-200 rounded-xl p-5 hover:shadow-lg hover:border-purple-300 transition-all duration-200"
@@ -5948,7 +5948,7 @@ AI Recommendations:
                       </div>
 
                       <p className="text-gray-700 leading-relaxed mb-3 pr-16">
-                        {milestone.milestone}
+                        {milestone.description}
                       </p>
 
                       <div className="text-xs text-gray-500 flex items-center gap-2">
@@ -5958,8 +5958,8 @@ AI Recommendations:
                     </div>
                   ))}
 
-                  {(!dashboardData?.milestones ||
-                    dashboardData.milestones.length === 0) && (
+                  {(milestones ||
+                    milestones.length === 0) && (
                     <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300">
                       <Target className="w-16 h-16 mx-auto mb-4 text-gray-300" />
                       <h5 className="font-semibold text-gray-700 mb-2">
@@ -5991,7 +5991,7 @@ AI Recommendations:
                 </div>
 
                 <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
-                  {dashboardData?.goals?.map((goal, index) => (
+                  {goals?.map((goal, index) => (
                     <div
                       key={goal.id}
                       className="group relative bg-white border border-gray-200 rounded-xl p-5 hover:shadow-lg hover:border-orange-300 transition-all duration-200"
@@ -6032,7 +6032,7 @@ AI Recommendations:
                       </div>
 
                       <p className="text-gray-700 leading-relaxed mb-3 pr-16">
-                        {goal.goal}
+                        {goal.description}
                       </p>
 
                       <div className="text-xs text-gray-500 flex items-center gap-2">
