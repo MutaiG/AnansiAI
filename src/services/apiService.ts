@@ -9,9 +9,11 @@ export class ApiConfig {
   private hasBackend: boolean = false;
 
   private constructor() {
-    // Force HTTP for the API since the backend doesn't support HTTPS
-    const apiProtocol = "http";
-        this.baseURL = `${apiProtocol}://13.48.27.31/anansiai`;
+    // Use HTTPS when frontend is HTTPS to avoid mixed content issues
+    const isHttps = window.location.protocol === "https:";
+    const isDevelopment = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+    const apiProtocol = isHttps && !isDevelopment ? "https" : "http";
+        this.baseURL = `${apiProtocol}://13.61.176.255/anansiai`;
 
     console.log(`🔧 API Configuration:`, {
       frontendProtocol: window.location.protocol,

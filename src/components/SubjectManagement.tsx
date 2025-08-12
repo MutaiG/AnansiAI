@@ -119,20 +119,64 @@ const SubjectManagement: React.FC<SubjectManagementProps> = ({
     setLoading(true);
     try {
       console.log("🔄 Loading subjects from API...");
-      const apiSubjects = await adminApiService.getSubjects();
 
-      // Convert API format to component format
-      const convertedSubjects: Subject[] = apiSubjects.map((subj) => ({
-        id: subj.subjectId.toString(),
-        name: subj.subjectName, // API uses subjectName instead of name
-        description: subj.description,
-        // Generate code from name if not provided by API
-        code:
-          (subj as any).code || subj.subjectName.substring(0, 3).toUpperCase(),
-        isActive: !subj.isDeleted,
-        createdAt: subj.modifiedDate || new Date().toISOString(),
-        updatedAt: subj.modifiedDate || new Date().toISOString(),
-      }));
+      // Get institution ID from JWT token
+      let institutionId: number | null = null;
+      const token = localStorage.getItem("anansi_token");
+      if (token) {
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          institutionId = payload.institutionId;
+          console.log("🏢 Using institutionId from token:", institutionId);
+        } catch (error) {
+          console.warn("⚠️ Could not extract institutionId from token:", error);
+        }
+      }
+
+      // Use institution-specific endpoint if available, otherwise fallback to general endpoint
+      const apiSubjects = institutionId
+        ? await adminApiService.getSubjectsByInstitution(institutionId)
+        : await adminApiService.getSubjects();
+
+      console.log("🔍 Raw API subjects response:", apiSubjects);
+      if (apiSubjects.length > 0) {
+        console.log("🔍 First subject structure:", apiSubjects[0]);
+        console.log("🔍 Available fields:", Object.keys(apiSubjects[0]));
+        console.log("🔍 All subjects:", apiSubjects);
+      }
+
+      // Get complete subject data by fetching each subject individually
+      const convertedSubjects: Subject[] = [];
+
+      for (const subj of apiSubjects) {
+        try {
+          // Fetch complete subject data using individual subject endpoint
+          const fullSubject = await adminApiService.getSubject(subj.subjectId);
+          console.log(`🔍 Full subject data for ${subj.subjectId}:`, fullSubject);
+
+          convertedSubjects.push({
+            id: fullSubject.subjectId.toString(),
+            name: fullSubject.subjectName,
+            description: fullSubject.description,
+            code: (fullSubject as any).code || fullSubject.subjectName.substring(0, 3).toUpperCase(),
+            isActive: !fullSubject.isDeleted,
+            createdAt: fullSubject.modifiedDate || new Date().toISOString(),
+            updatedAt: fullSubject.modifiedDate || new Date().toISOString(),
+          });
+        } catch (error) {
+          console.warn(`⚠️ Could not fetch full data for subject ${subj.subjectId}, using basic data:`, error);
+          // Fallback to basic data if individual fetch fails
+          convertedSubjects.push({
+            id: subj.subjectId.toString(),
+            name: (subj as any).name || subj.subjectName || 'Unknown Subject',
+            description: subj.description || '',
+            code: (subj as any).code || ((subj as any).name || subj.subjectName)?.substring(0, 3).toUpperCase() || 'UNK',
+            isActive: subj.isDeleted !== undefined ? !subj.isDeleted : true,
+            createdAt: subj.modifiedDate || new Date().toISOString(),
+            updatedAt: subj.modifiedDate || new Date().toISOString(),
+          });
+        }
+      }
 
       setSubjects(convertedSubjects);
       console.log("✅ Loaded subjects from API:", convertedSubjects.length);
@@ -195,18 +239,54 @@ const SubjectManagement: React.FC<SubjectManagementProps> = ({
     try {
       console.log("🔄 Building relations from API subject data...");
 
+      // Get institution ID from JWT token
+      let institutionId: number | null = null;
+      const token = localStorage.getItem("anansi_token");
+      if (token) {
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          institutionId = payload.institutionId;
+          console.log("🏢 Using institutionId from token for relations:", institutionId);
+        } catch (error) {
+          console.warn("⚠️ Could not extract institutionId from token:", error);
+        }
+      }
+
       // Create relations from the subjects data we already have
       // Each subject contains a curriculumId, so we can build the relations
-      const apiSubjects = await adminApiService.getSubjects();
+      const apiSubjects = institutionId
+        ? await adminApiService.getSubjectsByInstitution(institutionId)
+        : await adminApiService.getSubjects();
 
-      const apiRelations: SubjectCurriculumRelation[] = apiSubjects
-        .filter((subj) => subj.curriculumId) // Only subjects with curriculum assignments
-        .map((subj, index) => ({
-          id: `r${subj.subjectId}`,
-          subjectId: subj.subjectId.toString(),
-          curriculumId: subj.curriculumId.toString(),
-          createdAt: subj.modifiedDate || new Date().toISOString(),
-        }));
+      console.log("🔍 Building relations from full subject data...");
+
+      // Create relations using the full subject data that includes curriculum info
+      const apiRelations: SubjectCurriculumRelation[] = [];
+
+      for (const subj of apiSubjects) {
+        try {
+          // Get full subject data to access curriculum information
+          const fullSubject = await adminApiService.getSubject(subj.subjectId);
+          console.log(`🔍 Full subject for relations ${subj.subjectId}:`, fullSubject);
+
+          if (fullSubject.curriculumId) {
+            // Find matching curriculum in our loaded curriculums
+            const matchingCurriculum = curriculums.find(c => c.id === fullSubject.curriculumId.toString());
+
+            if (matchingCurriculum) {
+              apiRelations.push({
+                id: `r${fullSubject.subjectId}`,
+                subjectId: fullSubject.subjectId.toString(),
+                curriculumId: fullSubject.curriculumId.toString(),
+                createdAt: fullSubject.modifiedDate || new Date().toISOString(),
+              });
+              console.log(`✅ Created relation: Subject ${fullSubject.subjectName} -> Curriculum ${matchingCurriculum.name}`);
+            }
+          }
+        } catch (error) {
+          console.warn(`⚠️ Could not fetch full subject data for relations ${subj.subjectId}:`, error);
+        }
+      }
 
       setRelations(apiRelations);
       console.log("✅ Built relations from API data:", apiRelations.length);
@@ -259,11 +339,24 @@ const SubjectManagement: React.FC<SubjectManagementProps> = ({
     try {
       console.log("🔄 Creating subject via API...");
 
+      // Get institution ID from JWT token
+      let institutionId = 1; // Default fallback
+      const token = localStorage.getItem("anansi_token");
+      if (token) {
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          institutionId = payload.institutionId || 1;
+          console.log("🏢 Using institutionId from token for subject creation:", institutionId);
+        } catch (error) {
+          console.warn("⚠️ Could not extract institutionId from token, using default:", error);
+        }
+      }
+
       // Note: API only supports one curriculum per subject, using the first selected
       const curriculumId = parseInt(formData.curriculumIds[0]);
 
       const createData = {
-        institutionId: 1, // Default institution ID - you may want to make this configurable
+        institutionId: institutionId,
         subjectName: formData.name,
         description: formData.description,
         isActive: true,

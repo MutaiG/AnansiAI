@@ -3,7 +3,7 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from "axios";
 
 const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "http://13.48.27.31/anansiai";
+  import.meta.env.VITE_API_URL || "http://13.61.176.255/anansiai";
 
 const IS_DEVELOPMENT =
   import.meta.env.VITE_ENVIRONMENT === "development" || import.meta.env.DEV;

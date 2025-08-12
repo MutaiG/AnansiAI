@@ -388,10 +388,7 @@ export default function TeacherDashboard() {
 
   const [lessonForm, setLessonForm] = useState({
     title: "",
-    content: "",
     subjectId: 0,
-    difficultyLevel: 1,
-    approvalStatus: 1,
     isActive: true,
   });
 
@@ -466,7 +463,7 @@ export default function TeacherDashboard() {
           setSubjects(assignedSubjects);
           console.log(`�� Loaded ${assignedSubjects.length} assigned subjects`);
         } else {
-          console.log("⚠️ No teacher ID available, setting empty subjects");
+          console.log("⚠�� No teacher ID available, setting empty subjects");
           setSubjects([]);
         }
       }
@@ -481,7 +478,7 @@ export default function TeacherDashboard() {
   // Fetch teacher dashboard data using the proper endpoint
   const fetchTeacherDashboardData = async (teacherEmail: string) => {
     const teacherData = await TeacherService.getTeacherByEmail(teacherEmail);
-    console.log("📊 Fetched teacher data:", teacherData);
+    console.log("���� Fetched teacher data:", teacherData);
     return teacherData;
   };
 
@@ -609,7 +606,7 @@ export default function TeacherDashboard() {
             teacherAssignments = assignments.filter(a => a.teacherId === teacherId);
           }
 
-          console.log("📚 Found subject assignments:", {
+          console.log("��� Found subject assignments:", {
             total: assignments.length,
             forTeacher: teacherAssignments.length,
             teacherId,
@@ -646,7 +643,7 @@ export default function TeacherDashboard() {
   const fetchMilestonesAndGoalsForSubjects = async (assignedSubjects: Subject[]) => {
     try {
       const subjectIds = assignedSubjects.map(s => s.subjectId);
-      console.log("📋 Fetching milestones and goals for subject IDs:", subjectIds);
+      console.log("������ Fetching milestones and goals for subject IDs:", subjectIds);
 
       // Try to fetch milestones and goals from API
       const [milestonesResponse, goalsResponse] = await Promise.all([
@@ -716,7 +713,7 @@ export default function TeacherDashboard() {
       console.warn("⚠️ No teacher data available from any source");
       return null;
     } catch (error) {
-      console.error("❌ Error processing teacher data:", error);
+      console.error("�� Error processing teacher data:", error);
       return null;
     }
   };
@@ -863,7 +860,7 @@ export default function TeacherDashboard() {
           const allGoals = [];
 
           subjects.forEach((subject, index) => {
-            console.log(`🔍 Processing subject ${index + 1}:`, {
+            console.log(`���� Processing subject ${index + 1}:`, {
               subjectId: subject.subjectId,
               subjectName: subject.subjectName,
               milestonesCount: subject.milestones?.length || 0,
@@ -1123,7 +1120,7 @@ export default function TeacherDashboard() {
 
             console.log(`✅ Loaded ${subjects.length} subjects, ${allMilestones.length} milestones, ${allGoals.length} goals from subject-assignments`);
             console.log("📋 Extracted milestones:", allMilestones.map(m => `${m.subjectName}: ${m.description}`));
-            console.log("🎯 Extracted goals:", allGoals.map(g => `${g.subjectName}: ${g.description}`));
+            console.log("��� Extracted goals:", allGoals.map(g => `${g.subjectName}: ${g.description}`));
 
             // Show success notification
             toast({
@@ -1178,7 +1175,7 @@ export default function TeacherDashboard() {
             }
           }
         } catch (assignmentError) {
-          console.error("❌ Error fetching from assignment endpoints:", assignmentError);
+          console.error("��� Error fetching from assignment endpoints:", assignmentError);
         }
       }
 
@@ -1500,7 +1497,7 @@ export default function TeacherDashboard() {
       // Auto-set teacher role for development if not authenticated
       localStorage.setItem("userRole", "TEACHER");
       localStorage.setItem("userId", "teacher_001");
-      console.log("⚠��� Using development fallback for teacher authentication");
+      console.log("������� Using development fallback for teacher authentication");
     }
 
     // Try to get real user data first
@@ -1533,7 +1530,7 @@ export default function TeacherDashboard() {
     const teacherId = userId || "teacher_001";
     setCurrentTeacherId(teacherId);
 
-    console.log("������ Teacher Authentication:", {
+    console.log("������� Teacher Authentication:", {
       userId: teacherId,
       userRole,
       userEmail
@@ -1557,6 +1554,12 @@ export default function TeacherDashboard() {
     fetchAssignments();
     fetchSubjects();
     fetchEnums();
+    // Immediately load teacher-specific curriculum data
+    const userEmail = localStorage.getItem("userEmail");
+    if (userEmail) {
+      console.log("🔄 Loading teacher curriculum data on mount for:", userEmail);
+      loadTeacherData(userEmail);
+    }
   }, []);
 
     // Load curriculum data when subjects are loaded
@@ -1565,6 +1568,28 @@ export default function TeacherDashboard() {
       fetchCurriculumData();
     }
   }, [subjects]);
+
+  // Debug curriculum state changes
+  useEffect(() => {
+    console.log("🔍 Curriculum State Update:", {
+      milestones: milestones.length,
+      goals: goals.length,
+      teacherSubjects: teacherSubjects.length,
+      milestonesData: milestones,
+      goalsData: goals
+    });
+  }, [milestones, goals, teacherSubjects]);
+
+  // Backup effect: If we have teacher subjects but no curriculum data, try to fetch it
+  useEffect(() => {
+    if (teacherSubjects.length > 0 && milestones.length === 0 && goals.length === 0 && !curriculumLoading) {
+      console.log("🔄 Teacher subjects loaded but no curriculum data - attempting to refresh...");
+      const userEmail = localStorage.getItem("userEmail");
+      if (userEmail) {
+        loadTeacherData(userEmail);
+      }
+    }
+  }, [teacherSubjects, milestones, goals, curriculumLoading]);
 
   // Auto-refresh curriculum data periodically (every 5 minutes)
   useEffect(() => {
@@ -1775,7 +1800,7 @@ export default function TeacherDashboard() {
 
       console.log("✅ Dashboard built with real data only:");
       console.log(`  📋 Real Milestones: ${teacherMilestones.length}`);
-      console.log(`  🎯 Real Goals: ${teacherGoals.length}`);
+      console.log(`  ���� Real Goals: ${teacherGoals.length}`);
       console.log(`  📚 Assigned subjects: ${assignedSubjects.length}`);
 
     } catch (error) {
@@ -2558,11 +2583,11 @@ export default function TeacherDashboard() {
         details: `📚 Class: ${classData.name}
 ��� Subject: ${classData.subject}
 🎓 Grade: ${classData.grade}
-�� Students: ${classData.studentCount}
-��� Progress: ${classData.progress}%
+���� Students: ${classData.studentCount}
+����� Progress: ${classData.progress}%
 📅 Schedule: ${classData.schedule}
-📝 Next Lesson: ${classData.nextLesson}
-�� Status: ${classData.status.charAt(0).toUpperCase() + classData.status.slice(1)}
+����� Next Lesson: ${classData.nextLesson}
+������ Status: ${classData.status.charAt(0).toUpperCase() + classData.status.slice(1)}
 
 Description:
 ${classData.description}
@@ -3315,7 +3340,7 @@ ${
    ⭐ Average Grade: ${student.averageGrade}%
    📈 Status: ${student.status.charAt(0).toUpperCase() + student.status.slice(1)}
    �� Last Active: ${student.lastActive}
-   ${student.status === "struggling" ? "�����️ Needs attention" : ""}
+   ${student.status === "struggling" ? "������️ Needs attention" : ""}
    ${student.status === "excelling" ? "🌟 Top performer" : ""}
 
    **AI Recommendations:**
@@ -3329,7 +3354,7 @@ ${
 • Add new students to class
 • Remove students from class
 • Send messages to students
-��� Schedule individual meetings
+������ Schedule individual meetings
 • View detailed progress reports
 • Export student data
 • Generate parent reports
@@ -3533,7 +3558,7 @@ AI Insights:
         message: `Detailed analytics for ${content.title}`,
         details: `Content Performance Summary:
 
-📊 Completion Rate: ${Math.round((content.studentsCompleted / (dashboardData?.stats.totalStudents || 1)) * 100)}%
+���� Completion Rate: ${Math.round((content.studentsCompleted / (dashboardData?.stats.totalStudents || 1)) * 100)}%
 👥 Students Completed: ${content.studentsCompleted}
 ⭐ Average Score: ${content.averageScore}%
 ⏱��� Estimated Duration: ${content.estimatedDuration} minutes
@@ -3663,7 +3688,7 @@ AI Recommendations:
       console.log("👥 Fetching students data...");
       // This would typically call an API endpoint for students assigned to the teacher
       // For now, we'll use the dashboard data or create mock data
-      console.log("✅ Students data loaded from dashboard");
+      console.log("��� Students data loaded from dashboard");
     } catch (error) {
       console.error("❌ Error fetching students:", error);
     }
@@ -3712,7 +3737,7 @@ AI Recommendations:
       setLessons(filteredLessons);
 
       console.log(`✅ Loaded ${allLessonsData.length} total lessons, filtered to ${filteredLessons.length} for teacher's subjects`);
-      console.log("📚 Teacher subject IDs:", teacherSubjectIds);
+      console.log("�� Teacher subject IDs:", teacherSubjectIds);
       console.log("📝 Filtered lessons:", filteredLessons.map(l => l.title));
     } catch (error) {
       console.error("❌ Error fetching lessons:", error);
@@ -3727,11 +3752,11 @@ AI Recommendations:
   };
 
   const createLesson = async () => {
-    if (!lessonForm.title.trim() || !lessonForm.content.trim()) {
+    if (!lessonForm.title.trim()) {
       toast({
         variant: "destructive",
         title: "Validation Error",
-        description: "Please fill in both title and content",
+        description: "Please fill in the lesson title",
       });
       return;
     }
@@ -3745,17 +3770,45 @@ AI Recommendations:
       return;
     }
 
+    // Check if the selected subject is available and active
+    const selectedSubject = teacherSubjects.find(s => s.subjectId === lessonForm.subjectId);
+    if (!selectedSubject) {
+      toast({
+        variant: "destructive",
+        title: "Subject Error",
+        description: "Selected subject is not available. Please choose from your assigned subjects.",
+      });
+      return;
+    }
+
+    // Warn if trying to create active lesson for inactive subject
+    if (lessonForm.isActive && selectedSubject.isActive === false) {
+      toast({
+        variant: "destructive",
+        title: "Subject Inactive",
+        description: "Cannot create active lesson for inactive subject. The lesson will be created as inactive.",
+      });
+      // Force lesson to be inactive if subject is inactive
+      setLessonForm({ ...lessonForm, isActive: false });
+      return;
+    }
+
     try {
+      // Ensure lesson can only be active if subject is active
+      const selectedSubject = teacherSubjects.find(s => s.subjectId === lessonForm.subjectId);
+      const canBeActive = selectedSubject?.isActive !== false && lessonForm.isActive;
+
       const lessonData = {
         subjectId: lessonForm.subjectId,
         title: lessonForm.title,
-        content: lessonForm.content,
-        difficultyLevel: lessonForm.difficultyLevel,
-        approvalStatus: lessonForm.approvalStatus,
-        isActive: lessonForm.isActive,
+        content: "AI will generate lesson content based on the title and subject",
+        difficultyLevel: 0, // Start with 0 (likely Easy), AI will adjust as needed
+        approvalStatus: 1, // Draft status - AI content needs approval after generation
+        approvedAt: new Date().toISOString(),
+        isActive: canBeActive, // Only active if both lesson and subject are set to active
       };
 
-      console.log("�� Creating lesson with data:", lessonData);
+      console.log("���� Creating lesson with data:", lessonData);
       const response = await axiosClient.post("/api/lessons/add-lesson", lessonData);
 
       if (response.data) {
@@ -3767,10 +3820,7 @@ AI Recommendations:
         setShowCreateLesson(false);
         setLessonForm({
           title: "",
-          content: "",
           subjectId: 0,
-          difficultyLevel: 1,
-          approvalStatus: 1,
           isActive: true,
         });
         console.log("✅ Lesson created successfully");
@@ -3788,23 +3838,31 @@ AI Recommendations:
   const updateLesson = async () => {
     if (
       !selectedLesson ||
-      !lessonForm.title.trim() ||
-      !lessonForm.content.trim()
+      !lessonForm.title.trim()
     ) {
       toast({
         variant: "destructive",
         title: "Validation Error",
-        description: "Please fill in both title and content",
+        description: "Please fill in the lesson title",
       });
       return;
     }
 
     try {
+      // Ensure lesson can only be active if subject is active
+      const selectedSubject = teacherSubjects.find(s => s.subjectId === lessonForm.subjectId);
+      const canBeActive = selectedSubject?.isActive !== false && lessonForm.isActive;
+
       const response = await axiosClient.put(
         `/api/lessons/${selectedLesson.lessonId}`,
         {
           lessonId: selectedLesson.lessonId,
-          ...lessonForm,
+          title: lessonForm.title,
+          content: selectedLesson.content, // Keep existing content, AI will update if needed
+          difficultyLevel: selectedLesson.difficultyLevel || 0, // Fallback to 0 if invalid
+          approvalStatus: selectedLesson.approvalStatus || 1, // Keep existing approval status
+          approvedAt: new Date().toISOString(),
+          isActive: canBeActive, // Only active if both lesson and subject are set to active
         },
       );
       if (response.data) {
@@ -3817,10 +3875,7 @@ AI Recommendations:
         setSelectedLesson(null);
         setLessonForm({
           title: "",
-          content: "",
           subjectId: 0,
-          difficultyLevel: 1,
-          approvalStatus: 1,
           isActive: true,
         });
       }
@@ -3860,10 +3915,7 @@ AI Recommendations:
     setSelectedLesson(lesson);
     setLessonForm({
       title: lesson.title,
-      content: lesson.content,
       subjectId: lesson.subjectId,
-      difficultyLevel: lesson.difficultyLevel,
-      approvalStatus: lesson.approvalStatus,
       isActive: lesson.isActive,
     });
     setShowEditLesson(true);
@@ -5771,7 +5823,7 @@ AI Recommendations:
                     <p className="text-2xl font-bold text-purple-800">
                       {curriculumLoading
                         ? "..."
-                        : dashboardData?.milestones?.length || 0}
+                        : milestones?.length || 0}
                     </p>
                   </div>
                   <Target className="w-8 h-8 text-purple-600" />
@@ -5787,7 +5839,7 @@ AI Recommendations:
                     <p className="text-2xl font-bold text-orange-800">
                       {curriculumLoading
                         ? "..."
-                        : dashboardData?.goals?.length || 0}
+                        : goals?.length || 0}
                     </p>
                   </div>
                   <Award className="w-8 h-8 text-orange-600" />
@@ -5803,9 +5855,9 @@ AI Recommendations:
                     <p className="text-2xl font-bold text-green-800">
                       {curriculumLoading
                         ? "..."
-                        : (dashboardData?.milestones?.filter((m) => m.isActive)
+                        : (milestones?.filter((m) => m.isActive)
                             .length || 0) +
-                          (dashboardData?.goals?.filter((g) => g.isActive)
+                          (goals?.filter((g) => g.isActive)
                             .length || 0)}
                     </p>
                   </div>
@@ -5907,7 +5959,7 @@ AI Recommendations:
                 </div>
 
                 <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
-                  {dashboardData?.milestones?.map((milestone, index) => (
+                  {milestones?.map((milestone, index) => (
                     <div
                       key={milestone.id}
                       className="group relative bg-white border border-gray-200 rounded-xl p-5 hover:shadow-lg hover:border-purple-300 transition-all duration-200"
@@ -5948,7 +6000,7 @@ AI Recommendations:
                       </div>
 
                       <p className="text-gray-700 leading-relaxed mb-3 pr-16">
-                        {milestone.milestone}
+                        {milestone.description}
                       </p>
 
                       <div className="text-xs text-gray-500 flex items-center gap-2">
@@ -5958,8 +6010,8 @@ AI Recommendations:
                     </div>
                   ))}
 
-                  {(!dashboardData?.milestones ||
-                    dashboardData.milestones.length === 0) && (
+                  {(!milestones ||
+                    milestones.length === 0) && (
                     <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300">
                       <Target className="w-16 h-16 mx-auto mb-4 text-gray-300" />
                       <h5 className="font-semibold text-gray-700 mb-2">
@@ -5991,7 +6043,7 @@ AI Recommendations:
                 </div>
 
                 <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
-                  {dashboardData?.goals?.map((goal, index) => (
+                  {goals?.map((goal, index) => (
                     <div
                       key={goal.id}
                       className="group relative bg-white border border-gray-200 rounded-xl p-5 hover:shadow-lg hover:border-orange-300 transition-all duration-200"
@@ -6032,7 +6084,7 @@ AI Recommendations:
                       </div>
 
                       <p className="text-gray-700 leading-relaxed mb-3 pr-16">
-                        {goal.goal}
+                        {goal.description}
                       </p>
 
                       <div className="text-xs text-gray-500 flex items-center gap-2">
@@ -6042,8 +6094,8 @@ AI Recommendations:
                     </div>
                   ))}
 
-                  {(!dashboardData?.goals ||
-                    dashboardData.goals.length === 0) && (
+                  {(!goals ||
+                    goals.length === 0) && (
                     <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300">
                       <Award className="w-16 h-16 mx-auto mb-4 text-gray-300" />
                       <h5 className="font-semibold text-gray-700 mb-2">
@@ -6070,7 +6122,7 @@ AI Recommendations:
           <DialogHeader>
             <DialogTitle>Create New Lesson</DialogTitle>
             <DialogDescription>
-              Create a new lesson with structured content for your students
+              Create a new lesson - AI will generate the content and set difficulty level automatically
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -6085,129 +6137,65 @@ AI Recommendations:
                 placeholder="e.g., Introduction to Algebra"
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="lesson-subjectId">Subject *</Label>
-                <Select
-                  value={lessonForm.subjectId.toString()}
-                  onValueChange={(value) =>
-                    setLessonForm({
-                      ...lessonForm,
-                      subjectId: parseInt(value),
-                    })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a subject" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {subjectsLoading ? (
-                      <SelectItem value="0" disabled>
-                        Loading subjects...
-                      </SelectItem>
-                    ) : subjects.length > 0 ? (
-                      subjects.map((subject) => (
-                        <SelectItem
-                          key={subject.subjectId}
-                          value={subject.subjectId.toString()}
-                        >
-                          {subject.subjectName}
-                        </SelectItem>
-                      ))
-                    ) : (
-                      <SelectItem value="0" disabled>
-                        No subjects available
-                      </SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="lesson-difficulty">Difficulty Level</Label>
-                <Select
-                  value={lessonForm.difficultyLevel.toString()}
-                  onValueChange={(value) =>
-                    setLessonForm({
-                      ...lessonForm,
-                      difficultyLevel: parseInt(value),
-                    })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">Easy</SelectItem>
-                    <SelectItem value="2">Medium</SelectItem>
-                    <SelectItem value="3">Hard</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
             <div>
-              <Label htmlFor="lesson-content">Lesson Content *</Label>
-              <Textarea
-                id="lesson-content"
-                value={lessonForm.content}
-                onChange={(e) =>
-                  setLessonForm({ ...lessonForm, content: e.target.value })
+              <Label htmlFor="lesson-subjectId">Subject *</Label>
+              <Select
+                value={lessonForm.subjectId.toString()}
+                onValueChange={(value) =>
+                  setLessonForm({
+                    ...lessonForm,
+                    subjectId: parseInt(value),
+                  })
                 }
-                placeholder="Enter the detailed lesson content, objectives, and materials..."
-                rows={8}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="lesson-approval">Approval Status</Label>
-                <Select
-                  value={lessonForm.approvalStatus.toString()}
-                  onValueChange={(value) =>
-                    setLessonForm({
-                      ...lessonForm,
-                      approvalStatus: parseInt(value),
-                    })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {enumsLoading ? (
-                      <SelectItem value="1" disabled>
-                        Loading approval statuses...
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a subject to teach" />
+                </SelectTrigger>
+                <SelectContent>
+                  {teacherSubjectsLoading ? (
+                    <SelectItem value="0" disabled>
+                      Loading subjects...
+                    </SelectItem>
+                  ) : teacherSubjects.length > 0 ? (
+                    teacherSubjects.map((subject) => (
+                      <SelectItem
+                        key={subject.subjectId}
+                        value={subject.subjectId.toString()}
+                      >
+                        {subject.subjectName}
                       </SelectItem>
-                    ) : enums?.ApprovalStatus ? (
-                      enums.ApprovalStatus.map((status: any) => (
-                        <SelectItem
-                          key={status.key}
-                          value={status.key.toString()}
-                        >
-                          {status.value.replace('_', ' ')}
-                        </SelectItem>
-                      ))
-                    ) : (
-                      <>
-                        <SelectItem value="1">Draft</SelectItem>
-                        <SelectItem value="2">Pending Review</SelectItem>
-                        <SelectItem value="3">Approved</SelectItem>
-                        <SelectItem value="4">Rejected</SelectItem>
-                      </>
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center space-x-2 pt-6">
-                <input
-                  type="checkbox"
-                  id="lesson-active"
-                  checked={lessonForm.isActive}
-                  onChange={(e) =>
-                    setLessonForm({ ...lessonForm, isActive: e.target.checked })
-                  }
-                  className="rounded"
-                />
-                <Label htmlFor="lesson-active">Active Lesson</Label>
-              </div>
+                    ))
+                  ) : (
+                    <SelectItem value="0" disabled>
+                      No assigned subjects available
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="lesson-active"
+                checked={lessonForm.isActive}
+                onChange={(e) =>
+                  setLessonForm({ ...lessonForm, isActive: e.target.checked })
+                }
+                disabled={!lessonForm.subjectId || lessonForm.subjectId === 0}
+                className="rounded"
+              />
+              <Label htmlFor="lesson-active" className={!lessonForm.subjectId || lessonForm.subjectId === 0 ? "text-gray-400" : ""}>
+                Available to students
+              </Label>
+              {(!lessonForm.subjectId || lessonForm.subjectId === 0) ? (
+                <span className="text-xs text-gray-500">
+                  (Select a subject first)
+                </span>
+              ) : (
+                <span className="text-xs text-gray-500">
+                  (Students can access and start this lesson)
+                </span>
+              )}
             </div>
           </div>
           <DialogFooter>
@@ -6228,7 +6216,7 @@ AI Recommendations:
           <DialogHeader>
             <DialogTitle>Edit Lesson</DialogTitle>
             <DialogDescription>
-              Update lesson information and content
+              Update lesson information - content and difficulty are managed by AI
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -6243,129 +6231,65 @@ AI Recommendations:
                 placeholder="e.g., Introduction to Algebra"
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="edit-lesson-subjectId">Subject *</Label>
-                <Select
-                  value={lessonForm.subjectId.toString()}
-                  onValueChange={(value) =>
-                    setLessonForm({
-                      ...lessonForm,
-                      subjectId: parseInt(value),
-                    })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a subject" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {subjectsLoading ? (
-                      <SelectItem value="0" disabled>
-                        Loading subjects...
-                      </SelectItem>
-                    ) : subjects.length > 0 ? (
-                      subjects.map((subject) => (
-                        <SelectItem
-                          key={subject.subjectId}
-                          value={subject.subjectId.toString()}
-                        >
-                          {subject.subjectName}
-                        </SelectItem>
-                      ))
-                    ) : (
-                      <SelectItem value="0" disabled>
-                        No subjects available
-                      </SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="edit-lesson-difficulty">Difficulty Level</Label>
-                <Select
-                  value={lessonForm.difficultyLevel.toString()}
-                  onValueChange={(value) =>
-                    setLessonForm({
-                      ...lessonForm,
-                      difficultyLevel: parseInt(value),
-                    })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">Easy</SelectItem>
-                    <SelectItem value="2">Medium</SelectItem>
-                    <SelectItem value="3">Hard</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
             <div>
-              <Label htmlFor="edit-lesson-content">Lesson Content *</Label>
-              <Textarea
-                id="edit-lesson-content"
-                value={lessonForm.content}
-                onChange={(e) =>
-                  setLessonForm({ ...lessonForm, content: e.target.value })
+              <Label htmlFor="edit-lesson-subjectId">Subject *</Label>
+              <Select
+                value={lessonForm.subjectId.toString()}
+                onValueChange={(value) =>
+                  setLessonForm({
+                    ...lessonForm,
+                    subjectId: parseInt(value),
+                  })
                 }
-                placeholder="Enter the detailed lesson content, objectives, and materials..."
-                rows={8}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="edit-lesson-approval">Approval Status</Label>
-                <Select
-                  value={lessonForm.approvalStatus.toString()}
-                  onValueChange={(value) =>
-                    setLessonForm({
-                      ...lessonForm,
-                      approvalStatus: parseInt(value),
-                    })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {enumsLoading ? (
-                      <SelectItem value="1" disabled>
-                        Loading approval statuses...
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a subject to teach" />
+                </SelectTrigger>
+                <SelectContent>
+                  {teacherSubjectsLoading ? (
+                    <SelectItem value="0" disabled>
+                      Loading subjects...
+                    </SelectItem>
+                  ) : teacherSubjects.length > 0 ? (
+                    teacherSubjects.map((subject) => (
+                      <SelectItem
+                        key={subject.subjectId}
+                        value={subject.subjectId.toString()}
+                      >
+                        {subject.subjectName}
                       </SelectItem>
-                    ) : enums?.ApprovalStatus ? (
-                      enums.ApprovalStatus.map((status: any) => (
-                        <SelectItem
-                          key={status.key}
-                          value={status.key.toString()}
-                        >
-                          {status.value.replace('_', ' ')}
-                        </SelectItem>
-                      ))
-                    ) : (
-                      <>
-                        <SelectItem value="1">Draft</SelectItem>
-                        <SelectItem value="2">Pending Review</SelectItem>
-                        <SelectItem value="3">Approved</SelectItem>
-                        <SelectItem value="4">Rejected</SelectItem>
-                      </>
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center space-x-2 pt-6">
-                <input
-                  type="checkbox"
-                  id="edit-lesson-active"
-                  checked={lessonForm.isActive}
-                  onChange={(e) =>
-                    setLessonForm({ ...lessonForm, isActive: e.target.checked })
-                  }
-                  className="rounded"
-                />
-                <Label htmlFor="edit-lesson-active">Active Lesson</Label>
-              </div>
+                    ))
+                  ) : (
+                    <SelectItem value="0" disabled>
+                      No assigned subjects available
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="edit-lesson-active"
+                checked={lessonForm.isActive}
+                onChange={(e) =>
+                  setLessonForm({ ...lessonForm, isActive: e.target.checked })
+                }
+                disabled={!lessonForm.subjectId || lessonForm.subjectId === 0}
+                className="rounded"
+              />
+              <Label htmlFor="edit-lesson-active" className={!lessonForm.subjectId || lessonForm.subjectId === 0 ? "text-gray-400" : ""}>
+                Available to students
+              </Label>
+              {(!lessonForm.subjectId || lessonForm.subjectId === 0) ? (
+                <span className="text-xs text-gray-500">
+                  (Select a subject first)
+                </span>
+              ) : (
+                <span className="text-xs text-gray-500">
+                  (Students can access and start this lesson)
+                </span>
+              )}
             </div>
           </div>
           <DialogFooter>
@@ -6561,12 +6485,9 @@ AI Recommendations:
                         </SelectItem>
                       ))
                     ) : (
-                      <>
-                        <SelectItem value="1">Draft</SelectItem>
-                        <SelectItem value="2">Pending Review</SelectItem>
-                        <SelectItem value="3">Approved</SelectItem>
-                        <SelectItem value="4">Rejected</SelectItem>
-                      </>
+                      <SelectItem value="0" disabled>
+                        No approval statuses available
+                      </SelectItem>
                     )}
                   </SelectContent>
                 </Select>
@@ -6781,12 +6702,9 @@ AI Recommendations:
                         </SelectItem>
                       ))
                     ) : (
-                      <>
-                        <SelectItem value="1">Draft</SelectItem>
-                        <SelectItem value="2">Pending Review</SelectItem>
-                        <SelectItem value="3">Approved</SelectItem>
-                        <SelectItem value="4">Rejected</SelectItem>
-                      </>
+                      <SelectItem value="0" disabled>
+                        No approval statuses available
+                      </SelectItem>
                     )}
                   </SelectContent>
                 </Select>

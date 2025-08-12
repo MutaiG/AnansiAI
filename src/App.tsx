@@ -63,6 +63,12 @@ const App = () => (
                 element={<SuperAdminDashboard />}
               />
 
+              {/* Route aliases for capitalized URLs */}
+              <Route path="/TeacherDashboard" element={<Navigate to="/teacher-dashboard" replace />} />
+              <Route path="/AdminDashboard" element={<Navigate to="/admin-dashboard" replace />} />
+              <Route path="/StudentDashboard" element={<Navigate to="/student-dashboard" replace />} />
+              <Route path="/SuperAdminDashboard" element={<Navigate to="/super-admin-dashboard" replace />} />
+
               {/* Course Content Routes */}
               <Route
                 path="/lesson-content"
