@@ -135,7 +135,7 @@ const LazyStudentProfileManager = lazy(() =>
             <h4 className="font-medium text-gray-900 mb-3">Current Profile</h4>
             <div className="space-y-2 text-sm">
               <div>
-                <span className="font-medium">Name:</span> Alex Johnson
+                <span className="font-medium">Name:</span> {studentDisplayName}
               </div>
               <div>
                 <span className="font-medium">Student ID:</span> STU001
@@ -316,6 +316,20 @@ const StudentDashboard = () => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [lastAction, setLastAction] = useState<string | null>(null);
+
+  // Get student display name - since student-specific name API is not available,
+  // use the student profile ID or a generic student identifier
+  const getStudentDisplayName = () => {
+    // Check if we have student profile data from the dashboard API
+    if (dashboardData?.profile?.id) {
+      return `Student ${dashboardData.profile.id}`;
+    }
+
+    // Fallback to generic student name since we don't have a student name API
+    return "Student";
+  };
+
+  const studentDisplayName = getStudentDisplayName();
 
   // New state for enhanced functionality
   const [searchQuery, setSearchQuery] = useState("");
@@ -651,51 +665,189 @@ const StudentDashboard = () => {
         setEducationLoading(true);
 
         try {
-          // Load educational data in parallel with assignments
+          // Load educational data directly from API endpoints (teacher-created content)
+          console.log("🔄 Fetching teacher-created lessons and assignments from API...");
+          console.log("🔑 Using auth token:", localStorage.getItem('anansi_token') ? 'Present' : 'Missing');
+
           const [
             assignmentsResponse,
             subjectsResponse,
             lessonsResponse,
             coursesResponse,
           ] = await Promise.all([
-            assignmentService.getAssignmentsForDashboard(),
-            educationService.getSubjects(),
-            educationService.getLessons(),
+            // Direct API calls to get teacher-created content
+            axiosClient.get('/api/assignments')
+              .then(res => {
+                console.log("📝 Raw assignments API response:", res.data);
+                return res.data;
+              })
+              .catch(err => {
+                console.error("❌ Assignments API error:", err.message);
+                return { error: err.message };
+              }),
+
+            axiosClient.get('/api/subjects')
+              .then(res => {
+                console.log("📚 Raw subjects API response:", res.data);
+                return res.data;
+              })
+              .catch(err => {
+                console.error("❌ Subjects API error:", err.message);
+                return { error: err.message };
+              }),
+
+            axiosClient.get('/api/lessons')
+              .then(res => {
+                console.log("🎓 Raw lessons API response:", res.data);
+                return res.data;
+              })
+              .catch(err => {
+                console.error("❌ Lessons API error:", err.message);
+                return { error: err.message };
+              }),
+
+            // Keep student courses service call
             educationService.getStudentCourses(),
           ]);
 
-          // Handle assignments
-          if (assignmentsResponse.success) {
-            setRealAssignments(assignmentsResponse.data);
-            console.log(
-              "✅ Loaded assignments:",
-              assignmentsResponse.data.length,
-            );
+          // Handle assignments (direct API response)
+          if (assignmentsResponse && !assignmentsResponse.error && Array.isArray(assignmentsResponse)) {
+            // Transform API assignments to dashboard format
+            const dashboardAssignments = assignmentsResponse
+              .filter(assignment => assignment.isActive) // Only show active assignments
+              .map(assignment => {
+                // Find the lesson for this assignment
+                const lesson = lessonsResponse && Array.isArray(lessonsResponse) && !lessonsResponse.error
+                  ? lessonsResponse.find(l => l.lessonId === assignment.lessonId || l.id === assignment.lessonId)
+                  : null;
+
+                // Find the subject for this lesson
+                const subject = lesson && subjectsResponse && Array.isArray(subjectsResponse) && !subjectsResponse.error
+                  ? subjectsResponse.find(s => s.subjectId === lesson.subjectId || s.id === lesson.subjectId)
+                  : null;
+
+                // Determine subject name with improved fallbacks
+                let subjectName = 'Unknown Subject';
+                if (subject) {
+                  subjectName = subject.subjectName || subject.name || 'General';
+                } else if (assignment.title) {
+                  // Improved subject inference from assignment title
+                  const title = assignment.title.toLowerCase();
+                  if (title.includes('math') || title.includes('algebra') || title.includes('equation') || title.includes('linear') ||
+                      title.includes('diff') || title.includes('calcul') || title.includes('prob') || title.includes('sequence')) {
+                    subjectName = 'Mathematics';
+                  } else if (title.includes('bio') || title.includes('cell') || title.includes('life') || title.includes('organism')) {
+                    subjectName = 'Biology';
+                  } else if (title.includes('chem') || title.includes('element') || title.includes('reaction') || title.includes('molecule')) {
+                    subjectName = 'Chemistry';
+                  } else if (title.includes('phys') || title.includes('force') || title.includes('energy') || title.includes('motion')) {
+                    subjectName = 'Physics';
+                  } else if (title.includes('hist') || title.includes('war') || title.includes('ancient') || title.includes('century')) {
+                    subjectName = 'History';
+                  } else if (title.includes('eng') || title.includes('read') || title.includes('writ') || title.includes('essay')) {
+                    subjectName = 'English';
+                  } else {
+                    // Show that subjects API failed instead of generic "General"
+                    subjectName = 'Subject API Unavailable';
+                  }
+                }
+
+                return {
+                  id: assignment.assignmentId?.toString() || assignment.id?.toString() || 'unknown',
+                  title: assignment.title || 'Untitled Assignment',
+                  dueDate: assignment.deadline || new Date().toISOString(),
+                  priority: 'medium' as const,
+                  status: 'pending' as const,
+                  courseTitle: lesson?.title || `Lesson ${assignment.lessonId}`,
+                  subject: subjectName,
+                  description: assignment.content || 'AI-generated content'
+                };
+              });
+
+            setRealAssignments(dashboardAssignments);
+            console.log("✅ Loaded teacher assignments:", dashboardAssignments.length);
+            console.log("📋 Assignment details:", dashboardAssignments.map(a => ({
+              id: a.id,
+              title: a.title,
+              status: a.status,
+              priority: a.priority,
+              dueDate: a.dueDate,
+              subject: a.subject
+            })));
+
+            // Show success message to student
+            if (dashboardAssignments.length > 0) {
+              console.log("🎉 Student can now view teacher-created assignments");
+
+              // Check if subjects/lessons APIs failed and show appropriate message
+              const hasApiFailures = (subjectsResponse?.error || lessonsResponse?.error);
+              if (hasApiFailures) {
+                console.warn("⚠️ Some APIs failed - subject names may be inferred from assignment titles");
+                console.warn("📡 API Status: Assignments ✅ | Subjects ❌ | Lessons ❌");
+              }
+            }
           } else {
-            console.warn(
-              "⚠️ Failed to load assignments:",
-              assignmentsResponse.error,
-            );
+            console.warn("⚠️ Failed to load assignments:", assignmentsResponse?.error || 'Invalid response');
           }
 
-          // Handle subjects
-          if (subjectsResponse.success) {
-            setSubjects(subjectsResponse.data);
-            console.log("✅ Loaded subjects:", subjectsResponse.data.length);
+          // Handle subjects (direct API response)
+          if (subjectsResponse && !subjectsResponse.error && Array.isArray(subjectsResponse)) {
+            const formattedSubjects = subjectsResponse
+              .filter(subject => subject.isActive)
+              .map(subject => ({
+                id: subject.subjectId || subject.id,
+                name: subject.subjectName || subject.name,
+                description: subject.description || '',
+                isActive: subject.isActive
+              }));
+
+            setSubjects(formattedSubjects);
+            console.log("✅ Loaded subjects:", formattedSubjects.length);
           } else {
-            console.warn("⚠️ Failed to load subjects:", subjectsResponse.error);
+            console.warn("⚠�� Failed to load subjects:", subjectsResponse?.error || 'Invalid response');
           }
 
-          // Handle lessons
-          if (lessonsResponse.success) {
-            setLessons(lessonsResponse.data);
+          // Handle lessons (direct API response)
+          if (lessonsResponse && !lessonsResponse.error && Array.isArray(lessonsResponse)) {
+            const formattedLessons = lessonsResponse
+              .filter(lesson => lesson.isActive)
+              .map(lesson => ({
+                id: lesson.lessonId || lesson.id,
+                subjectId: lesson.subjectId,
+                title: lesson.title || 'Untitled Lesson',
+                description: lesson.content || 'AI-generated content',
+                content: lesson.content || '',
+                duration: 45, // Default duration
+                difficulty: 'intermediate' as const,
+                isCompleted: false,
+                order: 1,
+                type: 'reading' as const
+              }));
+
+            setLessons(formattedLessons);
             setLessonsApiError(null);
-            console.log("✅ Loaded lessons:", lessonsResponse.data.length);
+            console.log("✅ Loaded teacher lessons:", formattedLessons.length);
+
+            // Show success message to student
+            if (formattedLessons.length > 0) {
+              console.log("🎉 Student can now view teacher-created lessons");
+            }
           } else {
-            console.warn("⚠️ Failed to load lessons:", lessonsResponse.error);
-            setLessonsApiError(
-              lessonsResponse.error || "Failed to load lessons",
-            );
+            console.error("Failed to load lessons:", lessonsResponse?.error || 'Invalid response format');
+            console.error("Full lessons response:", lessonsResponse);
+
+            let errorMessage = lessonsResponse?.error || "Unable to connect to lessons API";
+
+            // Check if it's a specific error type
+            if (lessonsResponse?.error && lessonsResponse.error.includes('403')) {
+              console.error("Access denied to lessons API - check permissions");
+              errorMessage = "Access denied - please contact your teacher or administrator";
+            } else if (lessonsResponse?.error && lessonsResponse.error.includes('Network Error')) {
+              console.error("Network error accessing lessons API");
+              errorMessage = "Network error - please check your internet connection";
+            }
+
+            setLessonsApiError(errorMessage);
           }
 
           // Handle courses (built from subjects + lessons)
@@ -710,6 +862,15 @@ const StudentDashboard = () => {
         } finally {
           setAssignmentsLoading(false);
           setEducationLoading(false);
+
+          // Summary notification for student
+          console.log("🎓 Teacher content loading complete!");
+
+          // Use a timeout to ensure state has been updated
+          setTimeout(() => {
+            console.log(`📊 Final Summary: ${realAssignments.length} assignments, ${lessons.length} lessons, ${subjects.length} subjects available`);
+            console.log("🎯 Final realAssignments state:", realAssignments);
+          }, 100);
         }
 
         // Simple, direct API call with automatic fallback
@@ -794,17 +955,7 @@ const StudentDashboard = () => {
                   name: "Mathematics",
                   description: "Advanced mathematical concepts",
                 },
-                upcomingAssignments: [
-                  {
-                    id: "assign_001",
-                    title: "Calculus Problem Set",
-                    dueDate: new Date(
-                      Date.now() + 3 * 24 * 60 * 60 * 1000,
-                    ).toISOString(),
-                    priority: "high",
-                    status: "pending",
-                  },
-                ],
+                upcomingAssignments: [], // No hardcoded assignments - use only real API data
               },
               {
                 id: "course_002",
@@ -820,17 +971,7 @@ const StudentDashboard = () => {
                   name: "Biology",
                   description: "Advanced placement biology",
                 },
-                upcomingAssignments: [
-                  {
-                    id: "assign_002",
-                    title: "Lab Report",
-                    dueDate: new Date(
-                      Date.now() + 5 * 24 * 60 * 60 * 1000,
-                    ).toISOString(),
-                    priority: "medium",
-                    status: "pending",
-                  },
-                ],
+                upcomingAssignments: [], // No hardcoded assignments - use only real API data
               },
               {
                 id: "course_003",
@@ -1416,7 +1557,7 @@ const StudentDashboard = () => {
               </div>
               <div className="hidden md:flex flex-col">
                 <div className="text-sm text-gray-600">
-                  Welcome back, Alex Johnson
+                  Welcome back, {studentDisplayName}
                 </div>
                 {lastAction && (
                   <div className="text-xs text-green-600 animate-pulse">
@@ -1558,7 +1699,7 @@ const StudentDashboard = () => {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>Alex Johnson</DropdownMenuLabel>
+                  <DropdownMenuLabel>{studentDisplayName}</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     className="hover:bg-green-50 transition-colors cursor-pointer"
@@ -1975,49 +2116,12 @@ const StudentDashboard = () => {
                               </div>
                             ))
                         ) : (
-                          // Fallback to mock data if no real assignments
-                          enrolledCourses
-                            .flatMap((course) =>
-                              course.upcomingAssignments.map((assignment) => ({
-                                ...assignment,
-                                courseName: course.title,
-                                subject: course.subject.name,
-                              })),
-                            )
-                            .slice(0, 3)
-                            .map((assignment: any, index: number) => (
-                              <div
-                                key={index}
-                                className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-2 sm:p-3 bg-white/80 rounded-lg border border-orange-200 space-y-2 sm:space-y-0"
-                              >
-                                <div className="min-w-0">
-                                  <p className="font-medium text-sm text-gray-900 truncate">
-                                    {assignment.title}
-                                  </p>
-                                  <p className="text-xs text-gray-600 truncate">
-                                    {assignment.subject}
-                                  </p>
-                                  <p className="text-xs text-orange-600">
-                                    Due:{" "}
-                                    {new Date(
-                                      assignment.dueDate,
-                                    ).toLocaleDateString()}
-                                  </p>
-                                </div>
-                                <div className="flex justify-end sm:justify-start">
-                                  <Badge
-                                    variant={
-                                      assignment.priority === "high"
-                                        ? "destructive"
-                                        : "secondary"
-                                    }
-                                    className="text-xs"
-                                  >
-                                    {assignment.priority}
-                                  </Badge>
-                                </div>
-                              </div>
-                            ))
+                          // Show message when no assignments are available from API
+                          <div className="p-4 text-center text-gray-600">
+                            <BookOpen className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                            <p className="text-sm">No assignments available</p>
+                            <p className="text-xs mt-1">Check back later for new assignments from your teachers</p>
+                          </div>
                         )}
 
                         {!assignmentsLoading &&
@@ -2436,8 +2540,8 @@ const StudentDashboard = () => {
                   </div>
                 )}
 
-                {/* Connection Error State - Simplified for users */}
-                {!educationLoading && lessonsApiError && (
+                {/* Connection Error State - Only show if no lessons and there's an error */}
+                {!educationLoading && lessonsApiError && lessons.length === 0 && (
                   <div className="text-center py-12">
                     <div className="max-w-md mx-auto">
                       <AlertTriangle className="w-16 h-16 mx-auto mb-4 text-orange-500" />
@@ -2445,24 +2549,16 @@ const StudentDashboard = () => {
                         Unable to Load Lessons
                       </h3>
                       <p className="text-gray-600 mb-6">
-                        We're having trouble connecting to the server. Please try again in a moment.
+                        {lessonsApiError.includes('Access denied')
+                          ? 'Access denied - please contact your teacher or administrator.'
+                          : 'We\'re having trouble connecting to the server. Please try again in a moment.'}
                       </p>
                       <Button
                         onClick={() => {
                           setEducationLoading(true);
                           setLessonsApiError(null);
-                          // Retry loading lessons
-                          educationService.getLessons().then((response) => {
-                            if (response.success) {
-                              setLessons(response.data);
-                              setLessonsApiError(null);
-                            } else {
-                              setLessonsApiError(
-                                response.error || "Failed to load lessons",
-                              );
-                            }
-                            setEducationLoading(false);
-                          });
+                          // Retry loading lessons directly from API
+                          window.location.reload(); // Simple reload to retry the API calls
                         }}
                         className="mt-4"
                       >
@@ -2502,11 +2598,11 @@ const StudentDashboard = () => {
                       );
                       // Transform lesson to course-like object for display compatibility
                       const courseDisplay = {
-                        id: lesson.id.toString(),
-                        title: lesson.title,
+                        id: (lesson.id || lesson.lessonId || `lesson_${lesson.title || 'unknown'}`).toString(),
+                        title: lesson.title || "Untitled Lesson",
                         instructor: subject?.name || "Unknown Subject",
                         progress: lesson.isCompleted ? 100 : 0,
-                        difficulty: lesson.difficulty,
+                        difficulty: lesson.difficulty || "medium",
                         subject: { name: subject?.name || "Unknown" },
                         estimatedDuration:
                           Math.round(lesson.duration / 60) || 1,
@@ -2776,17 +2872,14 @@ const StudentDashboard = () => {
                             {assignmentsLoading ? (
                               <div className="w-6 h-6 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
                             ) : realAssignments.length > 0 ? (
-                              realAssignments.filter(
-                                (a) =>
-                                  a.status === "pending" &&
-                                  a.priority === "high",
-                              ).length
+                              realAssignments.filter((a) => {
+                                const dueDate = new Date(a.dueDate);
+                                const now = new Date();
+                                const daysDiff = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                                return a.status === "pending" && daysDiff <= 7 && daysDiff >= 0;
+                              }).length
                             ) : (
-                              enrolledCourses.reduce(
-                                (total, course) =>
-                                  total + course.upcomingAssignments.length,
-                                0,
-                              )
+                              0
                             )}
                           </p>
                           <p className="text-xs sm:text-sm text-gray-600">
@@ -2805,7 +2898,13 @@ const StudentDashboard = () => {
                         </div>
                         <div className="ml-2 sm:ml-3 lg:ml-4 min-w-0">
                           <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">
-                            3
+                            {assignmentsLoading ? (
+                              <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                            ) : (
+                              realAssignments.filter((a) =>
+                                a.questionType === 3 || a.title.toLowerCase().includes('quiz')
+                              ).length
+                            )}
                           </p>
                           <p className="text-xs sm:text-sm text-gray-600">
                             Quizzes
@@ -2830,7 +2929,7 @@ const StudentDashboard = () => {
                                 (a) => a.status === "completed",
                               ).length
                             ) : (
-                              12
+                              0
                             )}
                           </p>
                           <p className="text-xs sm:text-sm text-gray-600">
@@ -2849,7 +2948,7 @@ const StudentDashboard = () => {
                         </div>
                         <div className="ml-2 sm:ml-3 lg:ml-4 min-w-0">
                           <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">
-                            88%
+                            -
                           </p>
                           <p className="text-xs sm:text-sm text-gray-600">
                             Avg Score
@@ -2868,16 +2967,16 @@ const StudentDashboard = () => {
                       Upcoming Assignments
                     </CardTitle>
                     <CardDescription className="text-sm">
-                      Assignments due in the next 7 days
+                      All assignments from your teachers
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-3 sm:space-y-4">
-                      {enrolledCourses.map((course) =>
-                        course.upcomingAssignments.map(
-                          (assignment: any, index: number) => (
+                      {realAssignments.length > 0 ? (
+                        realAssignments
+                          .map((assignment, index: number) => (
                             <div
-                              key={`${course.id}-${index}`}
+                              key={assignment.id}
                               className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 border rounded-lg hover:bg-gray-50 transition-colors space-y-3 sm:space-y-0"
                             >
                               <div className="flex items-center gap-3 sm:gap-4 min-w-0">
@@ -2889,14 +2988,12 @@ const StudentDashboard = () => {
                                     {assignment.title}
                                   </h3>
                                   <p className="text-xs sm:text-sm text-gray-600 truncate">
-                                    {course.subject.name} • {course.title}
+                                    {assignment.subject || 'Teacher Assignment'} • {assignment.courseTitle || 'Course'}
                                   </p>
                                   <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 mt-1">
                                     <span className="text-xs text-gray-500">
                                       Due:{" "}
-                                      {new Date(
-                                        assignment.dueDate,
-                                      ).toLocaleDateString()}
+                                      {new Date(assignment.dueDate).toLocaleDateString()}
                                     </span>
                                     <Badge
                                       variant={
@@ -2920,7 +3017,7 @@ const StudentDashboard = () => {
                                     setLastAction(
                                       `Viewing assignment: ${assignment.title}`,
                                     );
-                                    // Simulate viewing assignment details
+                                    // View real assignment details
                                   }}
                                 >
                                   <Eye className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
@@ -2938,7 +3035,7 @@ const StudentDashboard = () => {
                                       state: {
                                         type: "assignment",
                                         title: assignment.title,
-                                        course: course.title,
+                                        course: assignment.courseTitle || 'Course',
                                         dueDate: assignment.dueDate,
                                       },
                                     });
@@ -2952,19 +3049,15 @@ const StudentDashboard = () => {
                                 </Button>
                               </div>
                             </div>
-                          ),
-                        ),
-                      )}
-                      {enrolledCourses.every(
-                        (course) => course.upcomingAssignments.length === 0,
-                      ) && (
+                          ))
+                      ) : (
                         <div className="text-center py-6 sm:py-8 text-gray-500">
                           <BookOpen className="w-8 h-8 sm:w-12 sm:h-12 mx-auto mb-3 sm:mb-4 opacity-50" />
                           <p className="text-base sm:text-lg font-medium">
                             No upcoming assignments
                           </p>
                           <p className="text-sm">
-                            You're all caught up! Great work!
+                            No assignments from teachers yet
                           </p>
                         </div>
                       )}
@@ -2972,7 +3065,7 @@ const StudentDashboard = () => {
                   </CardContent>
                 </Card>
 
-                {/* Recent Quizzes */}
+{/* Real Quizzes from API */}
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
@@ -2980,129 +3073,104 @@ const StudentDashboard = () => {
                       Recent Quizzes & Assessments
                     </CardTitle>
                     <CardDescription>
-                      Your recent quiz results and upcoming assessments
+                      Quiz and assessment data from your teachers
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      {/* Recent Quiz Results */}
-                      <div className="grid gap-4">
-                        <div className="flex items-center justify-between p-4 border rounded-lg bg-green-50 border-green-200">
-                          <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                              <CheckCircle className="w-6 h-6 text-green-600" />
-                            </div>
-                            <div>
-                              <h3 className="font-semibold text-gray-900">
-                                Biology Quiz - Chapter 5
-                              </h3>
-                              <p className="text-sm text-gray-600">
-                                Cellular Structure and Function
-                              </p>
-                              <span className="text-xs text-gray-500">
-                                Completed 2 days ago
-                              </span>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-2xl font-bold text-green-600">
-                              94%
-                            </div>
-                            <div className="text-xs text-gray-500">A Grade</div>
-                          </div>
+                      {assignmentsLoading ? (
+                        <div className="text-center py-8">
+                          <div className="w-6 h-6 mx-auto mb-4 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+                          <p className="text-gray-600">Loading quizzes and assessments...</p>
                         </div>
-
-                        <div className="flex items-center justify-between p-4 border rounded-lg bg-blue-50 border-blue-200">
-                          <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                              <Clock className="w-6 h-6 text-blue-600" />
+                      ) : realAssignments.length > 0 ? (
+                        <div className="grid gap-4">
+                          {realAssignments
+                            .slice(0, 3)
+                            .map((assignment, index) => {
+                              const isCompleted = assignment.status === 'completed';
+                              const isUpcoming = new Date(assignment.dueDate) > new Date();
+                              const bgColor = isCompleted ? 'bg-green-50 border-green-200' : isUpcoming ? 'bg-blue-50 border-blue-200' : 'bg-yellow-50 border-yellow-200';
+                              const iconColor = isCompleted ? 'text-green-600' : isUpcoming ? 'text-blue-600' : 'text-yellow-600';
+                              const IconComponent = isCompleted ? CheckCircle : isUpcoming ? Clock : AlertTriangle;
+                              
+                              return (
+                                <div key={assignment.id} className={`flex items-center justify-between p-4 border rounded-lg ${bgColor}`}>
+                                  <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{backgroundColor: isCompleted ? '#dcfce7' : isUpcoming ? '#dbeafe' : '#fef3c7'}}>
+                                      <IconComponent className={`w-6 h-6 ${iconColor}`} />
+                                    </div>
+                                    <div>
+                                      <h3 className="font-semibold text-gray-900">
+                                        {assignment.title}
+                                      </h3>
+                                      <p className="text-sm text-gray-600">
+                                        {assignment.description || assignment.courseTitle}
+                                      </p>
+                                      <span className="text-xs text-gray-500">
+                                        {isCompleted ? 'Completed' : isUpcoming ? `Due ${new Date(assignment.dueDate).toLocaleDateString()}` : 'Available now'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    {isCompleted ? (
+                                      <div className="text-right">
+                                        <div className="text-lg font-bold text-green-600">
+                                          Done
+                                        </div>
+                                        <div className="text-xs text-gray-500">Completed</div>
+                                      </div>
+                                    ) : (
+                                      <>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() => {
+                                            setLastAction(`Previewing ${assignment.title}`);
+                                          }}
+                                        >
+                                          <Eye className="w-4 h-4 mr-2" />
+                                          Preview
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          onClick={() => {
+                                            setLastAction(`Taking ${assignment.title}`);
+                                            navigate("/lesson-content", {
+                                              state: {
+                                                type: "assignment",
+                                                title: assignment.title,
+                                                subject: assignment.subject,
+                                                assignmentId: assignment.id,
+                                              },
+                                            });
+                                          }}
+                                        >
+                                          <Play className="w-4 h-4 mr-2" />
+                                          Start
+                                        </Button>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })
+                          }
+                          {realAssignments.length === 0 && (
+                            <div className="text-center py-8">
+                              <Brain className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                              <p className="text-gray-600 font-medium">No assignments available</p>
+                              <p className="text-sm text-gray-500">Assignments from your teachers will appear here</p>
                             </div>
-                            <div>
-                              <h3 className="font-semibold text-gray-900">
-                                Mathematics Quiz - Algebra
-                              </h3>
-                              <p className="text-sm text-gray-600">
-                                Linear Equations and Inequalities
-                              </p>
-                              <span className="text-xs text-gray-500">
-                                Available now • Due in 3 days
-                              </span>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setLastAction("Previewing Mathematics Quiz");
-                              }}
-                            >
-                              <Eye className="w-4 h-4 mr-2" />
-                              Preview
-                            </Button>
-                            <Button
-                              size="sm"
-                              onClick={() => {
-                                setLastAction(
-                                  "Taking Mathematics Quiz - Algebra",
-                                );
-                                navigate("/lesson-content", {
-                                  state: {
-                                    type: "quiz",
-                                    title: "Mathematics Quiz - Algebra",
-                                    subject: "Mathematics",
-                                  },
-                                });
-                              }}
-                            >
-                              <Play className="w-4 h-4 mr-2" />
-                              Take Quiz
-                            </Button>
-                          </div>
+                          )}
                         </div>
-
-                        <div className="flex items-center justify-between p-4 border rounded-lg bg-yellow-50 border-yellow-200">
-                          <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                              <AlertTriangle className="w-6 h-6 text-yellow-600" />
-                            </div>
-                            <div>
-                              <h3 className="font-semibold text-gray-900">
-                                History Quiz - World Wars
-                              </h3>
-                              <p className="text-sm text-gray-600">
-                                20th Century Global Conflicts
-                              </p>
-                              <span className="text-xs text-gray-500">
-                                Previous attempt: 76% �� Retake available
-                              </span>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setLastAction(
-                                  "Retaking History Quiz - World Wars",
-                                );
-                                navigate("/lesson-content", {
-                                  state: {
-                                    type: "quiz",
-                                    title: "History Quiz - World Wars",
-                                    subject: "History",
-                                    isRetake: true,
-                                    previousScore: 76,
-                                  },
-                                });
-                              }}
-                            >
-                              <RefreshCw className="w-4 h-4 mr-2" />
-                              Retake
-                            </Button>
-                          </div>
+                      ) : (
+                        <div className="text-center py-8">
+                          <Brain className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                          <p className="text-gray-600 font-medium">No assignments available</p>
+                          <p className="text-sm text-gray-500">Assignments from your teachers will appear here</p>
                         </div>
-                      </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>

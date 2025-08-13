@@ -394,13 +394,9 @@ export default function TeacherDashboard() {
 
   const [assignmentForm, setAssignmentForm] = useState({
     title: "",
-    content: "",
-    rubric: "",
     lessonId: 0,
     questionType: 1,
     deadline: "",
-    approvalStatus: 1,
-    isActive: true,
   });
 
   const [profileForm, setProfileForm] = useState({
@@ -785,7 +781,7 @@ export default function TeacherDashboard() {
 
             // Fallback to institution-specific endpoints if institution-specific failed
             if (results.curriculumId === 1 && institutionId) {
-              console.log("🔍 Falling back to institution curriculum endpoint...");
+              console.log("��� Falling back to institution curriculum endpoint...");
               try {
                 const curriculumRes = await axiosClient.get(`/api/curriculums/by-institution?institutionId=${institutionId}`);
                 if (curriculumRes.data?.length > 0) {
@@ -810,7 +806,7 @@ export default function TeacherDashboard() {
               }
             }
           } catch (error) {
-            console.error("❌ Error in enhanced curriculum/term fetching:", error.message);
+            console.error("��� Error in enhanced curriculum/term fetching:", error.message);
           }
 
           return results;
@@ -1264,7 +1260,7 @@ export default function TeacherDashboard() {
       console.log("✅ Using only real data - no mock curriculum generation");
 
       // Only use real milestones and goals from API - no mock data
-      console.log("✅ No curriculum data generation - using only real API data");
+      console.log("��� No curriculum data generation - using only real API data");
 
       // Note: Real milestones and goals are loaded from teacher subjects API endpoint
       // This function no longer generates fake data
@@ -1306,11 +1302,11 @@ export default function TeacherDashboard() {
   };
 
   const createAssignment = async () => {
-    if (!assignmentForm.title.trim() || !assignmentForm.content.trim()) {
+    if (!assignmentForm.title.trim()) {
       toast({
         variant: "destructive",
         title: "Validation Error",
-        description: "Please fill in both title and content",
+        description: "Please fill in the assignment title",
       });
       return;
     }
@@ -1338,14 +1334,36 @@ export default function TeacherDashboard() {
         lessonId: assignmentForm.lessonId,
         title: assignmentForm.title,
         questionType: assignmentForm.questionType,
-        content: assignmentForm.content,
-        rubric: assignmentForm.rubric,
+        content: null, // AI will generate assignment content
+        rubric: null, // AI will generate assignment rubric
         deadline: new Date(assignmentForm.deadline).toISOString(),
-        approvalStatus: assignmentForm.approvalStatus,
-        isActive: assignmentForm.isActive,
+        approvalStatus: 1, // Default approval status
+        approvedAt: new Date().toISOString(),
+        isActive: true, // Always set to true as per schema requirements
       };
 
       console.log("🔄 Creating assignment with data:", assignmentData);
+      console.log("📋 Form state:", assignmentForm);
+      console.log("📊 Data types:", {
+        lessonId: typeof assignmentData.lessonId,
+        title: typeof assignmentData.title,
+        questionType: typeof assignmentData.questionType,
+        content: typeof assignmentData.content,
+        rubric: typeof assignmentData.rubric,
+        deadline: typeof assignmentData.deadline,
+        approvalStatus: typeof assignmentData.approvalStatus,
+        approvedAt: typeof assignmentData.approvedAt,
+        isActive: typeof assignmentData.isActive,
+      });
+
+      // Check for potential validation issues
+      console.log("🔍 Validation checks:", {
+        titleEmpty: !assignmentData.title || assignmentData.title.trim().length === 0,
+        lessonIdZero: assignmentData.lessonId === 0,
+        invalidDeadline: isNaN(new Date(assignmentForm.deadline).getTime()),
+        questionTypeValid: typeof assignmentData.questionType === 'number' && assignmentData.questionType > 0,
+        deadlineFormatted: assignmentData.deadline
+      });
       const response = await axiosClient.post(
         "/api/assignments/add-assignment",
         assignmentData,
@@ -1359,22 +1377,51 @@ export default function TeacherDashboard() {
         setShowCreateAssignment(false);
         setAssignmentForm({
           title: "",
-          content: "",
-          rubric: "",
           lessonId: 0,
           questionType: 1,
           deadline: "",
-          approvalStatus: 1,
-          isActive: true,
         });
         console.log("✅ Assignment created successfully");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("❌ Error creating assignment:", error);
+      console.error("📋 Error details:", {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        errors: error.response?.data?.errors,
+        config: error.config
+      });
+
+      // Log validation errors specifically
+      if (error.response?.data?.errors) {
+        console.error("🚨 Validation errors:", error.response.data.errors);
+        console.table(error.response.data.errors); // Show in table format for better readability
+
+        // Log each validation error field separately
+        Object.keys(error.response.data.errors).forEach(field => {
+          console.error(`❌ Field "${field}":`, error.response.data.errors[field]);
+        });
+      }
+
+      let errorMessage = "Failed to create assignment";
+      if (error.response?.data?.errors) {
+        // Show specific validation errors in the toast
+        const validationErrors = Object.entries(error.response.data.errors)
+          .map(([field, messages]) => `${field}: ${Array.isArray(messages) ? messages.join(', ') : messages}`)
+          .join('\n');
+        errorMessage = `Validation errors:\n${validationErrors}`;
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response?.data) {
+        errorMessage = JSON.stringify(error.response.data);
+      }
+
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to create assignment",
+        description: errorMessage,
       });
     }
   };
@@ -1411,13 +1458,9 @@ export default function TeacherDashboard() {
         setSelectedAssignment(null);
         setAssignmentForm({
           title: "",
-          content: "",
-          rubric: "",
           lessonId: 0,
           questionType: 1,
           deadline: "",
-          approvalStatus: 1,
-          isActive: true,
         });
       }
     } catch (error) {
@@ -1456,15 +1499,11 @@ export default function TeacherDashboard() {
     setSelectedAssignment(assignment);
     setAssignmentForm({
       title: assignment.title,
-      content: assignment.content,
-      rubric: assignment.rubric,
       lessonId: assignment.lessonId,
       questionType: assignment.questionType,
       deadline: assignment.deadline
         ? new Date(assignment.deadline).toISOString().slice(0, 16)
         : "",
-      approvalStatus: assignment.approvalStatus,
-      isActive: assignment.isActive,
     });
     setShowEditAssignment(true);
   };
@@ -1472,8 +1511,11 @@ export default function TeacherDashboard() {
 
 
   const getSubjectName = (subjectId: number) => {
+    if (!Array.isArray(subjects)) {
+      return "";
+    }
     const subject = subjects.find((s) => s.subjectId === subjectId);
-    return subject ? subject.subjectName : `Subject ${subjectId}`;
+    return subject ? subject.subjectName : "";
   };
 
   const handleLogout = () => {
@@ -1703,7 +1745,7 @@ export default function TeacherDashboard() {
       }
 
       // Fallback to individual API calls if dashboard endpoint not available
-    console.log("⚠️ Teacher dashboard API not available, using fallback methods");
+    console.log("⚠�� Teacher dashboard API not available, using fallback methods");
 
     // Try direct teacher subjects fetch first
     console.log("🔄 Attempting direct teacher subjects fetch...");
@@ -1870,7 +1912,7 @@ export default function TeacherDashboard() {
         ? assignedSubjects.map(s => s.subjectName).join(", ")
         : "No subjects assigned";
 
-      console.log("👨‍🏫 Building dashboard data for:", {
+      console.log("👨���🏫 Building dashboard data for:", {
         name: teacherName,
         email: teacherEmail,
         subjects: subjectNames,
@@ -3360,7 +3402,7 @@ ${
 • Generate parent reports
 
 **Class Statistics:**
-• Total Enrolled: ${classStudents.length}
+�� Total Enrolled: ${classStudents.length}
 • Average Progress: ${classStudents.reduce((sum, s) => sum + s.overallProgress, 0) / (classStudents.length || 1)}%
 • Students Excelling: ${classStudents.filter((s) => s.status === "excelling").length}
 • Students Struggling: ${classStudents.filter((s) => s.status === "struggling").length}`,
@@ -3801,11 +3843,11 @@ AI Recommendations:
       const lessonData = {
         subjectId: lessonForm.subjectId,
         title: lessonForm.title,
-        content: "AI will generate lesson content based on the title and subject",
-        difficultyLevel: 0, // Start with 0 (likely Easy), AI will adjust as needed
+        content: null, // AI will generate lesson content later
+        difficultyLevel: null, // AI will determine appropriate difficulty level
         approvalStatus: 1, // Draft status - AI content needs approval after generation
         approvedAt: new Date().toISOString(),
-        isActive: canBeActive, // Only active if both lesson and subject are set to active
+        isActive: true, // Always set to true as per schema requirements
       };
 
       console.log("���� Creating lesson with data:", lessonData);
@@ -6411,36 +6453,6 @@ AI Recommendations:
                 </Select>
               </div>
             </div>
-            <div>
-              <Label htmlFor="assignment-content">Assignment Content *</Label>
-              <Textarea
-                id="assignment-content"
-                value={assignmentForm.content}
-                onChange={(e) =>
-                  setAssignmentForm({
-                    ...assignmentForm,
-                    content: e.target.value,
-                  })
-                }
-                placeholder="Enter the assignment instructions, questions, and requirements..."
-                rows={6}
-              />
-            </div>
-            <div>
-              <Label htmlFor="assignment-rubric">Rubric</Label>
-              <Textarea
-                id="assignment-rubric"
-                value={assignmentForm.rubric}
-                onChange={(e) =>
-                  setAssignmentForm({
-                    ...assignmentForm,
-                    rubric: e.target.value,
-                  })
-                }
-                placeholder="Enter grading criteria and rubric details..."
-                rows={4}
-              />
-            </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="assignment-deadline">Deadline *</Label>
@@ -6456,57 +6468,6 @@ AI Recommendations:
                   }
                 />
               </div>
-              <div>
-                <Label htmlFor="assignment-approval">Approval Status</Label>
-                <Select
-                  value={assignmentForm.approvalStatus.toString()}
-                  onValueChange={(value) =>
-                    setAssignmentForm({
-                      ...assignmentForm,
-                      approvalStatus: parseInt(value),
-                    })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {enumsLoading ? (
-                      <SelectItem value="1" disabled>
-                        Loading approval statuses...
-                      </SelectItem>
-                    ) : enums?.ApprovalStatus ? (
-                      enums.ApprovalStatus.map((status: any) => (
-                        <SelectItem
-                          key={status.key}
-                          value={status.key.toString()}
-                        >
-                          {status.value.replace('_', ' ')}
-                        </SelectItem>
-                      ))
-                    ) : (
-                      <SelectItem value="0" disabled>
-                        No approval statuses available
-                      </SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="assignment-active"
-                checked={assignmentForm.isActive}
-                onChange={(e) =>
-                  setAssignmentForm({
-                    ...assignmentForm,
-                    isActive: e.target.checked,
-                  })
-                }
-                className="rounded"
-              />
-              <Label htmlFor="assignment-active">Active Assignment</Label>
             </div>
           </div>
           <DialogFooter>
@@ -6624,38 +6585,6 @@ AI Recommendations:
                 </Select>
               </div>
             </div>
-            <div>
-              <Label htmlFor="edit-assignment-content">
-                Assignment Content *
-              </Label>
-              <Textarea
-                id="edit-assignment-content"
-                value={assignmentForm.content}
-                onChange={(e) =>
-                  setAssignmentForm({
-                    ...assignmentForm,
-                    content: e.target.value,
-                  })
-                }
-                placeholder="Enter the assignment instructions, questions, and requirements..."
-                rows={6}
-              />
-            </div>
-            <div>
-              <Label htmlFor="edit-assignment-rubric">Rubric</Label>
-              <Textarea
-                id="edit-assignment-rubric"
-                value={assignmentForm.rubric}
-                onChange={(e) =>
-                  setAssignmentForm({
-                    ...assignmentForm,
-                    rubric: e.target.value,
-                  })
-                }
-                placeholder="Enter grading criteria and rubric details..."
-                rows={4}
-              />
-            </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="edit-assignment-deadline">Deadline *</Label>
@@ -6671,59 +6600,6 @@ AI Recommendations:
                   }
                 />
               </div>
-              <div>
-                <Label htmlFor="edit-assignment-approval">
-                  Approval Status
-                </Label>
-                <Select
-                  value={assignmentForm.approvalStatus.toString()}
-                  onValueChange={(value) =>
-                    setAssignmentForm({
-                      ...assignmentForm,
-                      approvalStatus: parseInt(value),
-                    })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {enumsLoading ? (
-                      <SelectItem value="1" disabled>
-                        Loading approval statuses...
-                      </SelectItem>
-                    ) : enums?.ApprovalStatus ? (
-                      enums.ApprovalStatus.map((status: any) => (
-                        <SelectItem
-                          key={status.key}
-                          value={status.key.toString()}
-                        >
-                          {status.value.replace('_', ' ')}
-                        </SelectItem>
-                      ))
-                    ) : (
-                      <SelectItem value="0" disabled>
-                        No approval statuses available
-                      </SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="edit-assignment-active"
-                checked={assignmentForm.isActive}
-                onChange={(e) =>
-                  setAssignmentForm({
-                    ...assignmentForm,
-                    isActive: e.target.checked,
-                  })
-                }
-                className="rounded"
-              />
-              <Label htmlFor="edit-assignment-active">Active Assignment</Label>
             </div>
           </div>
           <DialogFooter>
