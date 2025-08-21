@@ -62,10 +62,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import axiosClient from "@/services/axiosClient";
-import {
-  assignmentService,
-  AssignmentForDashboard,
-} from "@/services/assignmentService";
+import { AssignmentForDashboard } from "@/services/assignmentService";
 import {
   educationService,
   Course,
@@ -740,7 +737,7 @@ const StudentDashboard = () => {
       }
 
       // If all API attempts failed, use mock profile data
-      console.log("📝 Using mock student profile due to API restrictions");
+      console.log("���� Using mock student profile due to API restrictions");
       const mockProfile = {
         firstName: "Alex",
         lastName: "Student",
@@ -775,7 +772,7 @@ const StudentDashboard = () => {
         setAssignmentsLoading(true);
 
         // Ensure user is authenticated before making API calls
-        console.log("🔐 Checking authentication...");
+        console.log("�� Checking authentication...");
         await authService.ensureAuthenticated();
 
         // Load student profile first
@@ -786,27 +783,14 @@ const StudentDashboard = () => {
 
         try {
           // Load educational data directly from API endpoints (teacher-created content)
-          console.log("🔄 Fetching teacher-created lessons and assignments from API...");
+          console.log("🔄 Fetching student data from consolidated API endpoint...");
           console.log("🔑 Using auth token:", localStorage.getItem('anansi_token') ? 'Present' : 'Missing');
 
           const [
-            assignmentsResponse,
             studentSubjectsResponse,
-            lessonsResponse,
             studentCoursesResponse,
           ] = await Promise.all([
-            // Direct API calls to get teacher-created content
-            axiosClient.get('/api/assignments')
-              .then(res => {
-                console.log("📝 Raw assignments API response:", res.data);
-                return res.data;
-              })
-              .catch(err => {
-                console.error("❌ Assignments API error:", err.message);
-                return { error: err.message };
-              }),
-
-            // Use the correct endpoint for student subjects with lessons and assignments
+            // Use the consolidated endpoint for student subjects with lessons and assignments
             axiosClient.get('/api/students/student-subjects')
               .then(res => {
                 console.log("🎓 Student subjects with lessons API response:", res.data);
@@ -817,68 +801,66 @@ const StudentDashboard = () => {
                 return { error: err.message };
               }),
 
-            axiosClient.get('/api/lessons')
-              .then(res => {
-                console.log("��� Raw lessons API response:", res.data);
-                return res.data;
-              })
-              .catch(err => {
-                console.error("❌ Lessons API error:", err.message);
-                return { error: err.message };
-              }),
-
             // Keep student courses service call
             educationService.getStudentCourses(),
           ]);
 
           // Handle assignments (direct API response)
-          if (assignmentsResponse && !assignmentsResponse.error && Array.isArray(assignmentsResponse)) {
-            // Transform API assignments to dashboard format
-            const dashboardAssignments = assignmentsResponse
-              .filter(assignment => assignment.isActive) // Only show active assignments
-              .map(assignment => {
-                // Find the lesson and subject from studentSubjectsResponse
-                let lesson = null;
-                let subject = null;
+          if (studentSubjectsResponse && !studentSubjectsResponse.error && Array.isArray(studentSubjectsResponse)) {
+            // Extract assignments from student-subjects consolidated response
+            const allAssignments = [];
 
-                if (studentSubjectsResponse && !studentSubjectsResponse.error && Array.isArray(studentSubjectsResponse)) {
-                  // Look through student subjects to find matching lesson and subject
-                  for (const studentSubject of studentSubjectsResponse) {
+            console.log("🔍 Full student-subjects response structure:", JSON.stringify(studentSubjectsResponse, null, 2));
+
+            studentSubjectsResponse.forEach((studentSubject, index) => {
+              console.log(`🔍 StudentSubject ${index}:`, studentSubject);
+              console.log(`📝 Object keys:`, Object.keys(studentSubject));
+              console.log(`📝 Has assignments property:`, 'assignments' in studentSubject);
+              console.log(`📝 Assignments value:`, studentSubject.assignments);
+
+              // Check if assignments might be nested in lessons
+              if (studentSubject.lessons && Array.isArray(studentSubject.lessons)) {
+                studentSubject.lessons.forEach((lesson, lessonIndex) => {
+                  console.log(`  📚 Lesson ${lessonIndex} keys:`, Object.keys(lesson));
+                  if (lesson.assignments) {
+                    console.log(`  📝 Lesson ${lessonIndex} has assignments:`, lesson.assignments);
+                  }
+                });
+              }
+
+              if (studentSubject.assignments && Array.isArray(studentSubject.assignments)) {
+                console.log(`✅ Processing ${studentSubject.assignments.length} assignments from subject:`, studentSubject.subjectName || studentSubject.name);
+                studentSubject.assignments
+                  .filter(assignment => assignment.isActive !== false)
+                  .forEach(assignment => {
+                    const subjectName = studentSubject.subjectName || studentSubject.name || 'Unknown Subject';
+
+                    // Find the corresponding lesson if available
+                    let lesson = null;
                     if (studentSubject.lessons && Array.isArray(studentSubject.lessons)) {
-                      const foundLesson = studentSubject.lessons.find(l =>
+                      lesson = studentSubject.lessons.find(l =>
                         l.lessonId === assignment.lessonId || l.id === assignment.lessonId
                       );
-                      if (foundLesson) {
-                        lesson = foundLesson;
-                        subject = studentSubject; // The subject containing this lesson
-                        break;
-                      }
                     }
-                  }
-                }
 
-                // Use ONLY real subject data from API endpoints - no guessing
-                let subjectName = 'Unknown Subject';
+                    allAssignments.push({
+                      id: assignment.assignmentId?.toString() || assignment.id?.toString() || 'unknown',
+                      title: assignment.title || 'Untitled Assignment',
+                      dueDate: assignment.deadline || new Date().toISOString(),
+                      priority: 'medium' as const,
+                      status: 'pending' as const,
+                      courseTitle: lesson?.title || `Lesson ${assignment.lessonId}`,
+                      subject: subjectName,
+                      description: assignment.content || 'AI-generated content'
+                    });
+                  });
+              }
+            });
 
-                if (subject) {
-                  // Use actual subject data from API
-                  subjectName = subject.subjectName || subject.name || 'Unknown Subject';
-                }
-
-                return {
-                  id: assignment.assignmentId?.toString() || assignment.id?.toString() || 'unknown',
-                  title: assignment.title || 'Untitled Assignment',
-                  dueDate: assignment.deadline || new Date().toISOString(),
-                  priority: 'medium' as const,
-                  status: 'pending' as const,
-                  courseTitle: lesson?.title || `Lesson ${assignment.lessonId}`,
-                  subject: subjectName,
-                  description: assignment.content || 'AI-generated content'
-                };
-              });
+            const dashboardAssignments = allAssignments;
 
             setRealAssignments(dashboardAssignments);
-            console.log("✅ Loaded teacher assignments:", dashboardAssignments.length);
+            console.log("✅ Loaded assignments from student-subjects:", dashboardAssignments.length);
             console.log("📋 Assignment details:", dashboardAssignments.map(a => ({
               id: a.id,
               title: a.title,
@@ -889,41 +871,18 @@ const StudentDashboard = () => {
             })));
             console.log("🔄 setRealAssignments called with:", dashboardAssignments.length, "assignments");
 
-            // Show success message to student
-            if (dashboardAssignments.length > 0) {
-              console.log("��� Student can now view teacher-created assignments");
-
-              // Check if student subjects API failed
-              const hasApiFailures = studentSubjectsResponse?.error;
-              if (hasApiFailures) {
-                console.warn("⚠️ Student subjects API failed - subject names may be inferred from assignment titles");
-                console.warn("📡 API Status: Assignments ✅ | Student Subjects ❌");
-              }
-            }
-          } else {
-            console.warn("⚠️ Failed to load assignments:", assignmentsResponse?.error || 'Invalid response');
-          }
-
-          // Handle subjects (direct API response)
-          if (studentSubjectsResponse && !studentSubjectsResponse.error && Array.isArray(studentSubjectsResponse)) {
+            // Also extract and set subjects from the same response
             const formattedSubjects = studentSubjectsResponse.map(studentSubject => ({
               id: studentSubject.subjectId || studentSubject.id,
               name: studentSubject.subjectName || studentSubject.name || 'Unknown Subject',
               description: studentSubject.description || '',
               isActive: true
             }));
-
             setSubjects(formattedSubjects);
-            console.log("✅ Loaded subjects:", formattedSubjects.length);
-          } else {
-            console.warn("⚠️ Failed to load subjects:", studentSubjectsResponse?.error || 'Invalid response');
-          }
+            console.log("✅ Loaded subjects from student-subjects:", formattedSubjects.length);
 
-          // Handle lessons from studentSubjectsResponse
-          if (studentSubjectsResponse && !studentSubjectsResponse.error && Array.isArray(studentSubjectsResponse)) {
-            // Extract all lessons from all subjects
+            // Extract lessons from the same response
             const allLessons = [];
-
             studentSubjectsResponse.forEach(studentSubject => {
               if (studentSubject.lessons && Array.isArray(studentSubject.lessons)) {
                 studentSubject.lessons
@@ -950,89 +909,20 @@ const StudentDashboard = () => {
 
             setLessons(allLessons);
             setLessonsApiError(null);
-            console.log("✅ Loaded lessons from student subjects:", allLessons.length);
-            console.log("📚 Lessons with subjects:", allLessons.map(l => ({
-              title: l.title,
-              subjectId: l.subjectId,
-              subjectName: l.subjectName
-            })));
-
-            if (allLessons.length > 0) {
-              console.log("🎉 Student can now view lessons with proper subjects");
-            }
-          } else if (lessonsResponse && !lessonsResponse.error && Array.isArray(lessonsResponse)) {
-            const formattedLessons = lessonsResponse
-              .filter(lesson => lesson.isActive)
-              .map(lesson => {
-                // Try to get subject name from loaded subjects or infer from lesson title
-                let subjectName = 'General Subject';
-
-                if (lesson.subjectId) {
-                  // If we don't have subjects data, create a meaningful name from subjectId
-                  subjectName = `Subject ${lesson.subjectId}`;
-                } else if (lesson.title) {
-                  // Infer subject from lesson title
-                  const title = lesson.title.toLowerCase();
-                  if (title.includes('math') || title.includes('algebra') || title.includes('calcul')) {
-                    subjectName = 'Mathematics';
-                  } else if (title.includes('bio') || title.includes('cell') || title.includes('organism')) {
-                    subjectName = 'Biology';
-                  } else if (title.includes('chem') || title.includes('element') || title.includes('reaction')) {
-                    subjectName = 'Chemistry';
-                  } else if (title.includes('phys') || title.includes('force') || title.includes('energy')) {
-                    subjectName = 'Physics';
-                  } else if (title.includes('hist') || title.includes('war') || title.includes('ancient')) {
-                    subjectName = 'History';
-                  } else if (title.includes('eng') || title.includes('literature') || title.includes('essay')) {
-                    subjectName = 'English';
-                  }
-                }
-
-                return {
-                  id: lesson.lessonId || lesson.id,
-                  subjectId: lesson.subjectId,
-                  subjectName: subjectName, // Add subject name for display
-                  title: lesson.title || 'Untitled Lesson',
-                  description: lesson.content || 'AI-generated content',
-                  content: lesson.content || '',
-                  duration: 45, // Default duration
-                  difficulty: 'intermediate' as const,
-                  isCompleted: false,
-                  order: 1,
-                  type: 'reading' as const
-                };
-              });
-
-            setLessons(formattedLessons);
-            setLessonsApiError(null);
-            console.log("✅ Loaded teacher lessons:", formattedLessons.length);
-            console.log("📚 Lessons with subjects:", formattedLessons.map(l => ({
-              title: l.title,
-              subjectId: l.subjectId,
-              subjectName: l.subjectName
-            })));
+            console.log("✅ Loaded lessons from student-subjects:", allLessons.length);
 
             // Show success message to student
-            if (formattedLessons.length > 0) {
-              console.log("🎉 Student can now view teacher-created lessons");
+            if (dashboardAssignments.length > 0) {
+              console.log("��� Student can now view teacher-created assignments");
+
             }
           } else {
-            console.error("Failed to load lessons:", lessonsResponse?.error || 'Invalid response format');
-            console.error("Full lessons response:", lessonsResponse);
-
-            let errorMessage = lessonsResponse?.error || "Unable to connect to lessons API";
-
-            // Check if it's a specific error type
-            if (lessonsResponse?.error && lessonsResponse.error.includes('403')) {
-              console.error("Access denied to lessons API - check permissions");
-              errorMessage = "Access denied - please contact your teacher or administrator";
-            } else if (lessonsResponse?.error && lessonsResponse.error.includes('Network Error')) {
-              console.error("Network error accessing lessons API");
-              errorMessage = "Network error - please check your internet connection";
-            }
-
-            setLessonsApiError(errorMessage);
+            console.warn("⚠️ Failed to load student subjects data for assignments");
           }
+
+          // Subjects are now extracted together with assignments above
+
+          // Lessons are now extracted together with assignments and subjects above
 
           // Handle courses (built from subjects + lessons)
           if (studentCoursesResponse.success) {
@@ -1234,6 +1124,16 @@ const StudentDashboard = () => {
       console.log("📖 Subjects:", subjects.map(s => ({ name: s.name, id: s.id })));
     }
   }, [loading, assignmentsLoading, educationLoading, realAssignments.length, lessons.length, subjects.length]);
+
+  // Debug effect for assignments tab visibility
+  useEffect(() => {
+    if (selectedTab === "assignments") {
+      console.log("🔍 ASSIGNMENTS TAB DEBUG:");
+      console.log("- realAssignments.length:", realAssignments.length);
+      console.log("- assignmentsLoading:", assignmentsLoading);
+      console.log("- assignments data:", realAssignments);
+    }
+  }, [selectedTab, realAssignments, assignmentsLoading]);
 
   const handleLogout = () => {
     localStorage.removeItem("authToken");
@@ -3116,8 +3016,22 @@ const StudentDashboard = () => {
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
+                    {/* Debug info - temporary */}
+                    {process.env.NODE_ENV === 'development' && (
+                      <div className="mb-4 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
+                        Debug: realAssignments.length = {realAssignments.length}
+                        {realAssignments.length > 0 && (
+                          <div>Assignments: {realAssignments.map(a => a.title).join(', ')}</div>
+                        )}
+                      </div>
+                    )}
                     <div className="space-y-3 sm:space-y-4">
-                      {realAssignments.length > 0 ? (
+                      {assignmentsLoading ? (
+                        <div className="text-center py-8">
+                          <div className="w-6 h-6 mx-auto mb-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                          <p className="text-gray-600">Loading assignments...</p>
+                        </div>
+                      ) : realAssignments.length > 0 ? (
                         realAssignments
                           .map((assignment, index: number) => (
                             <div
@@ -3199,11 +3113,25 @@ const StudentDashboard = () => {
                         <div className="text-center py-6 sm:py-8 text-gray-500">
                           <BookOpen className="w-8 h-8 sm:w-12 sm:h-12 mx-auto mb-3 sm:mb-4 opacity-50" />
                           <p className="text-base sm:text-lg font-medium">
-                            No upcoming assignments
+                            No assignments available
                           </p>
-                          <p className="text-sm">
-                            No assignments from teachers yet
+                          <p className="text-sm mb-2">
+                            Assignments from your teachers will appear here
                           </p>
+                          <p className="text-xs text-gray-400">
+                            Check the Overview tab to see if assignments are loading
+                          </p>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="mt-4"
+                            onClick={() => {
+                              setSelectedTab("overview");
+                              setLastAction("Switched to Overview to check assignments");
+                            }}
+                          >
+                            Check Overview Tab
+                          </Button>
                         </div>
                       )}
                     </div>
