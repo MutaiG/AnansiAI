@@ -1109,13 +1109,32 @@ export class AdminApiService {
    */
   async createSubject(subjectData: CreateSubjectDto): Promise<Subject> {
     try {
+      console.log("🔄 Sending subject creation request:", subjectData);
       const response: AxiosResponse<Subject> = await axiosClient.post(
         "/api/subjects/add-subject",
         subjectData,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+          },
+        }
       );
+      console.log("✅ Subject creation response:", response.data);
       return response.data;
-    } catch (error) {
-      console.error("Error creating subject:", error);
+    } catch (error: any) {
+      console.error("❌ Error creating subject:", error);
+      console.error("📊 Error details:", {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        config: {
+          url: error.config?.url,
+          method: error.config?.method,
+          data: error.config?.data
+        }
+      });
       throw error;
     }
   }

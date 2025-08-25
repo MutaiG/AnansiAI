@@ -110,9 +110,12 @@ const SubjectManagement: React.FC<SubjectManagementProps> = ({
 
   // Load data on mount
   useEffect(() => {
-    loadSubjects();
-    loadCurriculums();
-    loadRelations();
+    const initializeData = async () => {
+      await loadSubjects();
+      await loadCurriculums();
+      await loadRelations(); // Now this will run after curriculums are loaded
+    };
+    initializeData();
   }, []);
 
   const loadSubjects = async () => {

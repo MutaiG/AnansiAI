@@ -815,26 +815,40 @@ const StudentDashboard = () => {
             studentSubjectsResponse.forEach((studentSubject, index) => {
               console.log(`🔍 StudentSubject ${index}:`, studentSubject);
               console.log(`📝 Object keys:`, Object.keys(studentSubject));
-              console.log(`📝 Has assignments property:`, 'assignments' in studentSubject);
-              console.log(`📝 Assignments value:`, studentSubject.assignments);
+              const subjectName = studentSubject.subjectName || studentSubject.name || 'Unknown Subject';
 
-              // Check if assignments might be nested in lessons
+              // Extract assignments from lessons (where they're actually located)
               if (studentSubject.lessons && Array.isArray(studentSubject.lessons)) {
                 studentSubject.lessons.forEach((lesson, lessonIndex) => {
                   console.log(`  📚 Lesson ${lessonIndex} keys:`, Object.keys(lesson));
-                  if (lesson.assignments) {
-                    console.log(`  📝 Lesson ${lessonIndex} has assignments:`, lesson.assignments);
+
+                  if (lesson.assignments && Array.isArray(lesson.assignments)) {
+                    console.log(`  ✅ Processing ${lesson.assignments.length} assignments from lesson: ${lesson.title}`);
+
+                    lesson.assignments
+                      .filter(assignment => assignment.isActive !== false)
+                      .forEach(assignment => {
+                        allAssignments.push({
+                          id: assignment.assignmentId?.toString() || assignment.id?.toString() || 'unknown',
+                          title: assignment.title || 'Untitled Assignment',
+                          dueDate: assignment.deadline || new Date().toISOString(),
+                          priority: 'medium' as const,
+                          status: 'pending' as const,
+                          courseTitle: lesson.title || `Lesson ${assignment.lessonId}`,
+                          subject: subjectName,
+                          description: assignment.content || 'Assignment content'
+                        });
+                      });
                   }
                 });
               }
 
+              // Also check for assignments at subject level (fallback)
               if (studentSubject.assignments && Array.isArray(studentSubject.assignments)) {
-                console.log(`✅ Processing ${studentSubject.assignments.length} assignments from subject:`, studentSubject.subjectName || studentSubject.name);
+                console.log(`✅ Processing ${studentSubject.assignments.length} assignments from subject:`, subjectName);
                 studentSubject.assignments
                   .filter(assignment => assignment.isActive !== false)
                   .forEach(assignment => {
-                    const subjectName = studentSubject.subjectName || studentSubject.name || 'Unknown Subject';
-
                     // Find the corresponding lesson if available
                     let lesson = null;
                     if (studentSubject.lessons && Array.isArray(studentSubject.lessons)) {
@@ -851,17 +865,15 @@ const StudentDashboard = () => {
                       status: 'pending' as const,
                       courseTitle: lesson?.title || `Lesson ${assignment.lessonId}`,
                       subject: subjectName,
-                      description: assignment.content || 'AI-generated content'
+                      description: assignment.content || 'Assignment content'
                     });
                   });
               }
             });
 
-            const dashboardAssignments = allAssignments;
-
-            setRealAssignments(dashboardAssignments);
-            console.log("✅ Loaded assignments from student-subjects:", dashboardAssignments.length);
-            console.log("📋 Assignment details:", dashboardAssignments.map(a => ({
+            setRealAssignments(allAssignments);
+            console.log("✅ Assignments loaded from student-subjects only:", allAssignments.length);
+            console.log("📋 Assignment details:", allAssignments.map(a => ({
               id: a.id,
               title: a.title,
               status: a.status,
@@ -869,7 +881,7 @@ const StudentDashboard = () => {
               dueDate: a.dueDate,
               subject: a.subject
             })));
-            console.log("🔄 setRealAssignments called with:", dashboardAssignments.length, "assignments");
+            console.log("🔄 setRealAssignments called with:", allAssignments.length, "assignments from student-subjects endpoint only");
 
             // Also extract and set subjects from the same response
             const formattedSubjects = studentSubjectsResponse.map(studentSubject => ({

@@ -1,24 +1,41 @@
 // Simple Axios Client - Direct API Integration
 import axios from "axios";
 
-// Smart protocol selection to handle mixed content issues
+// Get API URL from environment variable or fallback
 const getOptimalApiUrl = () => {
   const isHttps = window.location.protocol === "https:";
   const isDevelopment =
     window.location.hostname === "localhost" ||
     window.location.hostname === "127.0.0.1";
 
-  // Use HTTPS when frontend is HTTPS, HTTP for local development
-  const protocol = isHttps && !isDevelopment ? "https" : "http";
-  const apiUrl = `${protocol}://13.61.176.255/anansiai`;
+  // Use environment variable if available, otherwise fallback
+  const envApiUrl = import.meta.env.VITE_API_URL;
+  const fallbackUrl = "http://13.61.176.255/anansiai";
+
+  const apiUrl = envApiUrl && envApiUrl !== "https://api-not-available.example.com/api"
+    ? envApiUrl
+    : fallbackUrl;
 
   console.log("🔧 API Configuration:", {
     currentProtocol: window.location.protocol,
     hostname: window.location.hostname,
     isDevelopment,
     isHttps,
+    envApiUrl,
     selectedApiUrl: apiUrl,
+    source: envApiUrl ? "environment variable" : "fallback"
   });
+
+  // Check for mixed content issues
+  const apiProtocol = apiUrl.startsWith("https:") ? "https:" : "http:";
+  if (isHttps && apiProtocol === "http:" && !isDevelopment) {
+    console.warn("⚠️ Mixed Content Warning: HTTPS frontend -> HTTP API");
+    console.warn("💡 This will be blocked by browser security policy");
+    console.warn("🔧 Solutions:");
+    console.warn("  1. Configure HTTPS on API server (recommended)");
+    console.warn("  2. Deploy frontend on HTTP for development");
+    console.warn("  3. Use a CORS proxy service");
+  }
 
   return apiUrl;
 };
